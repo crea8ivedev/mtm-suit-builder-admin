@@ -159,7 +159,7 @@ function buildProfilesFromOrders(orders) {
 
       const productName = item.title
       if (!result[productName]) result[productName] = []
-      if (result[productName].length >= 3) continue
+      if (result[productName].length >= 5) continue
 
       const profileName = allAttrs.find((a) => a.key === '_profile_name')?.value
       const idx = result[productName].length + 1

@@ -1,5 +1,5 @@
-import { useParams, Link } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useParams, Link, useLocation } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
 import {
   ArrowLeft,
   ExternalLink,
@@ -13,6 +13,8 @@ import {
   Truck,
   User,
   MapPin,
+  ChevronDown,
+  Check,
 } from 'lucide-react'
 import DashboardLayout from '../components/layout/DashboardLayout'
 import Badge from '../components/ui/Badge'
@@ -149,6 +151,8 @@ function AddressCard({ title, address }) {
 function SupplierCard({ orderId, supplierMeta, onSettled }) {
   const [suppliers, setSuppliers] = useState([])
   const [selectedId, setSelectedId] = useState(supplierMeta.supplierName ?? '')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef(null)
   const { submit, retry, submitting, submitError } = useSupplierSubmit(orderId, onSettled)
 
   useEffect(() => {
@@ -163,6 +167,21 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
     if (supplierMeta.supplierName) setSelectedId(supplierMeta.supplierName)
   }, [supplierMeta.supplierName])
 
+  // Close on outside click
+  useEffect(() => {
+    if (!dropdownOpen) return
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [dropdownOpen])
+
+  const selectedSupplier = suppliers.find((s) => s.id === selectedId)
+  const selectedLabel = selectedSupplier ? selectedSupplier.name : '— Choose supplier —'
+
   const { supplierStatus, supplierError, supplierSubmittedAt } = supplierMeta
   const isFailed = supplierStatus === 'failed'
   const isProcessing = supplierStatus === 'processing' || submitting
@@ -171,7 +190,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
   const statusLabel = isProcessing ? 'processing' : (supplierStatus ?? 'pending')
 
   return (
-    <div className="card overflow-hidden">
+    <div className="card">
       <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
         <Truck size={14} className="text-text-muted" />
         <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">Supplier</h3>
@@ -183,24 +202,54 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
       </div>
 
       <div className="p-[20px] flex flex-wrap items-end gap-[16px]">
-        {/* Supplier select */}
-        <div className="flex-1 min-w-[200px]">
+        {/* Supplier select — custom dropdown always opens downward */}
+        <div className="flex-1 min-w-[200px] relative" ref={dropdownRef}>
           <label className="block text-11 font-semibold text-text-muted uppercase tracking-wider mb-[6px]">
             Select Supplier
           </label>
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
+          <button
+            type="button"
+            onClick={() => !isProcessing && setDropdownOpen((o) => !o)}
             disabled={isProcessing}
-            className="input w-full py-[9px] cursor-pointer disabled:opacity-60"
+            className="input w-full py-[9px] flex items-center justify-between gap-[8px] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed text-left"
           >
-            <option value="">— Choose supplier —</option>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+            <span className={selectedId ? 'text-text-primary' : 'text-text-muted'}>
+              {selectedLabel}
+            </span>
+            <ChevronDown
+              size={15}
+              className={`flex-shrink-0 text-text-muted transition-transform duration-150 ${dropdownOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {dropdownOpen && (
+            <div className="absolute left-0 right-0 top-full mt-[4px] bg-white border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+              <ul className="max-h-[220px] overflow-y-auto py-[4px]">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedId(''); setDropdownOpen(false) }}
+                    className="w-full text-left px-[14px] py-[9px] text-14 text-text-muted hover:bg-gray-50 flex items-center justify-between"
+                  >
+                    — Choose supplier —
+                    {!selectedId && <Check size={13} className="text-brand-600" />}
+                  </button>
+                </li>
+                {suppliers.map((s) => (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedId(s.id); setDropdownOpen(false) }}
+                      className="w-full text-left px-[14px] py-[9px] text-14 text-text-primary hover:bg-gray-50 flex items-center justify-between"
+                    >
+                      {s.name}
+                      {selectedId === s.id && <Check size={13} className="text-brand-600" />}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Action button */}
@@ -248,6 +297,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
 // ─── Page ──────────────────────────────────────────────────────────────────
 export default function OrderDetail() {
   const { orderId } = useParams()
+  const { state: navState } = useLocation()
   const shopifyGid = `gid://shopify/Order/${orderId}`
   const { order, loading, error, refetch } = useOrderDetail(shopifyGid)
 
@@ -258,13 +308,23 @@ export default function OrderDetail() {
     <DashboardLayout>
       {/* Back nav */}
       <div className="mb-[20px]">
-        <Link
-          to="/orders"
-          className="inline-flex items-center gap-[6px] text-13 text-text-muted hover:text-text-primary transition-colors"
-        >
-          <ArrowLeft size={14} />
-          Back to Orders
-        </Link>
+        {navState?.fromCustomer ? (
+          <Link
+            to={`/customers/${navState.fromCustomer}`}
+            className="inline-flex items-center gap-[6px] text-13 text-text-muted hover:text-text-primary transition-colors"
+          >
+            <ArrowLeft size={14} />
+            Back to Customer
+          </Link>
+        ) : (
+          <Link
+            to="/orders"
+            className="inline-flex items-center gap-[6px] text-13 text-text-muted hover:text-text-primary transition-colors"
+          >
+            <ArrowLeft size={14} />
+            Back to Orders
+          </Link>
+        )}
       </div>
 
       {loading && (

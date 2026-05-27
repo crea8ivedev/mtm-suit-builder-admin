@@ -23,6 +23,7 @@ const GET_ORDERS_QUERY = `
           displayFinancialStatus
           displayFulfillmentStatus
           customer {
+            id
             firstName
             lastName
             email
@@ -43,6 +44,11 @@ const GET_ORDERS_QUERY = `
                 customAttributes {
                   key
                   value
+                }
+                product {
+                  metafield(namespace: "custom", key: "gc_builder") {
+                    value
+                  }
                 }
               }
             }
@@ -210,6 +216,13 @@ export async function fetchOrderById(shopifyGid) {
 // ─── Fetch ALL orders with cursor pagination ───────────────────────────────
 // Loops through pages until pageInfo.hasNextPage is false.
 // onProgress(count) is called after each page to allow live progress display.
+// Returns true if at least one line item belongs to a gc_builder product
+function hasGcBuilderItem(order) {
+  return (order.lineItems?.edges ?? []).some(
+    ({ node }) => node.product?.metafield?.value?.trim()
+  )
+}
+
 async function _doFetch(onProgress) {
   const all = []
   let hasNextPage = true
@@ -222,7 +235,9 @@ async function _doFetch(onProgress) {
     })
 
     const { edges, pageInfo } = data.orders
-    all.push(...edges.map((e) => e.node))
+    // Only keep orders that have at least one gc_builder product line item
+    const filtered = edges.map((e) => e.node).filter(hasGcBuilderItem)
+    all.push(...filtered)
     if (onProgress) onProgress(all.length)
 
     hasNextPage = pageInfo.hasNextPage
@@ -334,13 +349,29 @@ export function clearCustomerDetailCache(shopifyGid) {
 }
 
 async function _doFetchCustomers(onProgress) {
+  // First fetch all gc_builder orders (may use cache) to know which customers qualify
+  const gcOrders = await fetchAllOrders()
+
+  // Build a per-customer gc_builder order count
+  const gcOrderCountMap = new Map()
+  for (const order of gcOrders) {
+    const cid = order.customer?.id
+    if (cid) gcOrderCountMap.set(cid, (gcOrderCountMap.get(cid) ?? 0) + 1)
+  }
+
   const all = []
   let hasNextPage = true
   let cursor = null
   while (hasNextPage) {
     const data = await shopifyGraphQL(GET_CUSTOMERS_QUERY, { first: 50, after: cursor })
     const { edges, pageInfo } = data.customers
-    all.push(...edges.map((e) => e.node))
+    // Only keep customers who appear in at least one gc_builder order
+    // Attach gcOrderCount so the UI shows the correct filtered count
+    const filtered = edges
+      .map((e) => e.node)
+      .filter((c) => gcOrderCountMap.has(c.id))
+      .map((c) => ({ ...c, gcOrderCount: gcOrderCountMap.get(c.id) }))
+    all.push(...filtered)
     if (onProgress) onProgress(all.length)
     hasNextPage = pageInfo.hasNextPage
     cursor = pageInfo.endCursor
@@ -386,7 +417,9 @@ export async function fetchCustomerWithOrders(shopifyGid) {
       customerInfo = info
     }
     const { edges, pageInfo } = data.customer.orders
-    allOrders.push(...edges.map((e) => e.node))
+    // Only keep orders that have at least one gc_builder product line item
+    const gcOrders = edges.map((e) => e.node).filter(hasGcBuilderItem)
+    allOrders.push(...gcOrders)
     hasNextPage = pageInfo.hasNextPage
     cursor = pageInfo.endCursor
   }
@@ -421,7 +454,7 @@ export function transformCustomer(node) {
     phone: node.phone || '',
     createdAt: node.createdAt,
     registrationDate: formatDate(node.createdAt),
-    numberOfOrders: node.numberOfOrders || 0,
+    numberOfOrders: node.gcOrderCount ?? node.numberOfOrders ?? 0,
     totalSpent: formatMoney(node.amountSpent),
     address: node.defaultAddress || null,
   }
@@ -430,8 +463,9 @@ export function transformCustomer(node) {
 // ─── Status mapping ────────────────────────────────────────────────────────
 const PAYMENT_STATUS_MAP = {
   PAID: 'paid',
-  PENDING: 'pending',
-  AUTHORIZED: 'pending',
+  UNPAID: 'unpaid',
+  PENDING: 'unpaid',
+  AUTHORIZED: 'unpaid',
   PARTIALLY_PAID: 'partial',
   PARTIALLY_REFUNDED: 'partial',
   REFUNDED: 'failed',

@@ -1,5 +1,5 @@
-import { Menu, Bell, Search, ChevronDown } from 'lucide-react'
-import { useLocation } from 'react-router-dom'
+import { Menu, Search } from 'lucide-react'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { useAdminUser } from '../../hooks/useAdminUser'
 
 const PAGE_TITLES = {
@@ -14,6 +14,18 @@ export default function TopBar({ onMenuClick }) {
   const location = useLocation()
   const pageTitle = PAGE_TITLES[location.pathname] || 'Dashboard'
   const { name: adminName, initial: adminInitial } = useAdminUser()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const searchValue = searchParams.get('search') || ''
+
+  const handleSearch = (e) => {
+    const val = e.target.value
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (val) next.set('search', val)
+      else next.delete('search')
+      return next
+    }, { replace: true })
+  }
 
   return (
     <header className="fixed top-0 right-0 left-0 lg:left-[260px] h-[64px] bg-topbar-bg border-b border-border z-30 flex items-center px-[16px] md:px-[24px] gap-[12px]">
@@ -40,6 +52,8 @@ export default function TopBar({ onMenuClick }) {
         />
         <input
           type="text"
+          value={searchValue}
+          onChange={handleSearch}
           placeholder="Search orders, customers..."
           className="pl-[38px] pr-[16px] py-[8px] w-[260px] xl:w-[300px] rounded-lg bg-gray-100 border border-transparent text-14 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-border focus:bg-white transition-all duration-200"
         />

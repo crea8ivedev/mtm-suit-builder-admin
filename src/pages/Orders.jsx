@@ -1,14 +1,10 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Search,
   Download,
-  Eye,
-  ExternalLink,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  PlusCircle,
 } from 'lucide-react'
 import DashboardLayout from '../components/layout/DashboardLayout'
 import Badge from '../components/ui/Badge'
@@ -19,7 +15,7 @@ import { cn } from '../utils/cn'
 import { generateCSV } from '../utils/exportUtils'
 
 const STATUS_FILTERS = ['All', 'Pending', 'Submitted', 'Failed']
-const PAYMENT_FILTERS = ['All', 'Paid', 'Unpaid', 'Partial']
+const PAYMENT_FILTERS = ['All', 'Paid', 'Unpaid']
 
 const ITEMS_PER_PAGE = 25
 
@@ -97,10 +93,6 @@ export default function Orders() {
             <Download size={15} />
             Export CSV
           </button>
-          <Link to="/orders/new" className="btn-primary gap-[8px]">
-            <PlusCircle size={15} />
-            New Order
-          </Link>
         </div>
       </div>
 
@@ -192,7 +184,6 @@ export default function Orders() {
                     <th>Items</th>
                     <th>Fulfillment Status</th>
                     <th>Supplier Status</th>
-                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -247,27 +238,6 @@ export default function Orders() {
                           <Badge status={order.supplierStatus} />
                         </td>
 
-                        {/* Actions */}
-                        <td>
-                          <div className="flex items-center gap-[2px]">
-                            <Link
-                              to={`/orders/${order.numericId}`}
-                              className="btn-icon hover:text-brand-600"
-                              title="View order detail"
-                            >
-                              <Eye size={14} />
-                            </Link>
-                            <a
-                              href={`https://admin.shopify.com/orders/${order.numericId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn-icon hover:text-brand-600"
-                              title="Open in Shopify"
-                            >
-                              <ExternalLink size={14} />
-                            </a>
-                          </div>
-                        </td>
                       </tr>
                     ))
                   )}

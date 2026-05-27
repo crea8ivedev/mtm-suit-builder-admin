@@ -10,6 +10,9 @@ import {
   ChevronRight,
   Ruler,
   ChevronDown,
+  Pencil,
+  Save,
+  X,
 } from 'lucide-react'
 import DashboardLayout from '../components/layout/DashboardLayout'
 import Badge from '../components/ui/Badge'
@@ -18,6 +21,13 @@ import ErrorState from '../components/ui/ErrorState'
 import { useCustomerDetail } from '../hooks/useCustomerDetail'
 import { formatCurrency, formatDate } from '../lib/shopify'
 import { cn } from '../utils/cn'
+import {
+  VEST_MEASUREMENT_RANGES,
+  SHIRT_MEASUREMENT_RANGES,
+  JACKET_MEASUREMENT_RANGES,
+  TROUSER_MEASUREMENT_RANGES,
+  SUIT_MEASUREMENT_RANGES,
+} from '../constants/data'
 
 const ORDERS_PER_PAGE = 15
 
@@ -70,7 +80,7 @@ function buildMeasurementProfiles(orders) {
 
       const productName = item.title
       if (!result[productName]) result[productName] = []
-      if (result[productName].length >= 3) continue
+      if (result[productName].length >= 5) continue
 
       const profileName = allAttrs.find((a) => a.key === '_profile_name')?.value
       const idx = result[productName].length + 1
@@ -93,6 +103,17 @@ function buildMeasurementProfiles(orders) {
   return result
 }
 
+// Case-insensitive, trimmed range lookup so Shopify key casing never breaks hints
+function getRangeForKey(rangeMap, key) {
+  if (!rangeMap) return null
+  if (rangeMap[key]) return rangeMap[key]
+  const normalised = key.toLowerCase().trim()
+  for (const [k, v] of Object.entries(rangeMap)) {
+    if (k.toLowerCase().trim() === normalised) return v
+  }
+  return null
+}
+
 export default function CustomerDetail() {
   const { customerId } = useParams()
   const shopifyGid = `gid://shopify/Customer/${customerId}`
@@ -101,12 +122,72 @@ export default function CustomerDetail() {
   const [currentPage, setCurrentPage] = useState(1)
   const profiles = useMemo(() => buildMeasurementProfiles(orders), [orders])
 
+  const [committedProfiles, setCommittedProfiles] = useState(null)
+  // Per-profile edit state
+  const [editingProfileId, setEditingProfileId] = useState(null)
+  const [editingValues, setEditingValues] = useState({})
+  const [touchedFields, setTouchedFields] = useState(new Set())
+  const [savingProfileId, setSavingProfileId] = useState(null)
+  const [profileErrors, setProfileErrors] = useState({})
+
+  // Source of truth for display: user-saved edits take priority over order-derived data
+  const activeProfiles = committedProfiles ?? profiles
+
+  const handleProfileEditStart = (entry) => {
+    setEditingProfileId(entry.id)
+    setEditingValues({ ...entry.measurements })
+    setTouchedFields(new Set())
+    setProfileErrors((prev) => ({ ...prev, [entry.id]: null }))
+  }
+
+  const handleProfileCancel = () => {
+    setEditingProfileId(null)
+    setEditingValues({})
+    setTouchedFields(new Set())
+  }
+
+  const handleProfileMeasurementChange = (key, val) => {
+    setEditingValues((prev) => ({ ...prev, [key]: val }))
+    setTouchedFields((prev) => new Set([...prev, key]))
+  }
+
+  const handleProfileSave = async (entry) => {
+    setSavingProfileId(entry.id)
+    setProfileErrors((prev) => ({ ...prev, [entry.id]: null }))
+
+    // Build updated full profiles with only this profile's measurements changed
+    const updatedProfiles = JSON.parse(JSON.stringify(activeProfiles))
+    updatedProfiles[entry.productName] = updatedProfiles[entry.productName].map((p) =>
+      p.id === entry.id ? { ...p, measurements: { ...editingValues } } : p
+    )
+
+    try {
+      const res = await fetch(`/api/customers/${customerId}/sync-products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: updatedProfiles }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error || `Server error ${res.status}`)
+      }
+      setCommittedProfiles(updatedProfiles)
+      setEditingProfileId(null)
+      setEditingValues({})
+      setTouchedFields(new Set())
+    } catch (err) {
+      setProfileErrors((prev) => ({ ...prev, [entry.id]: err.message }))
+    } finally {
+      setSavingProfileId(null)
+    }
+  }
+
   const allMeasurements = useMemo(
     () =>
-      Object.entries(profiles).flatMap(([productName, list]) =>
+      Object.entries(activeProfiles).flatMap(([productName, list]) =>
         list.map((p) => ({ productName, ...p }))
       ),
-    [profiles]
+    [activeProfiles]
   )
 
   // Auto-sync to Shopify whenever orders load and profiles exist
@@ -200,7 +281,7 @@ export default function CustomerDetail() {
                 <p className="text-11 text-text-muted font-semibold uppercase tracking-wider mb-[2px]">
                   Total Orders
                 </p>
-                <p className="text-20 font-bold text-text-primary">{customer.numberOfOrders}</p>
+                <p className="text-20 font-bold text-text-primary">{orders.length}</p>
               </div>
               <div>
                 <p className="text-11 text-text-muted font-semibold uppercase tracking-wider mb-[2px]">
@@ -250,6 +331,7 @@ export default function CustomerDetail() {
                             <td>
                               <Link
                                 to={`/orders/${numericId}`}
+                                state={{ fromCustomer: customerId }}
                                 className="font-bold text-brand-600 hover:text-brand-700 hover:underline transition-colors"
                               >
                                 {order.name}
@@ -367,35 +449,141 @@ export default function CustomerDetail() {
               <div className="flex items-center gap-[8px] px-[20px] py-[14px] border-b border-border bg-gray-50">
                 <Ruler size={14} className="text-text-muted" />
                 <h3 className="text-14 font-semibold text-text-primary">Measurements</h3>
-                <span className="ml-auto text-12 text-text-muted">
+                <span className="text-12 text-text-muted">
                   {allMeasurements.length} profile{allMeasurements.length !== 1 ? 's' : ''}
                 </span>
               </div>
               <div className="divide-y divide-border">
-                {allMeasurements.map((entry) => (
-                  <div key={entry.id} className="p-[16px] md:p-[20px]">
-                    <div className="flex flex-wrap items-center gap-[8px] mb-[12px]">
-                      <span className="text-12 font-semibold text-brand-600 bg-brand-50 px-[10px] py-[3px] rounded-full">
-                        {entry.productName}
-                      </span>
-                      <span className="text-14 font-semibold text-text-primary">{entry.name}</span>
-                      <span className="text-12 text-text-muted ml-auto">{entry.created}</span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[8px]">
-                      {Object.entries(entry.measurements).map(([key, val]) => (
-                        <div
-                          key={key}
-                          className="bg-gray-50 rounded-lg px-[10px] py-[8px] border border-border-light"
-                        >
-                          <p className="text-11 text-text-muted font-medium mb-[2px] truncate">
-                            {key}
-                          </p>
-                          <p className="text-14 font-bold text-text-primary">{val}</p>
+                {allMeasurements.map((entry) => {
+                  const isEditing = editingProfileId === entry.id
+                  const isSaving = savingProfileId === entry.id
+                  const profileError = profileErrors[entry.id]
+                  const productLower = entry.productName.toLowerCase()
+                  // Check suit/tuxedo first — they combine all three garments
+                  const isSuit    = productLower.includes('tuxedo') || productLower.includes('suit')
+                  const isJacket  = productLower.includes('jacket') || productLower.includes('overcoat')
+                  const isTrouser = productLower.includes('trouser')
+                  const isVest    = productLower.includes('vest')
+                  const isShirt   = productLower.includes('shirt')
+                  const RANGES = isSuit
+                    ? SUIT_MEASUREMENT_RANGES
+                    : isJacket
+                      ? JACKET_MEASUREMENT_RANGES
+                      : isTrouser
+                        ? TROUSER_MEASUREMENT_RANGES
+                        : isVest
+                          ? VEST_MEASUREMENT_RANGES
+                          : isShirt
+                            ? SHIRT_MEASUREMENT_RANGES
+                            : null
+                  // Find size type value (case-insensitive key match)
+                  const sizeTypeKey = Object.keys(entry.measurements).find(
+                    (k) => k.toLowerCase() === 'size type'
+                  )
+                  const isStandard =
+                    sizeTypeKey &&
+                    entry.measurements[sizeTypeKey]?.toLowerCase() === 'standard'
+
+                  return (
+                    <div key={entry.id} className="p-[16px] md:p-[20px]">
+                      {/* Profile header row */}
+                      <div className="flex flex-wrap items-center gap-[8px] mb-[12px]">
+                        <span className="text-12 font-semibold text-brand-600 bg-brand-50 px-[10px] py-[3px] rounded-full">
+                          {entry.productName}
+                        </span>
+                        <span className="text-14 font-semibold text-text-primary">{entry.name}</span>
+                        <span className="text-12 text-text-muted">{entry.created}</span>
+                        <div className="ml-auto flex items-center gap-[6px]">
+                          {profileError && (
+                            <span className="text-12 text-red-500">{profileError}</span>
+                          )}
+                          {isEditing ? (
+                            <>
+                              <button
+                                onClick={() => handleProfileSave(entry)}
+                                disabled={isSaving}
+                                className="btn-primary gap-[5px] text-13 py-[5px] px-[10px] disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Save size={12} />
+                                {isSaving ? 'Saving…' : 'Save'}
+                              </button>
+                              <button
+                                onClick={handleProfileCancel}
+                                disabled={isSaving}
+                                className="btn-secondary gap-[5px] text-13 py-[5px] px-[10px] disabled:opacity-50"
+                              >
+                                <X size={12} />
+                                Cancel
+                              </button>
+                            </>
+                          ) : !isStandard && (
+                            <button
+                              onClick={() => handleProfileEditStart(entry)}
+                              disabled={!!editingProfileId}
+                              className="btn-secondary gap-[5px] text-13 py-[5px] px-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <Pencil size={12} />
+                              Edit
+                            </button>
+                          )}
                         </div>
-                      ))}
+                      </div>
+
+                      {/* Measurements grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[8px]">
+                        {Object.entries(isEditing ? editingValues : entry.measurements).map(([key, val]) => {
+                          const isSizeType = key.toLowerCase() === 'size type'
+                          const range = getRangeForKey(RANGES, key)
+                          const isTouched = touchedFields.has(key)
+                          const numVal = parseFloat(val)
+                          const hasRange = !!range
+                          // Only validate if user has actually typed in this field
+                          const isValid = isTouched && hasRange && !isNaN(numVal) && numVal >= range.min && numVal <= range.max
+                          const isInvalid = isTouched && hasRange && !isNaN(numVal) && (numVal < range.min || numVal > range.max)
+
+                          return (
+                            <div
+                              key={key}
+                              className="bg-gray-50 rounded-lg px-[10px] py-[8px] border border-border-light"
+                            >
+                              <p className="text-11 text-text-muted font-medium mb-[2px] truncate">
+                                {key}
+                              </p>
+                              {isEditing && !isSizeType ? (
+                                <>
+                                  <input
+                                    type="text"
+                                    value={val}
+                                    onChange={(e) => handleProfileMeasurementChange(key, e.target.value)}
+                                    className={cn(
+                                      'w-full text-14 font-bold text-text-primary bg-white rounded px-[6px] py-[2px] focus:outline-none border',
+                                      isValid
+                                        ? 'border-green-500 focus:ring-1 focus:ring-green-400'
+                                        : isInvalid
+                                          ? 'border-red-400 focus:ring-1 focus:ring-red-400'
+                                          : 'border-gray-300 focus:ring-1 focus:ring-brand-500'
+                                    )}
+                                  />
+                                  {range && (
+                                    <p className={cn(
+                                      'mt-[2px] leading-tight',
+                                      'text-[10px]',
+                                      isValid ? 'text-green-600' : isInvalid ? 'text-red-500' : 'text-text-muted'
+                                    )}>
+                                      {range.label}
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <p className="text-14 font-bold text-text-primary">{val}</p>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}

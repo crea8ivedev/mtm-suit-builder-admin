@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
-import { ArrowRight, Eye } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowRight } from 'lucide-react'
 import DashboardLayout from '../components/layout/DashboardLayout'
 import StatCard from '../components/ui/StatCard'
 import Badge from '../components/ui/Badge'
@@ -10,13 +10,24 @@ import { STAT_CARDS } from '../constants/data'
 
 export default function Dashboard() {
   const { orders, stats, loading, error, progress, retry } = useOrders()
+  const [searchParams] = useSearchParams()
+  const searchQuery = searchParams.get('search')?.toLowerCase().trim() || ''
 
   const dynamicCards = STAT_CARDS.map((card) => ({
     ...card,
     value: loading ? '—' : String(stats[card.id] ?? stats.total),
   }))
 
-  const recentOrders = orders.slice(0, 8)
+  const recentOrders = (
+    searchQuery
+      ? orders.filter(
+          (o) =>
+            o.id.toLowerCase().includes(searchQuery) ||
+            o.customer.name.toLowerCase().includes(searchQuery) ||
+            o.customer.email.toLowerCase().includes(searchQuery)
+        )
+      : orders.slice(0, 8)
+  )
 
   return (
     <DashboardLayout>
@@ -49,7 +60,7 @@ export default function Dashboard() {
           <div>
             <h3 className="text-16 font-semibold text-text-primary">Recent Orders</h3>
             <p className="text-13 text-text-muted mt-[2px]">
-              {loading ? 'Loading…' : `Latest ${recentOrders.length} orders`}
+              {loading ? 'Loading…' : searchQuery ? `${recentOrders.length} result${recentOrders.length !== 1 ? 's' : ''} for "${searchQuery}"` : `Latest ${recentOrders.length} orders`}
             </p>
           </div>
           <Link
@@ -76,7 +87,6 @@ export default function Dashboard() {
                   <th>Total</th>
                   <th>Payment</th>
                   <th>Status</th>
-                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -109,11 +119,6 @@ export default function Dashboard() {
                       </td>
                       <td>
                         <Badge status={order.status} />
-                      </td>
-                      <td>
-                        <button className="btn-icon">
-                          <Eye size={15} />
-                        </button>
                       </td>
                     </tr>
                   ))
