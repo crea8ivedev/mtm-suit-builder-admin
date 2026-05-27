@@ -1,0 +1,33 @@
+/* Scrollable with hidden scrollbar */
+.scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scroll-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* Page content wrapper */
+.page-content {
+  @apply p-[20px] md:p-[28px] max-w-[1600px];
+}
+
+/* Section spacing */
+.page-section {
+  @apply mb-[28px];
+}
+
+/* Section header row */
+.section-header {
+  @apply flex items-center justify-between mb-[20px] flex-wrap gap-[12px];
+}
+
+.section-title {
+  @apply text-18 font-semibold text-text-primary;
+}
+
+/* Monospace tag */
+.tag-mono {
+  @apply px-[7px] py-[3px] bg-gray-100 text-text-secondary text-12 rounded font-mono;
+}

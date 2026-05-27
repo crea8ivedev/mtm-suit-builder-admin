@@ -1,0 +1,60 @@
+/* Card */
+.card {
+  @apply bg-card-bg rounded-xl border border-border shadow-card;
+}
+
+/* Form inputs */
+.input {
+  @apply w-full px-[14px] py-[10px] rounded-lg border border-border bg-white text-14 text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition-all duration-200;
+}
+
+.input-label {
+  @apply block text-13 font-medium text-text-secondary mb-[6px];
+}
+
+/* Buttons */
+.btn-primary {
+  @apply inline-flex items-center justify-center px-[16px] py-[10px] bg-brand-600 hover:bg-brand-700 text-white text-14 font-medium rounded-lg transition-colors duration-200 cursor-pointer border-0 outline-none;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center px-[16px] py-[10px] bg-white hover:bg-gray-50 text-text-secondary text-14 font-medium rounded-lg border border-border transition-colors duration-200 cursor-pointer outline-none;
+}
+
+.btn-icon {
+  @apply p-[7px] rounded-lg hover:bg-gray-100 text-text-muted hover:text-text-secondary transition-colors duration-150 cursor-pointer border-0 outline-none bg-transparent;
+}
+
+/* Data table */
+.table-wrapper {
+  @apply w-full overflow-x-auto;
+}
+
+.table {
+  @apply w-full border-collapse;
+}
+
+.table th {
+  @apply px-[16px] py-[12px] text-left text-11 font-semibold text-text-muted uppercase tracking-wider bg-gray-50 border-b border-border whitespace-nowrap;
+}
+
+.table td {
+  @apply px-[16px] py-[13px] text-14 text-text-primary border-b border-border-light whitespace-nowrap;
+}
+
+.table tbody tr:last-child td {
+  @apply border-b-0;
+}
+
+.table tbody tr:hover td {
+  @apply bg-gray-50 transition-colors duration-100;
+}
+
+/* Sidebar nav item */
+.nav-item {
+  @apply flex items-center gap-[12px] px-[12px] py-[9px] rounded-lg text-14 text-sidebar-text cursor-pointer transition-all duration-150 hover:bg-sidebar-hover hover:text-white w-full text-left border-0 outline-none bg-transparent;
+}
+
+.nav-item.active {
+  @apply bg-sidebar-active text-white;
+}

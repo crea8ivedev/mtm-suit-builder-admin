@@ -1,0 +1,37 @@
+body {
+  @apply p-0 m-0 font-body text-text-primary bg-page-bg;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+a {
+  @apply no-underline;
+}
+
+input,
+button,
+select,
+textarea {
+  @apply font-body;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}

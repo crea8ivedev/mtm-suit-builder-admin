@@ -1,0 +1,94 @@
+@import "tailwindcss";
+@import "./base.css";
+@import "./components.css";
+@import "./utilities.css";
+
+@theme {
+  --font-body: "Inter", sans-serif;
+
+  /* Brand */
+  --color-brand: #3b82f6;
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+
+  /* Sidebar */
+  --color-sidebar: #0f172a;
+  --color-sidebar-hover: #1e293b;
+  --color-sidebar-active: #1e3a5f;
+  --color-sidebar-text: #94a3b8;
+  --color-sidebar-border: #1e293b;
+
+  /* Page / Surface */
+  --color-page-bg: #f8fafc;
+  --color-card-bg: #ffffff;
+  --color-topbar-bg: #ffffff;
+
+  /* Text */
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  --color-text-white: #ffffff;
+
+  /* Borders */
+  --color-border: #e2e8f0;
+  --color-border-light: #f1f5f9;
+
+  /* Order Status */
+  --color-pending: #d97706;
+  --color-pending-bg: #fffbeb;
+  --color-submitted: #059669;
+  --color-submitted-bg: #ecfdf5;
+  --color-failed: #dc2626;
+  --color-failed-bg: #fef2f2;
+  --color-processing: #7c3aed;
+  --color-processing-bg: #f5f3ff;
+
+  /* Grays */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+
+  /* Spacing scale */
+  --spacing: 1px;
+
+  /* Typography */
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-15: 15px;
+  --text-16: 16px;
+  --text-18: 18px;
+  --text-20: 20px;
+  --text-22: 22px;
+  --text-24: 24px;
+  --text-28: 28px;
+  --text-32: 32px;
+  --text-36: 36px;
+  --text-40: 40px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-sidebar: 2px 0 8px rgba(0, 0, 0, 0.15);
+
+  /* Breakpoints */
+  --breakpoint-1440: 1440px;
+  --breakpoint-1280: 1280px;
+  --breakpoint-1024: 1024px;
+  --breakpoint-768: 768px;
+  --breakpoint-640: 640px;
+  --breakpoint-480: 480px;
+}
