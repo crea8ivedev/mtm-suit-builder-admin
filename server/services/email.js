@@ -1,10 +1,10 @@
-import nodemailer from 'nodemailer'
-import { config } from '../config.js'
+import nodemailer from "nodemailer";
+import { config } from "../config.js";
 
-let _transporter = null
+let _transporter = null;
 
 function getTransporter() {
-  if (_transporter) return _transporter
+  if (_transporter) return _transporter;
   _transporter = nodemailer.createTransport({
     host: config.email.host,
     port: config.email.port,
@@ -13,15 +13,17 @@ function getTransporter() {
       user: config.email.user,
       pass: config.email.pass,
     },
-  })
-  return _transporter
+  });
+  return _transporter;
 }
 
 export async function sendOtpEmail(toEmail, otp) {
   // Dev fallback: log OTP if email not configured
   if (!config.email.user || !config.email.pass) {
-    console.log(`[email] OTP for ${toEmail}: ${otp}  (email not configured — check console)`)
-    return
+    console.log(
+      `[email] OTP for ${toEmail}: ${otp}  (email not configured — check console)`,
+    );
+    return;
   }
 
   const html = `
@@ -43,12 +45,12 @@ export async function sendOtpEmail(toEmail, otp) {
         If you did not request this code, you can safely ignore this email.
       </p>
     </div>
-  `
+  `;
 
   await getTransporter().sendMail({
     from: config.email.from,
     to: toEmail,
     subject: `${otp} — SuitAdmin login code`,
     html,
-  })
+  });
 }

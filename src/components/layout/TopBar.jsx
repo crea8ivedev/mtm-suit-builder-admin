@@ -1,31 +1,34 @@
-import { Menu, Search } from 'lucide-react'
-import { useLocation, useSearchParams } from 'react-router-dom'
-import { useAdminUser } from '../../hooks/useAdminUser'
+import { Menu, Search } from "lucide-react";
+import { useLocation, useSearchParams } from "react-router-dom";
+import { useAdminUser } from "../../hooks/useAdminUser";
 
 const PAGE_TITLES = {
-  '/dashboard': 'Dashboard',
-  '/orders': 'Orders',
-  '/customers': 'Customers',
-  '/suppliers': 'Suppliers',
-  '/settings': 'Settings',
-}
+  "/dashboard": "Dashboard",
+  "/orders": "Orders",
+  "/customers": "Customers",
+  "/suppliers": "Suppliers",
+  "/settings": "Settings",
+};
 
 export default function TopBar({ onMenuClick }) {
-  const location = useLocation()
-  const pageTitle = PAGE_TITLES[location.pathname] || 'Dashboard'
-  const { name: adminName, initial: adminInitial } = useAdminUser()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const searchValue = searchParams.get('search') || ''
+  const location = useLocation();
+  const pageTitle = PAGE_TITLES[location.pathname] || "Dashboard";
+  const { name: adminName, initial: adminInitial } = useAdminUser();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchValue = searchParams.get("search") || "";
 
   const handleSearch = (e) => {
-    const val = e.target.value
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      if (val) next.set('search', val)
-      else next.delete('search')
-      return next
-    }, { replace: true })
-  }
+    const val = e.target.value;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (val) next.set("search", val);
+        else next.delete("search");
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
   return (
     <header className="fixed top-0 right-0 left-0 lg:left-[260px] h-[64px] bg-topbar-bg border-b border-border z-30 flex items-center px-[16px] md:px-[24px] gap-[12px]">
@@ -73,9 +76,11 @@ export default function TopBar({ onMenuClick }) {
           <div className="w-[32px] h-[32px] rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
             <span className="text-white text-13 font-bold">{adminInitial}</span>
           </div>
-          <span className="text-14 font-medium text-text-primary hidden sm:block">{adminName}</span>
+          <span className="text-14 font-medium text-text-primary hidden sm:block">
+            {adminName}
+          </span>
         </button>
       </div>
     </header>
-  )
+  );
 }

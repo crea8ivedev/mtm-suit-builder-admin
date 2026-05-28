@@ -1,4 +1,4 @@
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 export default function ErrorState({ message, onRetry }) {
   return (
@@ -7,8 +7,12 @@ export default function ErrorState({ message, onRetry }) {
         <AlertCircle size={22} className="text-red-500" />
       </div>
       <div className="text-center">
-        <p className="text-15 font-semibold text-text-primary">Failed to load orders</p>
-        <p className="text-13 text-text-muted mt-[4px] max-w-[360px] leading-relaxed">{message}</p>
+        <p className="text-15 font-semibold text-text-primary">
+          Failed to load orders
+        </p>
+        <p className="text-13 text-text-muted mt-[4px] max-w-[360px] leading-relaxed">
+          {message}
+        </p>
       </div>
       {onRetry && (
         <button onClick={onRetry} className="btn-secondary gap-[6px]">
@@ -17,5 +21,5 @@ export default function ErrorState({ message, onRetry }) {
         </button>
       )}
     </div>
-  )
+  );
 }

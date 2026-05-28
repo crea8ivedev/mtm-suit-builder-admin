@@ -1,25 +1,27 @@
-import { Router } from 'express'
+import { Router } from "express";
 import {
   getOrder,
   setOrderMetafields,
   createDraftOrder,
   completeDraftOrder,
   updateOrder,
-} from '../services/shopify.js'
-import { sendToKutetailor } from '../services/kutetailor.js'
-import { SUPPLIERS } from './suppliers.js'
+} from "../services/shopify.js";
+import { sendToKutetailor } from "../services/kutetailor.js";
+import { SUPPLIERS } from "./suppliers.js";
 
-const router = Router()
+const router = Router();
 
 const HANDLERS = {
   kutetailor: sendToKutetailor,
-}
+};
 
 // ─── Create new order ───────────────────────────────────────────────────────
-router.post('/create', async (req, res) => {
-  const { customerId, lineItems, note, tags } = req.body
-  if (!customerId) return res.status(400).json({ error: 'customerId is required' })
-  if (!lineItems?.length) return res.status(400).json({ error: 'lineItems are required' })
+router.post("/create", async (req, res) => {
+  const { customerId, lineItems, note, tags } = req.body;
+  if (!customerId)
+    return res.status(400).json({ error: "customerId is required" });
+  if (!lineItems?.length)
+    return res.status(400).json({ error: "lineItems are required" });
 
   try {
     const draft = await createDraftOrder({
@@ -27,97 +29,108 @@ router.post('/create', async (req, res) => {
       lineItems: lineItems.map((item) => ({
         title: item.title,
         quantity: item.quantity || 1,
-        originalUnitPrice: String(item.originalUnitPrice || '0.00'),
-        customAttributes: (item.customAttributes || []).map(({ key, value }) => ({
-          key,
-          value: String(value),
-        })),
+        originalUnitPrice: String(item.originalUnitPrice || "0.00"),
+        customAttributes: (item.customAttributes || []).map(
+          ({ key, value }) => ({
+            key,
+            value: String(value),
+          }),
+        ),
       })),
-      note: note || '',
-      tags: tags || ['admin-created'],
-    })
+      note: note || "",
+      tags: tags || ["admin-created"],
+    });
 
-    const order = await completeDraftOrder(draft.id, true)
-    const numericId = order.id.split('/').pop()
+    const order = await completeDraftOrder(draft.id, true);
+    const numericId = order.id.split("/").pop();
 
-    console.log(`[create-order] ${order.name} (${numericId})`)
+    console.log(`[create-order] ${order.name} (${numericId})`);
     return res.json({
       success: true,
       orderId: numericId,
       orderName: order.name,
       shopifyGid: order.id,
-    })
+    });
   } catch (err) {
-    console.error('[create-order] failed:', err.message)
-    return res.status(500).json({ error: err.message })
+    console.error("[create-order] failed:", err.message);
+    return res.status(500).json({ error: err.message });
   }
-})
+});
 
 // ─── Update order note / tags ───────────────────────────────────────────────
-router.patch('/:orderId', async (req, res) => {
-  const { orderId } = req.params
-  const { note, tags } = req.body
-  const shopifyGid = `gid://shopify/Order/${orderId}`
+router.patch("/:orderId", async (req, res) => {
+  const { orderId } = req.params;
+  const { note, tags } = req.body;
+  const shopifyGid = `gid://shopify/Order/${orderId}`;
 
   try {
-    const order = await updateOrder(shopifyGid, { note, tags })
-    return res.json({ success: true, order })
+    const order = await updateOrder(shopifyGid, { note, tags });
+    return res.json({ success: true, order });
   } catch (err) {
-    console.error(`[update-order] order=${orderId}:`, err.message)
-    return res.status(500).json({ error: err.message })
+    console.error(`[update-order] order=${orderId}:`, err.message);
+    return res.status(500).json({ error: err.message });
   }
-})
+});
 
 // ─── Send / Retry supplier ──────────────────────────────────────────────────
 async function handleSend(req, res) {
-  const { orderId } = req.params
-  const { supplierId } = req.body
+  const { orderId } = req.params;
+  const { supplierId } = req.body;
 
-  if (!supplierId) return res.status(400).json({ error: 'supplierId is required' })
+  if (!supplierId)
+    return res.status(400).json({ error: "supplierId is required" });
 
-  const supplier = SUPPLIERS.find((s) => s.id === supplierId && s.enabled)
-  if (!supplier) return res.status(400).json({ error: `Unknown supplier: ${supplierId}` })
+  const supplier = SUPPLIERS.find((s) => s.id === supplierId && s.enabled);
+  if (!supplier)
+    return res.status(400).json({ error: `Unknown supplier: ${supplierId}` });
 
-  const handler = HANDLERS[supplierId]
-  if (!handler) return res.status(400).json({ error: `No handler for: ${supplierId}` })
+  const handler = HANDLERS[supplierId];
+  if (!handler)
+    return res.status(400).json({ error: `No handler for: ${supplierId}` });
 
-  const shopifyGid = `gid://shopify/Order/${orderId}`
-  console.log(`[send] order=${orderId} supplier=${supplier.name}`)
+  const shopifyGid = `gid://shopify/Order/${orderId}`;
+  console.log(`[send] order=${orderId} supplier=${supplier.name}`);
 
   await setOrderMetafields(shopifyGid, [
-    { key: 'supplier_name', value: supplier.id },
-    { key: 'supplier_status', value: 'processing' },
-    { key: 'supplier_error', value: '' },
-  ]).catch((e) => console.warn('[send] metafield write (processing):', e.message))
+    { key: "supplier_name", value: supplier.id },
+    { key: "supplier_status", value: "processing" },
+    { key: "supplier_error", value: "" },
+  ]).catch((e) =>
+    console.warn("[send] metafield write (processing):", e.message),
+  );
 
   try {
-    const order = await getOrder(shopifyGid)
-    const result = await handler(order)
+    const order = await getOrder(shopifyGid);
+    const result = await handler(order);
 
-    console.log(`[send] success order=${orderId}`, result.response)
+    console.log(`[send] success order=${orderId}`, result.response);
 
     await setOrderMetafields(shopifyGid, [
-      { key: 'supplier_name', value: supplier.id },
-      { key: 'supplier_status', value: 'submitted' },
-      { key: 'supplier_submitted_at', value: new Date().toISOString() },
-      { key: 'supplier_error', value: '' },
-    ])
+      { key: "supplier_name", value: supplier.id },
+      { key: "supplier_status", value: "submitted" },
+      { key: "supplier_submitted_at", value: new Date().toISOString() },
+      { key: "supplier_error", value: "" },
+    ]);
 
-    return res.json({ success: true, supplier: supplier.id, data: result.response })
+    return res.json({
+      success: true,
+      supplier: supplier.id,
+      data: result.response,
+    });
   } catch (err) {
-    console.error(`[send] failed order=${orderId}:`, err.message)
+    console.error(`[send] failed order=${orderId}:`, err.message);
 
     await setOrderMetafields(shopifyGid, [
-      { key: 'supplier_name', value: supplier.id },
-      { key: 'supplier_status', value: 'failed' },
-      { key: 'supplier_error', value: err.message },
-    ]).catch(() => {})
+      { key: "supplier_name", value: supplier.id },
+      { key: "supplier_status", value: "failed" },
+      { key: "supplier_error", value: err.message },
+    ]).catch(() => {});
 
-    return res.status(502).json({ error: err.message, supplier: supplier.id })
+    return res.status(502).json({ error: err.message, supplier: supplier.id });
   }
 }
 
-router.post('/:orderId/send-to-supplier', handleSend)
-router.post('/:orderId/retry', handleSend)
+router.post("/:orderId/send-to-supplier", handleSend);
+router.post("/:orderId/retry", handleSend);
 
-export default router
+export default router;

@@ -35,6 +35,10 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:3002',
           changeOrigin: true,
         },
+        '/api/kutetailor': {
+          target: 'http://localhost:3002',
+          changeOrigin: true,
+        },
       },
     },
   }

@@ -2,7 +2,7 @@
 // All requests go to /api/shopify/* which Vite rewrites to
 // https://<store>/admin/api/2024-01/* and injects X-Shopify-Access-Token.
 
-const ENDPOINT = '/api/shopify/graphql.json'
+const ENDPOINT = "/api/shopify/graphql.json";
 
 // ─── GraphQL query ─────────────────────────────────────────────────────────
 // Fetches one page of orders with cursor-based pagination.
@@ -68,27 +68,27 @@ const GET_ORDERS_QUERY = `
       }
     }
   }
-`
+`;
 
 // ─── Low-level GraphQL executor ────────────────────────────────────────────
 async function shopifyGraphQL(query, variables = {}) {
   const res = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables }),
-  })
+  });
 
   if (!res.ok) {
-    throw new Error(`Shopify API error: ${res.status} ${res.statusText}`)
+    throw new Error(`Shopify API error: ${res.status} ${res.statusText}`);
   }
 
-  const json = await res.json()
+  const json = await res.json();
 
   if (json.errors?.length) {
-    throw new Error(json.errors[0].message || 'Unknown GraphQL error')
+    throw new Error(json.errors[0].message || "Unknown GraphQL error");
   }
 
-  return json.data
+  return json.data;
 }
 
 // ─── Single-order detail query ─────────────────────────────────────────────
@@ -187,30 +187,30 @@ const GET_ORDER_QUERY = `
       }
     }
   }
-`
+`;
 
 // ─── Module-level cache ────────────────────────────────────────────────────
-let _cachedOrders = null
-let _fetchPromise = null
-const _orderDetailCache = new Map()
+let _cachedOrders = null;
+let _fetchPromise = null;
+const _orderDetailCache = new Map();
 
 export function clearOrdersCache() {
-  _cachedOrders = null
-  _fetchPromise = null
+  _cachedOrders = null;
+  _fetchPromise = null;
 }
 
 export function clearOrderDetailCache(shopifyGid) {
-  _orderDetailCache.delete(shopifyGid)
+  _orderDetailCache.delete(shopifyGid);
 }
 
 // ─── Fetch single order by Shopify GID ─────────────────────────────────────
 export async function fetchOrderById(shopifyGid) {
   if (_orderDetailCache.has(shopifyGid)) {
-    return _orderDetailCache.get(shopifyGid)
+    return _orderDetailCache.get(shopifyGid);
   }
-  const data = await shopifyGraphQL(GET_ORDER_QUERY, { id: shopifyGid })
-  _orderDetailCache.set(shopifyGid, data.order)
-  return data.order
+  const data = await shopifyGraphQL(GET_ORDER_QUERY, { id: shopifyGid });
+  _orderDetailCache.set(shopifyGid, data.order);
+  return data.order;
 }
 
 // ─── Fetch ALL orders with cursor pagination ───────────────────────────────
@@ -218,55 +218,55 @@ export async function fetchOrderById(shopifyGid) {
 // onProgress(count) is called after each page to allow live progress display.
 // Returns true if at least one line item belongs to a gc_builder product
 function hasGcBuilderItem(order) {
-  return (order.lineItems?.edges ?? []).some(
-    ({ node }) => node.product?.metafield?.value?.trim()
-  )
+  return (order.lineItems?.edges ?? []).some(({ node }) =>
+    node.product?.metafield?.value?.trim(),
+  );
 }
 
 async function _doFetch(onProgress) {
-  const all = []
-  let hasNextPage = true
-  let cursor = null
+  const all = [];
+  let hasNextPage = true;
+  let cursor = null;
 
   while (hasNextPage) {
     const data = await shopifyGraphQL(GET_ORDERS_QUERY, {
       first: 50,
       after: cursor,
-    })
+    });
 
-    const { edges, pageInfo } = data.orders
+    const { edges, pageInfo } = data.orders;
     // Only keep orders that have at least one gc_builder product line item
-    const filtered = edges.map((e) => e.node).filter(hasGcBuilderItem)
-    all.push(...filtered)
-    if (onProgress) onProgress(all.length)
+    const filtered = edges.map((e) => e.node).filter(hasGcBuilderItem);
+    all.push(...filtered);
+    if (onProgress) onProgress(all.length);
 
-    hasNextPage = pageInfo.hasNextPage
-    cursor = pageInfo.endCursor
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
   }
 
-  return all
+  return all;
 }
 
 export function fetchAllOrders(onProgress) {
   if (_cachedOrders) {
-    if (onProgress) onProgress(_cachedOrders.length)
-    return Promise.resolve(_cachedOrders)
+    if (onProgress) onProgress(_cachedOrders.length);
+    return Promise.resolve(_cachedOrders);
   }
 
-  if (_fetchPromise) return _fetchPromise
+  if (_fetchPromise) return _fetchPromise;
 
   _fetchPromise = _doFetch(onProgress)
     .then((orders) => {
-      _cachedOrders = orders
-      _fetchPromise = null
-      return orders
+      _cachedOrders = orders;
+      _fetchPromise = null;
+      return orders;
     })
     .catch((err) => {
-      _fetchPromise = null
-      throw err
-    })
+      _fetchPromise = null;
+      throw err;
+    });
 
-  return _fetchPromise
+  return _fetchPromise;
 }
 
 // ─── Customer queries ──────────────────────────────────────────────────────
@@ -288,7 +288,7 @@ const GET_CUSTOMERS_QUERY = `
       }
     }
   }
-`
+`;
 
 const GET_CUSTOMER_ORDERS_QUERY = `
   query GetCustomerOrders($id: ID!, $first: Int!, $after: String) {
@@ -333,233 +333,261 @@ const GET_CUSTOMER_ORDERS_QUERY = `
       }
     }
   }
-`
+`;
 
-let _cachedCustomers = null
-let _customerFetchPromise = null
-const _customerDetailCache = new Map()
+let _cachedCustomers = null;
+let _customerFetchPromise = null;
+const _customerDetailCache = new Map();
 
 export function clearCustomersCache() {
-  _cachedCustomers = null
-  _customerFetchPromise = null
+  _cachedCustomers = null;
+  _customerFetchPromise = null;
 }
 
 export function clearCustomerDetailCache(shopifyGid) {
-  _customerDetailCache.delete(shopifyGid)
+  _customerDetailCache.delete(shopifyGid);
 }
 
 async function _doFetchCustomers(onProgress) {
-  // First fetch all gc_builder orders (may use cache) to know which customers qualify
-  const gcOrders = await fetchAllOrders()
+  // Always fetch fresh orders so customer.id is guaranteed in every node
+  clearOrdersCache();
+  const gcOrders = await fetchAllOrders();
 
-  // Build a per-customer gc_builder order count
-  const gcOrderCountMap = new Map()
+  // Build per-customer gc_builder order count and total spent
+  const gcOrderCountMap = new Map();
+  const gcTotalSpentMap = new Map(); // customerId -> { amount, currencyCode }
   for (const order of gcOrders) {
-    const cid = order.customer?.id
-    if (cid) gcOrderCountMap.set(cid, (gcOrderCountMap.get(cid) ?? 0) + 1)
+    const cid = order.customer?.id;
+    if (!cid) continue;
+    gcOrderCountMap.set(cid, (gcOrderCountMap.get(cid) ?? 0) + 1);
+    const shopMoney = order.totalPriceSet?.shopMoney;
+    if (shopMoney) {
+      const prev = gcTotalSpentMap.get(cid);
+      const sum =
+        parseFloat(prev?.amount ?? 0) + parseFloat(shopMoney.amount ?? 0);
+      gcTotalSpentMap.set(cid, {
+        amount: sum.toFixed(2),
+        currencyCode: shopMoney.currencyCode,
+      });
+    }
   }
 
-  const all = []
-  let hasNextPage = true
-  let cursor = null
+  const all = [];
+  let hasNextPage = true;
+  let cursor = null;
   while (hasNextPage) {
-    const data = await shopifyGraphQL(GET_CUSTOMERS_QUERY, { first: 50, after: cursor })
-    const { edges, pageInfo } = data.customers
+    const data = await shopifyGraphQL(GET_CUSTOMERS_QUERY, {
+      first: 50,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.customers;
     // Only keep customers who appear in at least one gc_builder order
     // Attach gcOrderCount so the UI shows the correct filtered count
     const filtered = edges
       .map((e) => e.node)
       .filter((c) => gcOrderCountMap.has(c.id))
-      .map((c) => ({ ...c, gcOrderCount: gcOrderCountMap.get(c.id) }))
-    all.push(...filtered)
-    if (onProgress) onProgress(all.length)
-    hasNextPage = pageInfo.hasNextPage
-    cursor = pageInfo.endCursor
+      .map((c) => ({
+        ...c,
+        gcOrderCount: gcOrderCountMap.get(c.id),
+        gcTotalSpent: gcTotalSpentMap.get(c.id),
+      }));
+    all.push(...filtered);
+    if (onProgress) onProgress(all.length);
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
   }
-  return all
+  return all;
 }
 
 export function fetchAllCustomers(onProgress) {
   if (_cachedCustomers) {
-    if (onProgress) onProgress(_cachedCustomers.length)
-    return Promise.resolve(_cachedCustomers)
+    if (onProgress) onProgress(_cachedCustomers.length);
+    return Promise.resolve(_cachedCustomers);
   }
-  if (_customerFetchPromise) return _customerFetchPromise
+  if (_customerFetchPromise) return _customerFetchPromise;
   _customerFetchPromise = _doFetchCustomers(onProgress)
     .then((c) => {
-      _cachedCustomers = c
-      _customerFetchPromise = null
-      return c
+      _cachedCustomers = c;
+      _customerFetchPromise = null;
+      return c;
     })
     .catch((err) => {
-      _customerFetchPromise = null
-      throw err
-    })
-  return _customerFetchPromise
+      _customerFetchPromise = null;
+      throw err;
+    });
+  return _customerFetchPromise;
 }
 
 export async function fetchCustomerWithOrders(shopifyGid) {
-  if (_customerDetailCache.has(shopifyGid)) return _customerDetailCache.get(shopifyGid)
+  if (_customerDetailCache.has(shopifyGid))
+    return _customerDetailCache.get(shopifyGid);
 
-  const allOrders = []
-  let hasNextPage = true
-  let cursor = null
-  let customerInfo = null
+  const allOrders = [];
+  let hasNextPage = true;
+  let cursor = null;
+  let customerInfo = null;
 
   while (hasNextPage) {
     const data = await shopifyGraphQL(GET_CUSTOMER_ORDERS_QUERY, {
       id: shopifyGid,
       first: 50,
       after: cursor,
-    })
+    });
     if (!customerInfo) {
-      const { orders: _omit, ...info } = data.customer
-      customerInfo = info
+      const { orders: _omit, ...info } = data.customer;
+      customerInfo = info;
     }
-    const { edges, pageInfo } = data.customer.orders
+    const { edges, pageInfo } = data.customer.orders;
     // Only keep orders that have at least one gc_builder product line item
-    const gcOrders = edges.map((e) => e.node).filter(hasGcBuilderItem)
-    allOrders.push(...gcOrders)
-    hasNextPage = pageInfo.hasNextPage
-    cursor = pageInfo.endCursor
+    const gcOrders = edges.map((e) => e.node).filter(hasGcBuilderItem);
+    allOrders.push(...gcOrders);
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
   }
 
-  const result = { ...customerInfo, allOrders }
-  _customerDetailCache.set(shopifyGid, result)
-  return result
+  const result = { ...customerInfo, allOrders };
+  _customerDetailCache.set(shopifyGid, result);
+  return result;
 }
 
 export function formatMoney(amountSpent) {
-  if (!amountSpent) return '—'
-  const { amount, currencyCode } = amountSpent
+  if (!amountSpent) return "—";
+  const { amount, currencyCode } = amountSpent;
   try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(
-      parseFloat(amount)
-    )
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode,
+    }).format(parseFloat(amount));
   } catch {
-    return `${currencyCode} ${parseFloat(amount).toFixed(2)}`
+    return `${currencyCode} ${parseFloat(amount).toFixed(2)}`;
   }
 }
 
 export function transformCustomer(node) {
-  const firstName = node.firstName || ''
-  const lastName = node.lastName || ''
+  const firstName = node.firstName || "";
+  const lastName = node.lastName || "";
   return {
     id: node.id,
-    numericId: node.id.split('/').pop(),
-    name: `${firstName} ${lastName}`.trim() || 'Guest',
+    numericId: node.id.split("/").pop(),
+    name: `${firstName} ${lastName}`.trim() || "Guest",
     firstName,
     lastName,
-    email: node.email || '',
-    phone: node.phone || '',
+    email: node.email || "",
+    phone: node.phone || "",
     createdAt: node.createdAt,
     registrationDate: formatDate(node.createdAt),
     numberOfOrders: node.gcOrderCount ?? node.numberOfOrders ?? 0,
-    totalSpent: formatMoney(node.amountSpent),
+    totalSpent: formatMoney(node.gcTotalSpent ?? node.amountSpent),
     address: node.defaultAddress || null,
-  }
+  };
 }
 
 // ─── Status mapping ────────────────────────────────────────────────────────
 const PAYMENT_STATUS_MAP = {
-  PAID: 'paid',
-  UNPAID: 'unpaid',
-  PENDING: 'unpaid',
-  AUTHORIZED: 'unpaid',
-  PARTIALLY_PAID: 'partial',
-  PARTIALLY_REFUNDED: 'partial',
-  REFUNDED: 'failed',
-  VOIDED: 'failed',
-}
+  PAID: "paid",
+  UNPAID: "unpaid",
+  PENDING: "unpaid",
+  AUTHORIZED: "unpaid",
+  PARTIALLY_PAID: "partial",
+  PARTIALLY_REFUNDED: "partial",
+  REFUNDED: "failed",
+  VOIDED: "failed",
+};
 
 const FULFILLMENT_STATUS_MAP = {
-  FULFILLED: 'fulfilled',
-  UNFULFILLED: 'unfulfilled',
-  PARTIALLY_FULFILLED: 'partial',
-  IN_PROGRESS: 'processing',
-  ON_HOLD: 'pending',
-  OPEN: 'unfulfilled',
-  SCHEDULED: 'pending',
-}
+  FULFILLED: "fulfilled",
+  UNFULFILLED: "unfulfilled",
+  PARTIALLY_FULFILLED: "partial",
+  IN_PROGRESS: "processing",
+  ON_HOLD: "pending",
+  OPEN: "unfulfilled",
+  SCHEDULED: "pending",
+};
 
 // Map Shopify statuses → custom admin status column:
 //   submitted = fulfilled (sent to supplier / delivered)
 //   failed    = refunded or voided
 //   pending   = everything else (awaiting processing)
 function mapCustomStatus(node) {
-  if (node.displayFinancialStatus === 'REFUNDED' || node.displayFinancialStatus === 'VOIDED') {
-    return 'failed'
+  if (
+    node.displayFinancialStatus === "REFUNDED" ||
+    node.displayFinancialStatus === "VOIDED"
+  ) {
+    return "failed";
   }
-  if (node.displayFulfillmentStatus === 'FULFILLED') return 'submitted'
-  return 'pending'
+  if (node.displayFulfillmentStatus === "FULFILLED") return "submitted";
+  return "pending";
 }
 
 export function formatCurrency(totalPriceSet) {
-  const { amount, currencyCode } = totalPriceSet.shopMoney
+  const { amount, currencyCode } = totalPriceSet.shopMoney;
   try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
       currency: currencyCode,
-    }).format(parseFloat(amount))
+    }).format(parseFloat(amount));
   } catch {
-    return `${currencyCode} ${parseFloat(amount).toFixed(2)}`
+    return `${currencyCode} ${parseFloat(amount).toFixed(2)}`;
   }
 }
 
 export function formatDate(isoString) {
-  return new Date(isoString).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
+  return new Date(isoString).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 // ─── Transform raw Shopify order node → UI-ready shape ────────────────────
 export function transformOrder(node) {
-  const firstName = node.customer?.firstName || ''
-  const lastName = node.customer?.lastName || ''
-  const customerName = `${firstName} ${lastName}`.trim() || 'Guest'
+  const firstName = node.customer?.firstName || "";
+  const lastName = node.customer?.lastName || "";
+  const customerName = `${firstName} ${lastName}`.trim() || "Guest";
 
-  const lineItemEdges = node.lineItems?.edges ?? []
-  const lineItemCount = lineItemEdges.length
-  const hasMoreItems = node.lineItems?.pageInfo?.hasNextPage ?? false
+  const lineItemEdges = node.lineItems?.edges ?? [];
+  const lineItemCount = lineItemEdges.length;
+  const hasMoreItems = node.lineItems?.pageInfo?.hasNextPage ?? false;
   const itemsDisplay = hasMoreItems
     ? `${lineItemCount}+ items`
-    : `${lineItemCount} ${lineItemCount === 1 ? 'item' : 'items'}`
+    : `${lineItemCount} ${lineItemCount === 1 ? "item" : "items"}`;
 
   return {
     id: node.name,
     shopifyGid: node.id,
-    numericId: node.id.split('/').pop(),
+    numericId: node.id.split("/").pop(),
     customer: {
       name: customerName,
-      email: node.customer?.email || '',
-      phone: node.customer?.phone || '',
+      email: node.customer?.email || "",
+      phone: node.customer?.phone || "",
     },
     orderDate: formatDate(node.createdAt),
     orderDateRaw: node.createdAt,
     total: formatCurrency(node.totalPriceSet),
-    paymentStatus: PAYMENT_STATUS_MAP[node.displayFinancialStatus] || 'pending',
-    fulfillmentStatus: FULFILLMENT_STATUS_MAP[node.displayFulfillmentStatus] || 'unfulfilled',
+    paymentStatus: PAYMENT_STATUS_MAP[node.displayFinancialStatus] || "pending",
+    fulfillmentStatus:
+      FULFILLMENT_STATUS_MAP[node.displayFulfillmentStatus] || "unfulfilled",
     displayFinancialStatus: node.displayFinancialStatus,
     displayFulfillmentStatus: node.displayFulfillmentStatus,
     status: mapCustomStatus(node),
     itemCount: lineItemCount,
     itemsDisplay,
     lineItemDetails: lineItemEdges.map((e) => ({
-      title: e.node.title || '',
+      title: e.node.title || "",
       quantity: e.node.quantity || 1,
-      customAttributes: (e.node.customAttributes || []).filter((a) => !a.key.startsWith('_')),
+      customAttributes: (e.node.customAttributes || []).filter(
+        (a) => !a.key.startsWith("_"),
+      ),
     })),
     ...(() => {
       const meta = Object.fromEntries(
-        (node.metafields?.edges ?? []).map((e) => [e.node.key, e.node.value])
-      )
+        (node.metafields?.edges ?? []).map((e) => [e.node.key, e.node.value]),
+      );
       return {
-        supplierStatus: meta.supplier_status || 'pending',
+        supplierStatus: meta.supplier_status || "pending",
         supplierName: meta.supplier_name || null,
-      }
+      };
     })(),
     tags: [],
-  }
+  };
 }

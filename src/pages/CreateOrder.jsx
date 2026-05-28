@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Search,
@@ -13,10 +13,10 @@ import {
   ChevronRight,
   User,
   Check,
-} from 'lucide-react'
-import DashboardLayout from '../components/layout/DashboardLayout'
-import Badge from '../components/ui/Badge'
-import LoadingState from '../components/ui/LoadingState'
+} from "lucide-react";
+import DashboardLayout from "../components/layout/DashboardLayout";
+import Badge from "../components/ui/Badge";
+import LoadingState from "../components/ui/LoadingState";
 import {
   fetchAllCustomers,
   fetchCustomerWithOrders,
@@ -25,70 +25,90 @@ import {
   formatDate,
   formatCurrency,
   clearOrdersCache,
-} from '../lib/shopify'
-import { cn } from '../utils/cn'
+} from "../lib/shopify";
+import { cn } from "../utils/cn";
 
 // Same categorize logic as OrderDetail — splits attrs into display sections
 function categorize(customAttributes = []) {
   const general = [],
     measurements = [],
-    vest = []
+    vest = [];
   for (const attr of customAttributes) {
-    if (attr.key.startsWith('_')) continue
-    if (attr.key.startsWith('Vest ')) {
-      vest.push({ key: attr.key.replace('Vest ', ''), originalKey: attr.key, value: attr.value })
+    if (attr.key.startsWith("_")) continue;
+    if (attr.key.startsWith("Vest ")) {
+      vest.push({
+        key: attr.key.replace("Vest ", ""),
+        originalKey: attr.key,
+        value: attr.value,
+      });
     } else if (attr.value && /^\d/.test(attr.value)) {
-      measurements.push({ key: attr.key, originalKey: attr.key, value: attr.value })
+      measurements.push({
+        key: attr.key,
+        originalKey: attr.key,
+        value: attr.value,
+      });
     } else {
-      general.push({ key: attr.key, originalKey: attr.key, value: attr.value })
+      general.push({ key: attr.key, originalKey: attr.key, value: attr.value });
     }
   }
-  return { general, measurements, vest }
+  return { general, measurements, vest };
 }
 
 // ─── Customer Selector ──────────────────────────────────────────────────────
 function CustomerSelector({ customers, value, onChange }) {
-  const [search, setSearch] = useState('')
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
 
   useEffect(() => {
     function handleOutside(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     }
-    document.addEventListener('mousedown', handleOutside)
-    return () => document.removeEventListener('mousedown', handleOutside)
-  }, [])
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim()
+    const q = search.toLowerCase().trim();
     return customers
       .filter(
         (c) =>
           !q ||
           c.name.toLowerCase().includes(q) ||
           c.email.toLowerCase().includes(q) ||
-          (c.phone && c.phone.includes(q))
+          (c.phone && c.phone.includes(q)),
       )
-      .slice(0, 20)
-  }, [customers, search])
+      .slice(0, 20);
+  }, [customers, search]);
 
   if (value) {
     return (
       <div className="flex items-center gap-[12px] p-[14px] border border-border rounded-lg bg-white">
         <div className="w-[40px] h-[40px] bg-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-16 font-bold">{value.name.charAt(0).toUpperCase()}</span>
+          <span className="text-white text-16 font-bold">
+            {value.name.charAt(0).toUpperCase()}
+          </span>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-text-primary text-15">{value.name}</p>
-          {value.email && <p className="text-12 text-text-muted">{value.email}</p>}
+          <p className="font-semibold text-text-primary text-15">
+            {value.name}
+          </p>
+          {value.email && (
+            <p className="text-12 text-text-muted">{value.email}</p>
+          )}
         </div>
-        <span className="text-12 text-text-muted mr-[8px]">{value.numberOfOrders} orders</span>
-        <button onClick={() => onChange(null)} className="btn-icon" title="Change customer">
+        <span className="text-12 text-text-muted mr-[8px]">
+          {value.numberOfOrders} orders
+        </span>
+        <button
+          onClick={() => onChange(null)}
+          className="btn-icon"
+          title="Change customer"
+        >
           <X size={15} />
         </button>
       </div>
-    )
+    );
   }
 
   return (
@@ -99,8 +119,8 @@ function CustomerSelector({ customers, value, onChange }) {
           placeholder="Search customer by name or email…"
           value={search}
           onChange={(e) => {
-            setSearch(e.target.value)
-            setOpen(true)
+            setSearch(e.target.value);
+            setOpen(true);
           }}
           onFocus={() => setOpen(true)}
           className="input pl-[38px]"
@@ -110,15 +130,17 @@ function CustomerSelector({ customers, value, onChange }) {
       {open && (
         <div className="absolute top-full left-0 right-0 z-50 mt-[4px] bg-white border border-border rounded-lg shadow-lg max-h-[240px] overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="p-[16px] text-14 text-text-muted text-center">No customers found</div>
+            <div className="p-[16px] text-14 text-text-muted text-center">
+              No customers found
+            </div>
           ) : (
             filtered.map((customer) => (
               <button
                 key={customer.id}
                 onClick={() => {
-                  onChange(customer)
-                  setOpen(false)
-                  setSearch('')
+                  onChange(customer);
+                  setOpen(false);
+                  setSearch("");
                 }}
                 className="w-full flex items-center gap-[10px] px-[14px] py-[10px] hover:bg-gray-50 text-left transition-colors border-b border-border-light last:border-b-0"
               >
@@ -128,9 +150,13 @@ function CustomerSelector({ customers, value, onChange }) {
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-14 font-medium text-text-primary">{customer.name}</p>
+                  <p className="text-14 font-medium text-text-primary">
+                    {customer.name}
+                  </p>
                   {customer.email && (
-                    <p className="text-12 text-text-muted truncate">{customer.email}</p>
+                    <p className="text-12 text-text-muted truncate">
+                      {customer.email}
+                    </p>
                   )}
                 </div>
                 <span className="text-12 text-text-muted flex-shrink-0">
@@ -142,21 +168,23 @@ function CustomerSelector({ customers, value, onChange }) {
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ─── Line Item Editor ───────────────────────────────────────────────────────
 function LineItemEditor({ item, onChange }) {
   const { general, measurements, vest } = useMemo(
     () => categorize(item.attributes),
-    [item.attributes]
-  )
+    [item.attributes],
+  );
 
   function updateAttr(originalKey, value) {
     onChange({
       ...item,
-      attributes: item.attributes.map((a) => (a.key === originalKey ? { ...a, value } : a)),
-    })
+      attributes: item.attributes.map((a) =>
+        a.key === originalKey ? { ...a, value } : a,
+      ),
+    });
   }
 
   return (
@@ -197,8 +225,12 @@ function LineItemEditor({ item, onChange }) {
         <div className="card overflow-hidden border-l-4 border-gray-300">
           <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
             <Tag size={14} className="text-text-muted" />
-            <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">Details</h3>
-            <span className="ml-auto text-11 text-text-muted">{general.length} fields</span>
+            <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">
+              Details
+            </h3>
+            <span className="ml-auto text-11 text-text-muted">
+              {general.length} fields
+            </span>
           </div>
           <div className="p-[20px] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[14px]">
             {general.map(({ key, originalKey }) => (
@@ -206,7 +238,10 @@ function LineItemEditor({ item, onChange }) {
                 <label className="input-label">{key}</label>
                 <input
                   type="text"
-                  value={item.attributes.find((a) => a.key === originalKey)?.value || ''}
+                  value={
+                    item.attributes.find((a) => a.key === originalKey)?.value ||
+                    ""
+                  }
                   onChange={(e) => updateAttr(originalKey, e.target.value)}
                   className="input"
                 />
@@ -234,7 +269,10 @@ function LineItemEditor({ item, onChange }) {
                 <label className="input-label text-11">{key}</label>
                 <input
                   type="text"
-                  value={item.attributes.find((a) => a.key === originalKey)?.value || ''}
+                  value={
+                    item.attributes.find((a) => a.key === originalKey)?.value ||
+                    ""
+                  }
                   onChange={(e) => updateAttr(originalKey, e.target.value)}
                   className="input py-[8px] text-15 font-bold"
                 />
@@ -262,7 +300,10 @@ function LineItemEditor({ item, onChange }) {
                 <label className="input-label text-11">{key}</label>
                 <input
                   type="text"
-                  value={item.attributes.find((a) => a.key === originalKey)?.value || ''}
+                  value={
+                    item.attributes.find((a) => a.key === originalKey)?.value ||
+                    ""
+                  }
                   onChange={(e) => updateAttr(originalKey, e.target.value)}
                   className="input py-[8px] text-15 font-bold"
                 />
@@ -272,114 +313,116 @@ function LineItemEditor({ item, onChange }) {
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 export default function CreateOrder() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
-  const [customers, setCustomers] = useState([])
-  const [customersLoading, setCustomersLoading] = useState(true)
-  const [selectedCustomer, setSelectedCustomer] = useState(null)
-  const [customerOrders, setCustomerOrders] = useState([])
-  const [ordersLoading, setOrdersLoading] = useState(false)
-  const [selectedOrderGid, setSelectedOrderGid] = useState(null)
-  const [orderLoading, setOrderLoading] = useState(false)
-  const [lineItems, setLineItems] = useState([])
-  const [note, setNote] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState(null)
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(true);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customerOrders, setCustomerOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [selectedOrderGid, setSelectedOrderGid] = useState(null);
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [lineItems, setLineItems] = useState([]);
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   // Load all customers once on mount
   useEffect(() => {
     fetchAllCustomers()
       .then((raw) => {
-        setCustomers(raw.map(transformCustomer))
-        setCustomersLoading(false)
+        setCustomers(raw.map(transformCustomer));
+        setCustomersLoading(false);
       })
-      .catch(() => setCustomersLoading(false))
-  }, [])
+      .catch(() => setCustomersLoading(false));
+  }, []);
 
   // When customer changes → fetch their orders
   useEffect(() => {
     if (!selectedCustomer) {
-      setCustomerOrders([])
-      setSelectedOrderGid(null)
-      setLineItems([])
-      setNote('')
-      return
+      setCustomerOrders([]);
+      setSelectedOrderGid(null);
+      setLineItems([]);
+      setNote("");
+      return;
     }
-    setOrdersLoading(true)
-    setCustomerOrders([])
-    setSelectedOrderGid(null)
-    setLineItems([])
+    setOrdersLoading(true);
+    setCustomerOrders([]);
+    setSelectedOrderGid(null);
+    setLineItems([]);
     fetchCustomerWithOrders(selectedCustomer.id)
       .then((data) => {
-        const orders = data.allOrders // sorted newest first (reverse: true)
-        setCustomerOrders(orders)
-        setOrdersLoading(false)
-        if (orders.length > 0) setSelectedOrderGid(orders[0].id) // auto-select latest
+        const orders = data.allOrders; // sorted newest first (reverse: true)
+        setCustomerOrders(orders);
+        setOrdersLoading(false);
+        if (orders.length > 0) setSelectedOrderGid(orders[0].id); // auto-select latest
       })
-      .catch(() => setOrdersLoading(false))
-  }, [selectedCustomer])
+      .catch(() => setOrdersLoading(false));
+  }, [selectedCustomer]);
 
   // When order selected → fetch full details to pre-fill form
   useEffect(() => {
-    if (!selectedOrderGid) return
-    setOrderLoading(true)
-    setLineItems([])
+    if (!selectedOrderGid) return;
+    setOrderLoading(true);
+    setLineItems([]);
     fetchOrderById(selectedOrderGid)
       .then((order) => {
-        const items = order.lineItems?.edges?.map((e) => e.node) ?? []
+        const items = order.lineItems?.edges?.map((e) => e.node) ?? [];
         setLineItems(
           items.map((item) => ({
-            title: item.title || '',
-            price: item.originalUnitPriceSet?.shopMoney?.amount || '0.00',
-            attributes: (item.customAttributes || []).filter((a) => !a.key.startsWith('_')),
-          }))
-        )
-        setNote(order.note || '')
-        setOrderLoading(false)
+            title: item.title || "",
+            price: item.originalUnitPriceSet?.shopMoney?.amount || "0.00",
+            attributes: (item.customAttributes || []).filter(
+              (a) => !a.key.startsWith("_"),
+            ),
+          })),
+        );
+        setNote(order.note || "");
+        setOrderLoading(false);
       })
-      .catch(() => setOrderLoading(false))
-  }, [selectedOrderGid])
+      .catch(() => setOrderLoading(false));
+  }, [selectedOrderGid]);
 
   function updateLineItem(idx, updated) {
-    setLineItems((prev) => prev.map((item, i) => (i === idx ? updated : item)))
+    setLineItems((prev) => prev.map((item, i) => (i === idx ? updated : item)));
   }
 
   async function handleSubmit() {
-    if (!selectedCustomer || lineItems.length === 0) return
-    setSubmitting(true)
-    setSubmitError(null)
+    if (!selectedCustomer || lineItems.length === 0) return;
+    setSubmitting(true);
+    setSubmitError(null);
     try {
-      const res = await fetch('/api/orders/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/orders/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: selectedCustomer.id,
           lineItems: lineItems.map((item) => ({
             title: item.title,
             quantity: 1,
-            originalUnitPrice: item.price || '0.00',
+            originalUnitPrice: item.price || "0.00",
             customAttributes: item.attributes,
           })),
           note,
-          tags: ['admin-created'],
+          tags: ["admin-created"],
         }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to create order')
-      clearOrdersCache()
-      navigate(`/orders/${data.orderId}`)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create order");
+      clearOrdersCache();
+      navigate(`/orders/${data.orderId}`);
     } catch (err) {
-      setSubmitError(err.message)
-      setSubmitting(false)
+      setSubmitError(err.message);
+      setSubmitting(false);
     }
   }
 
-  const canSubmit = !!selectedCustomer && lineItems.length > 0 && !submitting
+  const canSubmit = !!selectedCustomer && lineItems.length > 0 && !submitting;
 
   return (
     <DashboardLayout>
@@ -397,9 +440,12 @@ export default function CreateOrder() {
       {/* Page header */}
       <div className="section-header mb-[24px]">
         <div>
-          <h2 className="text-24 font-bold text-text-primary">Create New Order</h2>
+          <h2 className="text-24 font-bold text-text-primary">
+            Create New Order
+          </h2>
           <p className="text-14 text-text-muted mt-[3px]">
-            Select a customer, pick a previous order as template, then adjust and create
+            Select a customer, pick a previous order as template, then adjust
+            and create
           </p>
         </div>
       </div>
@@ -440,8 +486,9 @@ export default function CreateOrder() {
               </h3>
               {!ordersLoading && (
                 <span className="ml-auto text-12 text-text-muted">
-                  {customerOrders.length} order{customerOrders.length !== 1 ? 's' : ''} — click row
-                  to use as template
+                  {customerOrders.length} order
+                  {customerOrders.length !== 1 ? "s" : ""} — click row to use as
+                  template
                 </span>
               )}
             </div>
@@ -468,26 +515,31 @@ export default function CreateOrder() {
                   </thead>
                   <tbody>
                     {customerOrders.map((order, idx) => {
-                      const isSelected = order.id === selectedOrderGid
-                      const isLatest = idx === 0
+                      const isSelected = order.id === selectedOrderGid;
+                      const isLatest = idx === 0;
                       return (
                         <tr
                           key={order.id}
                           onClick={() => setSelectedOrderGid(order.id)}
                           className={cn(
-                            'cursor-pointer transition-colors',
-                            isSelected ? 'bg-brand-50' : 'hover:bg-gray-50'
+                            "cursor-pointer transition-colors",
+                            isSelected ? "bg-brand-50" : "hover:bg-gray-50",
                           )}
                         >
                           <td>
                             <div className="flex items-center gap-[8px]">
                               {isSelected && (
-                                <Check size={13} className="text-brand-600 flex-shrink-0" />
+                                <Check
+                                  size={13}
+                                  className="text-brand-600 flex-shrink-0"
+                                />
                               )}
                               <span
                                 className={cn(
-                                  'font-bold',
-                                  isSelected ? 'text-brand-600' : 'text-text-primary'
+                                  "font-bold",
+                                  isSelected
+                                    ? "text-brand-600"
+                                    : "text-text-primary",
                                 )}
                               >
                                 {order.name}
@@ -504,7 +556,7 @@ export default function CreateOrder() {
                           </td>
                           <td className="text-text-secondary">
                             {order.lineItems?.edges?.length || 0} item
-                            {order.lineItems?.edges?.length !== 1 ? 's' : ''}
+                            {order.lineItems?.edges?.length !== 1 ? "s" : ""}
                           </td>
                           <td className="font-semibold text-text-primary">
                             {formatCurrency(order.totalPriceSet)}
@@ -512,17 +564,18 @@ export default function CreateOrder() {
                           <td>
                             <Badge
                               status={
-                                order.displayFinancialStatus === 'REFUNDED' ||
-                                order.displayFinancialStatus === 'VOIDED'
-                                  ? 'failed'
-                                  : order.displayFulfillmentStatus === 'FULFILLED'
-                                    ? 'submitted'
-                                    : 'pending'
+                                order.displayFinancialStatus === "REFUNDED" ||
+                                order.displayFinancialStatus === "VOIDED"
+                                  ? "failed"
+                                  : order.displayFulfillmentStatus ===
+                                      "FULFILLED"
+                                    ? "submitted"
+                                    : "pending"
                               }
                             />
                           </td>
                         </tr>
-                      )
+                      );
                     })}
                   </tbody>
                 </table>
@@ -579,7 +632,9 @@ export default function CreateOrder() {
                 <div className="card p-[20px]">
                   <div className="flex items-center gap-[8px] mb-[12px]">
                     <FileText size={14} className="text-text-muted" />
-                    <h3 className="text-13 font-semibold text-text-primary">Order Note</h3>
+                    <h3 className="text-13 font-semibold text-text-primary">
+                      Order Note
+                    </h3>
                   </div>
                   <textarea
                     value={note}
@@ -593,10 +648,17 @@ export default function CreateOrder() {
                 {/* Error */}
                 {submitError && (
                   <div className="flex items-start gap-[10px] px-[16px] py-[12px] bg-red-50 border border-red-200 rounded-lg">
-                    <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-[1px]" />
+                    <AlertCircle
+                      size={16}
+                      className="text-red-600 flex-shrink-0 mt-[1px]"
+                    />
                     <div>
-                      <p className="text-13 font-semibold text-red-700">Failed to create order</p>
-                      <p className="text-12 text-red-600 mt-[2px]">{submitError}</p>
+                      <p className="text-13 font-semibold text-red-700">
+                        Failed to create order
+                      </p>
+                      <p className="text-12 text-red-600 mt-[2px]">
+                        {submitError}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -612,7 +674,7 @@ export default function CreateOrder() {
                     className="btn-primary gap-[8px] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <PlusCircle size={15} />
-                    {submitting ? 'Creating Order…' : 'Create Order'}
+                    {submitting ? "Creating Order…" : "Create Order"}
                     {!submitting && <ChevronRight size={14} />}
                   </button>
                 </div>
@@ -629,11 +691,12 @@ export default function CreateOrder() {
               Select a customer to start
             </p>
             <p className="text-14 text-text-muted">
-              Choose a customer to load their order history and auto-fill measurements
+              Choose a customer to load their order history and auto-fill
+              measurements
             </p>
           </div>
         )}
       </div>
     </DashboardLayout>
-  )
+  );
 }

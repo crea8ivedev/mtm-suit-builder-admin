@@ -1,64 +1,64 @@
-import { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import {
-  Download,
-  ChevronLeft,
-  ChevronRight,
-  RefreshCw,
-} from 'lucide-react'
-import DashboardLayout from '../components/layout/DashboardLayout'
-import Badge from '../components/ui/Badge'
-import LoadingState from '../components/ui/LoadingState'
-import ErrorState from '../components/ui/ErrorState'
-import { useOrders } from '../hooks/useOrders'
-import { cn } from '../utils/cn'
-import { generateCSV } from '../utils/exportUtils'
+import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { Download, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import DashboardLayout from "../components/layout/DashboardLayout";
+import Badge from "../components/ui/Badge";
+import LoadingState from "../components/ui/LoadingState";
+import ErrorState from "../components/ui/ErrorState";
+import { useOrders } from "../hooks/useOrders";
+import { cn } from "../utils/cn";
+import { generateCSV } from "../utils/exportUtils";
 
-const STATUS_FILTERS = ['All', 'Pending', 'Submitted', 'Failed']
-const PAYMENT_FILTERS = ['All', 'Paid', 'Unpaid']
+const STATUS_FILTERS = ["All", "Pending", "Submitted", "Failed"];
+const PAYMENT_FILTERS = ["All", "Paid", "Unpaid"];
 
-const ITEMS_PER_PAGE = 25
+const ITEMS_PER_PAGE = 25;
 
 export default function Orders() {
-  const { orders, stats, loading, error, progress, retry } = useOrders()
+  const { orders, stats, loading, error, progress, retry } = useOrders();
 
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('All')
-  const [paymentFilter, setPaymentFilter] = useState('All')
-  const [currentPage, setCurrentPage] = useState(1)
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [paymentFilter, setPaymentFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const resetPage = () => setCurrentPage(1)
+  const resetPage = () => setCurrentPage(1);
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim()
+    const q = search.toLowerCase().trim();
     return orders.filter((order) => {
       const matchSearch =
         !q ||
         order.id.toLowerCase().includes(q) ||
         order.customer.name.toLowerCase().includes(q) ||
-        order.customer.email.toLowerCase().includes(q)
+        order.customer.email.toLowerCase().includes(q);
 
-      const matchStatus = statusFilter === 'All' || order.status === statusFilter.toLowerCase()
+      const matchStatus =
+        statusFilter === "All" || order.status === statusFilter.toLowerCase();
 
       const matchPayment =
-        paymentFilter === 'All' || order.paymentStatus === paymentFilter.toLowerCase()
+        paymentFilter === "All" ||
+        order.paymentStatus === paymentFilter.toLowerCase();
 
-      return matchSearch && matchStatus && matchPayment
-    })
-  }, [orders, search, statusFilter, paymentFilter])
+      return matchSearch && matchStatus && matchPayment;
+    });
+  }, [orders, search, statusFilter, paymentFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
-  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginated = filtered.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  );
 
   // Show up to 7 page buttons, centered around current page
   const visiblePages = useMemo(() => {
-    const range = 3
-    const start = Math.max(1, currentPage - range)
-    const end = Math.min(totalPages, currentPage + range)
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i)
-  }, [currentPage, totalPages])
+    const range = 3;
+    const start = Math.max(1, currentPage - range);
+    const end = Math.min(totalPages, currentPage + range);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }, [currentPage, totalPages]);
 
-  const handleExportCSV = () => generateCSV(filtered)
+  const handleExportCSV = () => generateCSV(filtered);
 
   return (
     <DashboardLayout>
@@ -68,10 +68,10 @@ export default function Orders() {
           <h2 className="text-24 font-bold text-text-primary">Orders</h2>
           <p className="text-14 text-text-muted mt-[3px]">
             {loading
-              ? 'Fetching from Shopify…'
+              ? "Fetching from Shopify…"
               : error
-                ? 'Could not load orders'
-                : `${filtered.length} of ${stats.total} order${stats.total !== 1 ? 's' : ''}`}
+                ? "Could not load orders"
+                : `${filtered.length} of ${stats.total} order${stats.total !== 1 ? "s" : ""}`}
           </p>
         </div>
 
@@ -105,8 +105,8 @@ export default function Orders() {
               type="text"
               value={search}
               onChange={(e) => {
-                setSearch(e.target.value)
-                resetPage()
+                setSearch(e.target.value);
+                resetPage();
               }}
               placeholder="Order #, customer name or email…"
               className="input pl-[38px] py-[9px]"
@@ -122,27 +122,27 @@ export default function Orders() {
               <button
                 key={s}
                 onClick={() => {
-                  setStatusFilter(s)
-                  resetPage()
+                  setStatusFilter(s);
+                  resetPage();
                 }}
                 className={cn(
-                  'px-[12px] py-[6px] rounded-lg text-13 font-medium transition-colors',
+                  "px-[12px] py-[6px] rounded-lg text-13 font-medium transition-colors",
                   statusFilter === s
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-gray-100 text-text-secondary hover:bg-gray-200'
+                    ? "bg-brand-600 text-white"
+                    : "bg-gray-100 text-text-secondary hover:bg-gray-200",
                 )}
               >
                 {s}
-                {!loading && !error && s !== 'All' && (
+                {!loading && !error && s !== "All" && (
                   <span
                     className={cn(
-                      'ml-[5px] text-[11px] font-semibold',
-                      statusFilter === s ? 'opacity-80' : 'text-text-muted'
+                      "ml-[5px] text-[11px] font-semibold",
+                      statusFilter === s ? "opacity-80" : "text-text-muted",
                     )}
                   >
-                    {s === 'Pending' && stats.pending}
-                    {s === 'Submitted' && stats.submitted}
-                    {s === 'Failed' && stats.failed}
+                    {s === "Pending" && stats.pending}
+                    {s === "Submitted" && stats.submitted}
+                    {s === "Failed" && stats.failed}
                   </span>
                 )}
               </button>
@@ -153,8 +153,8 @@ export default function Orders() {
           <select
             value={paymentFilter}
             onChange={(e) => {
-              setPaymentFilter(e.target.value)
-              resetPage()
+              setPaymentFilter(e.target.value);
+              resetPage();
             }}
             className="input w-auto py-[9px] cursor-pointer"
           >
@@ -189,7 +189,10 @@ export default function Orders() {
                 <tbody>
                   {paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="text-center py-[64px] text-text-muted text-15">
+                      <td
+                        colSpan={9}
+                        className="text-center py-[64px] text-text-muted text-15"
+                      >
                         No orders match your filters.
                       </td>
                     </tr>
@@ -207,18 +210,26 @@ export default function Orders() {
                         </td>
 
                         {/* Date */}
-                        <td className="text-text-secondary whitespace-nowrap">{order.orderDate}</td>
+                        <td className="text-text-secondary whitespace-nowrap">
+                          {order.orderDate}
+                        </td>
 
                         {/* Customer */}
                         <td>
-                          <p className="font-medium text-text-primary">{order.customer.name}</p>
+                          <p className="font-medium text-text-primary">
+                            {order.customer.name}
+                          </p>
                           {order.customer.email && (
-                            <p className="text-12 text-text-muted">{order.customer.email}</p>
+                            <p className="text-12 text-text-muted">
+                              {order.customer.email}
+                            </p>
                           )}
                         </td>
 
                         {/* Total */}
-                        <td className="font-semibold text-text-primary">{order.total}</td>
+                        <td className="font-semibold text-text-primary">
+                          {order.total}
+                        </td>
 
                         {/* Payment status — raw Shopify label + badge */}
                         <td>
@@ -226,7 +237,9 @@ export default function Orders() {
                         </td>
 
                         {/* Items count */}
-                        <td className="text-text-secondary">{order.itemsDisplay}</td>
+                        <td className="text-text-secondary">
+                          {order.itemsDisplay}
+                        </td>
 
                         {/* Custom status column */}
                         <td>
@@ -237,7 +250,6 @@ export default function Orders() {
                         <td>
                           <Badge status={order.supplierStatus} />
                         </td>
-
                       </tr>
                     ))
                   )}
@@ -249,15 +261,18 @@ export default function Orders() {
             {filtered.length > ITEMS_PER_PAGE && (
               <div className="flex items-center justify-between px-[20px] py-[14px] border-t border-border flex-wrap gap-[10px]">
                 <p className="text-13 text-text-muted">
-                  Showing{' '}
+                  Showing{" "}
                   <span className="font-semibold text-text-primary">
                     {(currentPage - 1) * ITEMS_PER_PAGE + 1}
-                  </span>{' '}
-                  –{' '}
+                  </span>{" "}
+                  –{" "}
                   <span className="font-semibold text-text-primary">
                     {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)}
-                  </span>{' '}
-                  of <span className="font-semibold text-text-primary">{filtered.length}</span>
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-semibold text-text-primary">
+                    {filtered.length}
+                  </span>
                 </p>
 
                 <div className="flex items-center gap-[5px]">
@@ -277,7 +292,9 @@ export default function Orders() {
                       >
                         1
                       </button>
-                      {visiblePages[0] > 2 && <span className="text-text-muted px-[4px]">…</span>}
+                      {visiblePages[0] > 2 && (
+                        <span className="text-text-muted px-[4px]">…</span>
+                      )}
                     </>
                   )}
 
@@ -286,10 +303,10 @@ export default function Orders() {
                       key={page}
                       onClick={() => setCurrentPage(page)}
                       className={cn(
-                        'w-[34px] h-[34px] rounded-lg text-13 font-medium transition-colors',
+                        "w-[34px] h-[34px] rounded-lg text-13 font-medium transition-colors",
                         currentPage === page
-                          ? 'bg-brand-600 text-white'
-                          : 'border border-border text-text-secondary hover:bg-gray-50'
+                          ? "bg-brand-600 text-white"
+                          : "border border-border text-text-secondary hover:bg-gray-50",
                       )}
                     >
                       {page}
@@ -298,7 +315,8 @@ export default function Orders() {
 
                   {visiblePages[visiblePages.length - 1] < totalPages && (
                     <>
-                      {visiblePages[visiblePages.length - 1] < totalPages - 1 && (
+                      {visiblePages[visiblePages.length - 1] <
+                        totalPages - 1 && (
                         <span className="text-text-muted px-[4px]">…</span>
                       )}
                       <button
@@ -311,7 +329,9 @@ export default function Orders() {
                   )}
 
                   <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
                     disabled={currentPage === totalPages}
                     className="p-[7px] rounded-lg border border-border text-text-secondary hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
@@ -324,5 +344,5 @@ export default function Orders() {
         )}
       </div>
     </DashboardLayout>
-  )
+  );
 }

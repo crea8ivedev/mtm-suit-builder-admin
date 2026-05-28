@@ -1,20 +1,20 @@
-import { config } from '../config.js'
+import { config } from "../config.js";
 
-const ENDPOINT = `${config.shopify.storeDomain}/admin/api/${config.shopify.apiVersion}/graphql.json`
+const ENDPOINT = `${config.shopify.storeDomain}/admin/api/${config.shopify.apiVersion}/graphql.json`;
 
 async function gql(query, variables = {}) {
   const res = await fetch(ENDPOINT, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': config.shopify.accessToken,
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": config.shopify.accessToken,
     },
     body: JSON.stringify({ query, variables }),
-  })
-  if (!res.ok) throw new Error(`Shopify ${res.status}: ${res.statusText}`)
-  const json = await res.json()
-  if (json.errors?.length) throw new Error(json.errors[0].message)
-  return json.data
+  });
+  if (!res.ok) throw new Error(`Shopify ${res.status}: ${res.statusText}`);
+  const json = await res.json();
+  if (json.errors?.length) throw new Error(json.errors[0].message);
+  return json.data;
 }
 
 const GET_ORDER_QUERY = `
@@ -41,7 +41,7 @@ const GET_ORDER_QUERY = `
       }
     }
   }
-`
+`;
 
 const SET_METAFIELDS = `
   mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
@@ -50,11 +50,11 @@ const SET_METAFIELDS = `
       userErrors { field message }
     }
   }
-`
+`;
 
 export async function getOrder(shopifyGid) {
-  const data = await gql(GET_ORDER_QUERY, { id: shopifyGid })
-  return data.order
+  const data = await gql(GET_ORDER_QUERY, { id: shopifyGid });
+  return data.order;
 }
 
 const CREATE_CUSTOMER_MUTATION = `
@@ -64,33 +64,33 @@ const CREATE_CUSTOMER_MUTATION = `
       userErrors { field message }
     }
   }
-`
+`;
 
 export async function createCustomer({ firstName, lastName, email, phone }) {
-  const input = { firstName, lastName, email }
-  if (phone) input.phone = phone
-  const data = await gql(CREATE_CUSTOMER_MUTATION, { input })
-  const { customer, userErrors } = data.customerCreate
+  const input = { firstName, lastName, email };
+  if (phone) input.phone = phone;
+  const data = await gql(CREATE_CUSTOMER_MUTATION, { input });
+  const { customer, userErrors } = data.customerCreate;
   if (userErrors?.length) {
-    const err = new Error(userErrors[0].message)
-    err.field = userErrors[0].field?.[0] ?? null
-    throw err
+    const err = new Error(userErrors[0].message);
+    err.field = userErrors[0].field?.[0] ?? null;
+    throw err;
   }
-  return customer
+  return customer;
 }
 
 export async function setOrderMetafields(shopifyGid, fields) {
   const metafields = fields.map(({ key, value }) => ({
     ownerId: shopifyGid,
-    namespace: 'suit_admin',
+    namespace: "suit_admin",
     key,
     value: String(value),
-    type: 'single_line_text_field',
-  }))
-  const data = await gql(SET_METAFIELDS, { metafields })
-  const errors = data.metafieldsSet?.userErrors ?? []
-  if (errors.length) throw new Error(errors[0].message)
-  return data.metafieldsSet.metafields
+    type: "single_line_text_field",
+  }));
+  const data = await gql(SET_METAFIELDS, { metafields });
+  const errors = data.metafieldsSet?.userErrors ?? [];
+  if (errors.length) throw new Error(errors[0].message);
+  return data.metafieldsSet.metafields;
 }
 
 export async function setCustomerProductsMetafield(customerGid, products) {
@@ -98,16 +98,16 @@ export async function setCustomerProductsMetafield(customerGid, products) {
     metafields: [
       {
         ownerId: customerGid,
-        namespace: 'profiles',
-        key: 'gc_measurements',
-        type: 'json',
+        namespace: "profiles",
+        key: "gc_measurements",
+        type: "json",
         value: JSON.stringify(products),
       },
     ],
-  })
-  const errors = data.metafieldsSet?.userErrors ?? []
-  if (errors.length) throw new Error(errors[0].message)
-  return data.metafieldsSet.metafields
+  });
+  const errors = data.metafieldsSet?.userErrors ?? [];
+  if (errors.length) throw new Error(errors[0].message);
+  return data.metafieldsSet.metafields;
 }
 
 const GET_ALL_CUSTOMER_IDS = `
@@ -117,7 +117,7 @@ const GET_ALL_CUSTOMER_IDS = `
       edges { node { id numberOfOrders } }
     }
   }
-`
+`;
 
 const GET_CUSTOMER_ORDERS_SYNC = `
   query GetCustomerOrdersSync($id: ID!, $first: Int!, $after: String) {
@@ -143,43 +143,45 @@ const GET_CUSTOMER_ORDERS_SYNC = `
       }
     }
   }
-`
+`;
 
 function buildProfilesFromOrders(orders) {
-  const result = {}
-  let counter = Math.floor(Date.now() / 1000)
+  const result = {};
+  let counter = Math.floor(Date.now() / 1000);
 
   for (const order of orders) {
-    const created = (order.createdAt ?? '').split('T')[0]
+    const created = (order.createdAt ?? "").split("T")[0];
     for (const { node: item } of order.lineItems?.edges ?? []) {
-      if (!item.product?.metafield?.value) continue
-      const allAttrs = item.customAttributes ?? []
-      const measureAttrs = allAttrs.filter((a) => !a.key.startsWith('_'))
-      if (!measureAttrs.length) continue
+      if (!item.product?.metafield?.value) continue;
+      const allAttrs = item.customAttributes ?? [];
+      const measureAttrs = allAttrs.filter((a) => !a.key.startsWith("_"));
+      if (!measureAttrs.length) continue;
 
-      const productName = item.title
-      if (!result[productName]) result[productName] = []
-      if (result[productName].length >= 5) continue
+      const productName = item.title;
+      if (!result[productName]) result[productName] = [];
+      if (result[productName].length >= 5) continue;
 
-      const profileName = allAttrs.find((a) => a.key === '_profile_name')?.value
-      const idx = result[productName].length + 1
+      const profileName = allAttrs.find(
+        (a) => a.key === "_profile_name",
+      )?.value;
+      const idx = result[productName].length + 1;
       const measurements = Object.fromEntries(
         measureAttrs.map(({ key, value }) => [
           key,
           value?.endsWith('"') ? value.slice(0, -1) : value,
-        ])
-      )
+        ]),
+      );
 
       result[productName].push({
         id: `prof_${counter++}`,
         name: profileName || `Measurement ${idx}`,
         created,
         measurements,
-      })
+      });
     }
   }
 
-  return result
+  return result;
 }
 
 const GET_ORDERS_SINCE = `
@@ -189,88 +191,94 @@ const GET_ORDERS_SINCE = `
       edges { node { customer { id } } }
     }
   }
-`
+`;
 
 async function fetchCustomerOrdersForSync(customerId) {
-  const orders = []
+  const orders = [];
   let more = true,
-    cur = null
+    cur = null;
   while (more) {
-    const data = await gql(GET_CUSTOMER_ORDERS_SYNC, { id: customerId, first: 50, after: cur })
-    const { edges, pageInfo } = data.customer.orders
-    orders.push(...edges.map((e) => e.node))
-    more = pageInfo.hasNextPage
-    cur = pageInfo.endCursor
+    const data = await gql(GET_CUSTOMER_ORDERS_SYNC, {
+      id: customerId,
+      first: 50,
+      after: cur,
+    });
+    const { edges, pageInfo } = data.customer.orders;
+    orders.push(...edges.map((e) => e.node));
+    more = pageInfo.hasNextPage;
+    cur = pageInfo.endCursor;
   }
-  return orders
+  return orders;
 }
 
 async function syncCustomerIds(customerIds) {
   let synced = 0,
-    skipped = 0
+    skipped = 0;
   for (const customerId of customerIds) {
     try {
-      const orders = await fetchCustomerOrdersForSync(customerId)
-      const profiles = buildProfilesFromOrders(orders)
+      const orders = await fetchCustomerOrdersForSync(customerId);
+      const profiles = buildProfilesFromOrders(orders);
       if (Object.keys(profiles).length === 0) {
-        skipped++
-        continue
+        skipped++;
+        continue;
       }
-      await setCustomerProductsMetafield(customerId, profiles)
-      console.log(`[sync-all] synced ${customerId}`)
-      synced++
+      await setCustomerProductsMetafield(customerId, profiles);
+      console.log(`[sync-all] synced ${customerId}`);
+      synced++;
     } catch (err) {
-      console.error(`[sync-all] failed ${customerId}:`, err.message)
+      console.error(`[sync-all] failed ${customerId}:`, err.message);
     }
   }
-  return { synced, skipped }
+  return { synced, skipped };
 }
 
 export async function syncAllCustomerProfiles(since) {
   if (since) {
     // Incremental: find customers with orders created after `since`
-    const customerIds = new Set()
+    const customerIds = new Set();
     let hasNextPage = true,
-      cursor = null
+      cursor = null;
     while (hasNextPage) {
       const data = await gql(GET_ORDERS_SINCE, {
         query: `created_at:>${since}`,
         first: 50,
         after: cursor,
-      })
-      const { edges, pageInfo } = data.orders
+      });
+      const { edges, pageInfo } = data.orders;
       for (const { node } of edges) {
-        if (node.customer?.id) customerIds.add(node.customer.id)
+        if (node.customer?.id) customerIds.add(node.customer.id);
       }
-      hasNextPage = pageInfo.hasNextPage
-      cursor = pageInfo.endCursor
+      hasNextPage = pageInfo.hasNextPage;
+      cursor = pageInfo.endCursor;
     }
 
-    const ids = [...customerIds]
-    console.log(`[sync-all] incremental: ${ids.length} customers with new orders since ${since}`)
-    if (ids.length === 0) return { synced: 0, skipped: 0, total: 0 }
+    const ids = [...customerIds];
+    console.log(
+      `[sync-all] incremental: ${ids.length} customers with new orders since ${since}`,
+    );
+    if (ids.length === 0) return { synced: 0, skipped: 0, total: 0 };
 
-    const { synced, skipped } = await syncCustomerIds(ids)
-    return { synced, skipped, total: ids.length }
+    const { synced, skipped } = await syncCustomerIds(ids);
+    return { synced, skipped, total: ids.length };
   }
 
   // Full sync: all customers with orders
-  const customerIds = []
+  const customerIds = [];
   let hasNextPage = true,
-    cursor = null
+    cursor = null;
   while (hasNextPage) {
-    const data = await gql(GET_ALL_CUSTOMER_IDS, { first: 50, after: cursor })
-    const { edges, pageInfo } = data.customers
+    const data = await gql(GET_ALL_CUSTOMER_IDS, { first: 50, after: cursor });
+    const { edges, pageInfo } = data.customers;
     for (const { node } of edges) {
-      if (node.numberOfOrders > 0) customerIds.push(node.id)
+      if (node.numberOfOrders > 0) customerIds.push(node.id);
     }
-    hasNextPage = pageInfo.hasNextPage
-    cursor = pageInfo.endCursor
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
   }
 
-  console.log(`[sync-all] full: ${customerIds.length} customers with orders`)
-  const { synced, skipped } = await syncCustomerIds(customerIds)
-  return { synced, skipped, total: customerIds.length }
+  console.log(`[sync-all] full: ${customerIds.length} customers with orders`);
+  const { synced, skipped } = await syncCustomerIds(customerIds);
+  return { synced, skipped, total: customerIds.length };
 }
 
 const CREATE_DRAFT_ORDER = `
@@ -280,7 +288,7 @@ const CREATE_DRAFT_ORDER = `
       userErrors { field message }
     }
   }
-`
+`;
 
 const COMPLETE_DRAFT_ORDER = `
   mutation DraftOrderComplete($id: ID!, $paymentPending: Boolean) {
@@ -291,7 +299,7 @@ const COMPLETE_DRAFT_ORDER = `
       userErrors { field message }
     }
   }
-`
+`;
 
 const UPDATE_ORDER = `
   mutation OrderUpdate($input: OrderInput!) {
@@ -300,20 +308,20 @@ const UPDATE_ORDER = `
       userErrors { field message }
     }
   }
-`
+`;
 
 export async function createDraftOrder(input) {
-  const data = await gql(CREATE_DRAFT_ORDER, { input })
-  const { draftOrder, userErrors } = data.draftOrderCreate
-  if (userErrors?.length) throw new Error(userErrors[0].message)
-  return draftOrder
+  const data = await gql(CREATE_DRAFT_ORDER, { input });
+  const { draftOrder, userErrors } = data.draftOrderCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return draftOrder;
 }
 
 export async function completeDraftOrder(id, paymentPending = true) {
-  const data = await gql(COMPLETE_DRAFT_ORDER, { id, paymentPending })
-  const { draftOrder, userErrors } = data.draftOrderComplete
-  if (userErrors?.length) throw new Error(userErrors[0].message)
-  return draftOrder.order
+  const data = await gql(COMPLETE_DRAFT_ORDER, { id, paymentPending });
+  const { draftOrder, userErrors } = data.draftOrderComplete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return draftOrder.order;
 }
 
 const FIND_CUSTOMER_BY_EMAIL = `
@@ -330,19 +338,19 @@ const FIND_CUSTOMER_BY_EMAIL = `
       }
     }
   }
-`
+`;
 
 export async function findCustomerByEmail(email) {
-  const data = await gql(FIND_CUSTOMER_BY_EMAIL, { query: `email:${email}` })
-  return data.customers?.edges?.[0]?.node ?? null
+  const data = await gql(FIND_CUSTOMER_BY_EMAIL, { query: `email:${email}` });
+  return data.customers?.edges?.[0]?.node ?? null;
 }
 
 export async function updateOrder(id, { note, tags }) {
-  const input = { id }
-  if (note !== undefined) input.note = note
-  if (tags !== undefined) input.tags = tags
-  const data = await gql(UPDATE_ORDER, { input })
-  const { order, userErrors } = data.orderUpdate
-  if (userErrors?.length) throw new Error(userErrors[0].message)
-  return order
+  const input = { id };
+  if (note !== undefined) input.note = note;
+  if (tags !== undefined) input.tags = tags;
+  const data = await gql(UPDATE_ORDER, { input });
+  const { order, userErrors } = data.orderUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return order;
 }

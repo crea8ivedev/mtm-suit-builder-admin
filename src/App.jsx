@@ -1,15 +1,16 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Orders from './pages/Orders'
-import OrderDetail from './pages/OrderDetail'
-import CreateOrder from './pages/CreateOrder'
-import Customers from './pages/Customers'
-import CustomerDetail from './pages/CustomerDetail'
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import Orders from "./pages/Orders";
+import OrderDetail from "./pages/OrderDetail";
+import CreateOrder from "./pages/CreateOrder";
+import Customers from "./pages/Customers";
+import CustomerDetail from "./pages/CustomerDetail";
+import Kuttailor from "./pages/Kuttailor";
 
 function PrivateRoute({ children }) {
-  const isAuth = localStorage.getItem('suit_admin_auth') === 'true'
-  return isAuth ? children : <Navigate to="/login" replace />
+  const isAuth = localStorage.getItem("suit_admin_auth") === "true";
+  return isAuth ? children : <Navigate to="/login" replace />;
 }
 
 export default function App() {
@@ -65,9 +66,17 @@ export default function App() {
             </PrivateRoute>
           }
         />
+        <Route
+          path="/kuttailor"
+          element={
+            <PrivateRoute>
+              <Kuttailor />
+            </PrivateRoute>
+          }
+        />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
-  )
+  );
 }

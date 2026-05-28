@@ -1,5 +1,5 @@
-import { useParams, Link, useLocation } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useParams, Link, useLocation } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
   ExternalLink,
@@ -15,69 +15,71 @@ import {
   MapPin,
   ChevronDown,
   Check,
-} from 'lucide-react'
-import DashboardLayout from '../components/layout/DashboardLayout'
-import Badge from '../components/ui/Badge'
-import LoadingState from '../components/ui/LoadingState'
-import ErrorState from '../components/ui/ErrorState'
-import { useOrderDetail } from '../hooks/useOrderDetail'
-import { useSupplierSubmit } from '../hooks/useSupplierSubmit'
-import { formatCurrency, formatDate } from '../lib/shopify'
+} from "lucide-react";
+import DashboardLayout from "../components/layout/DashboardLayout";
+import Badge from "../components/ui/Badge";
+import LoadingState from "../components/ui/LoadingState";
+import ErrorState from "../components/ui/ErrorState";
+import { useOrderDetail } from "../hooks/useOrderDetail";
+import { useSupplierSubmit } from "../hooks/useSupplierSubmit";
+import { formatCurrency, formatDate } from "../lib/shopify";
 
 // Categorize purely from Shopify data — no hardcoded key lists.
 // 'Vest ' prefix → vest section. Everything else → measurements or general.
 // "General" = short values (≤30 chars, no digits after space) used as attribute tags.
 function categorize(customAttributes = []) {
-  const general = []
-  const measurements = []
-  const vest = []
+  const general = [];
+  const measurements = [];
+  const vest = [];
 
   for (const attr of customAttributes) {
-    if (attr.key.startsWith('_')) continue
-    if (attr.key.startsWith('Vest ')) {
-      vest.push({ key: attr.key.replace('Vest ', ''), value: attr.value })
+    if (attr.key.startsWith("_")) continue;
+    if (attr.key.startsWith("Vest ")) {
+      vest.push({ key: attr.key.replace("Vest ", ""), value: attr.value });
     } else if (attr.value && /^\d/.test(attr.value)) {
       // Starts with a digit → numeric measurement
-      measurements.push(attr)
+      measurements.push(attr);
     } else {
-      general.push(attr)
+      general.push(attr);
     }
   }
 
-  return { general, measurements, vest }
+  return { general, measurements, vest };
 }
 
 // ─── Shared components ─────────────────────────────────────────────────────
 function MeasurementGrid({ title, icon: Icon, items, accent }) {
-  if (!items.length) return null
+  if (!items.length) return null;
 
   const accentColors = {
     jacket: {
-      border: 'border-brand-600',
-      bg: 'bg-brand-50',
-      text: 'text-brand-700',
-      dot: 'bg-brand-600',
+      border: "border-brand-600",
+      bg: "bg-brand-50",
+      text: "text-brand-700",
+      dot: "bg-brand-600",
     },
     trouser: {
-      border: 'border-submitted',
-      bg: 'bg-submitted-bg',
-      text: 'text-submitted',
-      dot: 'bg-submitted',
+      border: "border-submitted",
+      bg: "bg-submitted-bg",
+      text: "text-submitted",
+      dot: "bg-submitted",
     },
     vest: {
-      border: 'border-pending',
-      bg: 'bg-pending-bg',
-      text: 'text-pending',
-      dot: 'bg-pending',
+      border: "border-pending",
+      bg: "bg-pending-bg",
+      text: "text-pending",
+      dot: "bg-pending",
     },
-  }
-  const c = accentColors[accent] || accentColors.jacket
+  };
+  const c = accentColors[accent] || accentColors.jacket;
 
   return (
     <div className={`card overflow-hidden border-l-4 ${c.border}`}>
       <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
         {Icon && <Icon size={14} className={c.text} />}
-        <h3 className={`text-13 font-bold uppercase tracking-wider ${c.text}`}>{title}</h3>
+        <h3 className={`text-13 font-bold uppercase tracking-wider ${c.text}`}>
+          {title}
+        </h3>
         <span
           className={`ml-auto text-11 font-semibold ${c.text} ${c.bg} px-[8px] py-[2px] rounded-full`}
         >
@@ -90,45 +92,49 @@ function MeasurementGrid({ title, icon: Icon, items, accent }) {
             key={key}
             className="bg-gray-50 rounded-lg px-[12px] py-[10px] border border-border-light"
           >
-            <p className="text-11 text-text-muted font-medium mb-[3px] truncate">{key}</p>
+            <p className="text-11 text-text-muted font-medium mb-[3px] truncate">
+              {key}
+            </p>
             <p className="text-15 font-bold text-text-primary">{value}</p>
           </div>
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 function mapPaymentBadge(s) {
   return (
     {
-      PAID: 'paid',
-      PENDING: 'pending',
-      REFUNDED: 'failed',
-      PARTIALLY_REFUNDED: 'partial',
-      VOIDED: 'failed',
-      AUTHORIZED: 'pending',
-      PARTIALLY_PAID: 'partial',
-    }[s] || 'pending'
-  )
+      PAID: "paid",
+      PENDING: "pending",
+      REFUNDED: "failed",
+      PARTIALLY_REFUNDED: "partial",
+      VOIDED: "failed",
+      AUTHORIZED: "pending",
+      PARTIALLY_PAID: "partial",
+    }[s] || "pending"
+  );
 }
 
 // Parse suit_admin metafields from order into a plain object
 function parseSupplierMeta(order) {
-  const edges = order?.metafields?.edges ?? []
-  const map = Object.fromEntries(edges.map((e) => [e.node.key, e.node.value]))
+  const edges = order?.metafields?.edges ?? [];
+  const map = Object.fromEntries(edges.map((e) => [e.node.key, e.node.value]));
   return {
     supplierName: map.supplier_name ?? null,
     supplierStatus: map.supplier_status ?? null,
     supplierError: map.supplier_error ?? null,
     supplierSubmittedAt: map.supplier_submitted_at ?? null,
-  }
+  };
 }
 
 // ─── Address Card ───────────────────────────────────────────────────────────
 function AddressCard({ title, address }) {
-  const name = [address.firstName, address.lastName].filter(Boolean).join(' ')
-  const cityLine = [address.city, address.province, address.zip].filter(Boolean).join(', ')
+  const name = [address.firstName, address.lastName].filter(Boolean).join(" ");
+  const cityLine = [address.city, address.province, address.zip]
+    .filter(Boolean)
+    .join(", ");
   return (
     <div className="card p-[20px]">
       <div className="flex items-center gap-[8px] mb-[12px]">
@@ -144,56 +150,65 @@ function AddressCard({ title, address }) {
         {address.phone && <p className="text-text-muted">{address.phone}</p>}
       </div>
     </div>
-  )
+  );
 }
 
 // ─── Supplier Card ──────────────────────────────────────────────────────────
 function SupplierCard({ orderId, supplierMeta, onSettled }) {
-  const [suppliers, setSuppliers] = useState([])
-  const [selectedId, setSelectedId] = useState(supplierMeta.supplierName ?? '')
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const dropdownRef = useRef(null)
-  const { submit, retry, submitting, submitError } = useSupplierSubmit(orderId, onSettled)
+  const [suppliers, setSuppliers] = useState([]);
+  const [selectedId, setSelectedId] = useState(supplierMeta.supplierName ?? "");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const { submit, retry, submitting, submitError } = useSupplierSubmit(
+    orderId,
+    onSettled,
+  );
 
   useEffect(() => {
-    fetch('/api/suppliers')
+    fetch("/api/suppliers")
       .then((r) => r.json())
       .then(setSuppliers)
-      .catch(() => {})
-  }, [])
+      .catch(() => {});
+  }, []);
 
   // Keep dropdown in sync when order refetches
   useEffect(() => {
-    if (supplierMeta.supplierName) setSelectedId(supplierMeta.supplierName)
-  }, [supplierMeta.supplierName])
+    if (supplierMeta.supplierName) setSelectedId(supplierMeta.supplierName);
+  }, [supplierMeta.supplierName]);
 
   // Close on outside click
   useEffect(() => {
-    if (!dropdownOpen) return
+    if (!dropdownOpen) return;
     const handler = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setDropdownOpen(false)
+        setDropdownOpen(false);
       }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [dropdownOpen])
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [dropdownOpen]);
 
-  const selectedSupplier = suppliers.find((s) => s.id === selectedId)
-  const selectedLabel = selectedSupplier ? selectedSupplier.name : '— Choose supplier —'
+  const selectedSupplier = suppliers.find((s) => s.id === selectedId);
+  const selectedLabel = selectedSupplier
+    ? selectedSupplier.name
+    : "— Choose supplier —";
 
-  const { supplierStatus, supplierError, supplierSubmittedAt } = supplierMeta
-  const isFailed = supplierStatus === 'failed'
-  const isProcessing = supplierStatus === 'processing' || submitting
-  const isSubmitted = supplierStatus === 'submitted'
+  const { supplierStatus, supplierError, supplierSubmittedAt } = supplierMeta;
+  const isFailed = supplierStatus === "failed";
+  const isProcessing = supplierStatus === "processing" || submitting;
+  const isSubmitted = supplierStatus === "submitted";
 
-  const statusLabel = isProcessing ? 'processing' : (supplierStatus ?? 'pending')
+  const statusLabel = isProcessing
+    ? "processing"
+    : (supplierStatus ?? "pending");
 
   return (
     <div className="card">
       <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
         <Truck size={14} className="text-text-muted" />
-        <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">Supplier</h3>
+        <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">
+          Supplier
+        </h3>
         {supplierStatus && (
           <span className="ml-auto">
             <Badge status={statusLabel} />
@@ -213,12 +228,14 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
             disabled={isProcessing}
             className="input w-full py-[9px] flex items-center justify-between gap-[8px] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed text-left"
           >
-            <span className={selectedId ? 'text-text-primary' : 'text-text-muted'}>
+            <span
+              className={selectedId ? "text-text-primary" : "text-text-muted"}
+            >
               {selectedLabel}
             </span>
             <ChevronDown
               size={15}
-              className={`flex-shrink-0 text-text-muted transition-transform duration-150 ${dropdownOpen ? 'rotate-180' : ''}`}
+              className={`flex-shrink-0 text-text-muted transition-transform duration-150 ${dropdownOpen ? "rotate-180" : ""}`}
             />
           </button>
 
@@ -228,22 +245,32 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
                 <li>
                   <button
                     type="button"
-                    onClick={() => { setSelectedId(''); setDropdownOpen(false) }}
+                    onClick={() => {
+                      setSelectedId("");
+                      setDropdownOpen(false);
+                    }}
                     className="w-full text-left px-[14px] py-[9px] text-14 text-text-muted hover:bg-gray-50 flex items-center justify-between"
                   >
                     — Choose supplier —
-                    {!selectedId && <Check size={13} className="text-brand-600" />}
+                    {!selectedId && (
+                      <Check size={13} className="text-brand-600" />
+                    )}
                   </button>
                 </li>
                 {suppliers.map((s) => (
                   <li key={s.id}>
                     <button
                       type="button"
-                      onClick={() => { setSelectedId(s.id); setDropdownOpen(false) }}
+                      onClick={() => {
+                        setSelectedId(s.id);
+                        setDropdownOpen(false);
+                      }}
                       className="w-full text-left px-[14px] py-[9px] text-14 text-text-primary hover:bg-gray-50 flex items-center justify-between"
                     >
                       {s.name}
-                      {selectedId === s.id && <Check size={13} className="text-brand-600" />}
+                      {selectedId === s.id && (
+                        <Check size={13} className="text-brand-600" />
+                      )}
                     </button>
                   </li>
                 ))}
@@ -260,8 +287,11 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
               disabled={!selectedId || isProcessing}
               className="btn-secondary gap-[8px] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <RotateCw size={14} className={isProcessing ? 'animate-spin' : ''} />
-              {isProcessing ? 'Retrying…' : 'Retry'}
+              <RotateCw
+                size={14}
+                className={isProcessing ? "animate-spin" : ""}
+              />
+              {isProcessing ? "Retrying…" : "Retry"}
             </button>
           ) : (
             <button
@@ -270,7 +300,11 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
               className="btn-primary gap-[8px] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send size={14} />
-              {isProcessing ? 'Sending…' : isSubmitted ? 'Submitted' : 'Send to Supplier'}
+              {isProcessing
+                ? "Sending…"
+                : isSubmitted
+                  ? "Submitted"
+                  : "Send to Supplier"}
             </button>
           )}
         </div>
@@ -279,30 +313,36 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
       {/* Submitted timestamp */}
       {isSubmitted && supplierSubmittedAt && (
         <div className="px-[20px] pb-[14px]">
-          <p className="text-12 text-text-muted">Sent on {formatDate(supplierSubmittedAt)}</p>
+          <p className="text-12 text-text-muted">
+            Sent on {formatDate(supplierSubmittedAt)}
+          </p>
         </div>
       )}
 
       {/* Error message */}
       {(isFailed && supplierError) || submitError ? (
         <div className="mx-[20px] mb-[16px] px-[14px] py-[10px] bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-12 font-semibold text-red-700 mb-[2px]">Submission failed</p>
-          <p className="text-12 text-red-600 break-words">{supplierError || submitError}</p>
+          <p className="text-12 font-semibold text-red-700 mb-[2px]">
+            Submission failed
+          </p>
+          <p className="text-12 text-red-600 break-words">
+            {supplierError || submitError}
+          </p>
         </div>
       ) : null}
     </div>
-  )
+  );
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 export default function OrderDetail() {
-  const { orderId } = useParams()
-  const { state: navState } = useLocation()
-  const shopifyGid = `gid://shopify/Order/${orderId}`
-  const { order, loading, error, refetch } = useOrderDetail(shopifyGid)
+  const { orderId } = useParams();
+  const { state: navState } = useLocation();
+  const shopifyGid = `gid://shopify/Order/${orderId}`;
+  const { order, loading, error, refetch } = useOrderDetail(shopifyGid);
 
-  const lineItems = order?.lineItems?.edges?.map((e) => e.node) ?? []
-  const supplierMeta = parseSupplierMeta(order)
+  const lineItems = order?.lineItems?.edges?.map((e) => e.node) ?? [];
+  const supplierMeta = parseSupplierMeta(order);
 
   return (
     <DashboardLayout>
@@ -345,10 +385,16 @@ export default function OrderDetail() {
             <div className="flex flex-wrap items-start justify-between gap-[16px]">
               <div>
                 <div className="flex items-center gap-[12px] flex-wrap mb-[6px]">
-                  <h1 className="text-28 font-bold text-text-primary">{order.name}</h1>
-                  <Badge status={mapPaymentBadge(order.displayFinancialStatus)} />
+                  <h1 className="text-28 font-bold text-text-primary">
+                    {order.name}
+                  </h1>
+                  <Badge
+                    status={mapPaymentBadge(order.displayFinancialStatus)}
+                  />
                 </div>
-                <p className="text-14 text-text-muted">Placed on {formatDate(order.createdAt)}</p>
+                <p className="text-14 text-text-muted">
+                  Placed on {formatDate(order.createdAt)}
+                </p>
               </div>
               <div className="flex items-center gap-[8px]">
                 <a
@@ -369,7 +415,9 @@ export default function OrderDetail() {
                 <p className="text-11 text-text-muted font-semibold uppercase tracking-wider mb-[2px]">
                   Items
                 </p>
-                <p className="text-16 font-bold text-text-primary">{lineItems.length}</p>
+                <p className="text-16 font-bold text-text-primary">
+                  {lineItems.length}
+                </p>
               </div>
               <div>
                 <p className="text-11 text-text-muted font-semibold uppercase tracking-wider mb-[2px]">
@@ -384,7 +432,9 @@ export default function OrderDetail() {
                   Payment
                 </p>
                 <p className="text-14 font-medium text-text-primary capitalize">
-                  {order.displayFinancialStatus?.replace(/_/g, ' ').toLowerCase()}
+                  {order.displayFinancialStatus
+                    ?.replace(/_/g, " ")
+                    .toLowerCase()}
                 </p>
               </div>
               <div>
@@ -392,7 +442,9 @@ export default function OrderDetail() {
                   Fulfillment
                 </p>
                 <p className="text-14 font-medium text-text-primary capitalize">
-                  {order.displayFulfillmentStatus?.replace(/_/g, ' ').toLowerCase()}
+                  {order.displayFulfillmentStatus
+                    ?.replace(/_/g, " ")
+                    .toLowerCase()}
                 </p>
               </div>
             </div>
@@ -403,12 +455,14 @@ export default function OrderDetail() {
             <div className="card p-[20px]">
               <div className="flex items-center gap-[8px] mb-[14px]">
                 <User size={14} className="text-text-muted" />
-                <h3 className="text-13 font-semibold text-text-primary">Customer</h3>
+                <h3 className="text-13 font-semibold text-text-primary">
+                  Customer
+                </h3>
               </div>
               <div className="flex items-start gap-[12px]">
                 <div className="w-[40px] h-[40px] rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
                   <span className="text-white text-16 font-bold">
-                    {(order.customer.firstName || order.customer.email || '?')
+                    {(order.customer.firstName || order.customer.email || "?")
                       .charAt(0)
                       .toUpperCase()}
                   </span>
@@ -417,13 +471,17 @@ export default function OrderDetail() {
                   <p className="font-semibold text-text-primary text-15">
                     {[order.customer.firstName, order.customer.lastName]
                       .filter(Boolean)
-                      .join(' ') || 'Guest'}
+                      .join(" ") || "Guest"}
                   </p>
                   {order.customer.email && (
-                    <p className="text-13 text-text-muted mt-[2px]">{order.customer.email}</p>
+                    <p className="text-13 text-text-muted mt-[2px]">
+                      {order.customer.email}
+                    </p>
                   )}
                   {order.customer.phone && (
-                    <p className="text-13 text-text-muted">{order.customer.phone}</p>
+                    <p className="text-13 text-text-muted">
+                      {order.customer.phone}
+                    </p>
                   )}
                 </div>
               </div>
@@ -434,25 +492,37 @@ export default function OrderDetail() {
           {(order.shippingAddress || order.billingAddress) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-[20px]">
               {order.shippingAddress && (
-                <AddressCard title="Shipping Address" address={order.shippingAddress} />
+                <AddressCard
+                  title="Shipping Address"
+                  address={order.shippingAddress}
+                />
               )}
               {order.billingAddress && (
-                <AddressCard title="Billing Address" address={order.billingAddress} />
+                <AddressCard
+                  title="Billing Address"
+                  address={order.billingAddress}
+                />
               )}
             </div>
           )}
 
           {/* ── Supplier ── */}
-          <SupplierCard orderId={orderId} supplierMeta={supplierMeta} onSettled={refetch} />
+          <SupplierCard
+            orderId={orderId}
+            supplierMeta={supplierMeta}
+            onSettled={refetch}
+          />
 
           {/* ── One section per line item ── */}
           {lineItems.map((item, idx) => {
             const variantLabel =
-              item.variant?.title && item.variant.title !== 'Default Title'
+              item.variant?.title && item.variant.title !== "Default Title"
                 ? item.variant.title
-                : null
-            const { general, measurements, vest } = categorize(item.customAttributes)
-            const hasMeasurements = measurements.length || vest.length
+                : null;
+            const { general, measurements, vest } = categorize(
+              item.customAttributes,
+            );
+            const hasMeasurements = measurements.length || vest.length;
 
             return (
               <div key={item.id} className="space-y-[14px]">
@@ -468,7 +538,9 @@ export default function OrderDetail() {
                           {item.title}
                         </p>
                         {variantLabel && (
-                          <p className="text-13 text-text-muted mt-[2px]">{variantLabel}</p>
+                          <p className="text-13 text-text-muted mt-[2px]">
+                            {variantLabel}
+                          </p>
                         )}
                         {item.variant?.sku && (
                           <p className="text-12 text-text-muted font-mono mt-[2px]">
@@ -479,13 +551,15 @@ export default function OrderDetail() {
                     </div>
                     <div className="text-right">
                       <p className="text-18 font-bold text-text-primary">
-                        {item.discountedTotalSet ? formatCurrency(item.discountedTotalSet) : '—'}
+                        {item.discountedTotalSet
+                          ? formatCurrency(item.discountedTotalSet)
+                          : "—"}
                       </p>
                       <p className="text-13 text-text-muted">
-                        {item.quantity} ×{' '}
+                        {item.quantity} ×{" "}
                         {item.originalUnitPriceSet
                           ? formatCurrency(item.originalUnitPriceSet)
-                          : '—'}
+                          : "—"}
                       </p>
                     </div>
                   </div>
@@ -498,8 +572,12 @@ export default function OrderDetail() {
                           key={key}
                           className="flex items-center gap-[6px] bg-gray-100 rounded-lg px-[10px] py-[5px]"
                         >
-                          <span className="text-12 text-text-muted">{key}:</span>
-                          <span className="text-12 font-semibold text-text-primary">{value}</span>
+                          <span className="text-12 text-text-muted">
+                            {key}:
+                          </span>
+                          <span className="text-12 font-semibold text-text-primary">
+                            {value}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -534,7 +612,7 @@ export default function OrderDetail() {
                   </>
                 )}
               </div>
-            )
+            );
           })}
 
           {/* ── Order summary ── */}
@@ -546,18 +624,22 @@ export default function OrderDetail() {
             </div>
             <div className="p-[20px] space-y-[10px] max-w-[360px] ml-auto">
               {[
-                { label: 'Subtotal', value: order.subtotalPriceSet },
-                { label: 'Shipping', value: order.totalShippingPriceSet },
-                { label: 'Tax', value: order.totalTaxSet },
+                { label: "Subtotal", value: order.subtotalPriceSet },
+                { label: "Shipping", value: order.totalShippingPriceSet },
+                { label: "Tax", value: order.totalTaxSet },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between text-14">
                   <span className="text-text-secondary">{label}</span>
-                  <span className="text-text-primary">{value ? formatCurrency(value) : '—'}</span>
+                  <span className="text-text-primary">
+                    {value ? formatCurrency(value) : "—"}
+                  </span>
                 </div>
               ))}
               <div className="flex justify-between text-16 font-bold pt-[12px] border-t border-border-light">
                 <span className="text-text-primary">Total</span>
-                <span className="text-text-primary">{formatCurrency(order.totalPriceSet)}</span>
+                <span className="text-text-primary">
+                  {formatCurrency(order.totalPriceSet)}
+                </span>
               </div>
             </div>
           </div>
@@ -576,7 +658,7 @@ export default function OrderDetail() {
                     <div className="w-[8px] h-[8px] rounded-full bg-submitted mt-[5px] flex-shrink-0" />
                     <div>
                       <p className="text-14 font-semibold text-text-primary capitalize">
-                        {f.status.toLowerCase().replace(/_/g, ' ')}
+                        {f.status.toLowerCase().replace(/_/g, " ")}
                       </p>
                       {f.trackingInfo?.map((t, j) => (
                         <div key={j} className="mt-[4px]">
@@ -588,15 +670,23 @@ export default function OrderDetail() {
                               className="text-13 text-brand-600 hover:text-brand-700 flex items-center gap-[4px]"
                             >
                               {t.number}
-                              {t.company && <span className="text-text-muted">· {t.company}</span>}
+                              {t.company && (
+                                <span className="text-text-muted">
+                                  · {t.company}
+                                </span>
+                              )}
                               <ExternalLink size={11} />
                             </a>
                           ) : (
-                            <p className="text-13 text-text-secondary">{t.number}</p>
+                            <p className="text-13 text-text-secondary">
+                              {t.number}
+                            </p>
                           )}
                         </div>
                       ))}
-                      <p className="text-12 text-text-muted mt-[2px]">{formatDate(f.updatedAt)}</p>
+                      <p className="text-12 text-text-muted mt-[2px]">
+                        {formatDate(f.updatedAt)}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -609,7 +699,9 @@ export default function OrderDetail() {
             <div className="card p-[20px]">
               <div className="flex items-center gap-[8px] mb-[12px]">
                 <Tag size={14} className="text-text-muted" />
-                <h3 className="text-13 font-semibold text-text-primary">Tags</h3>
+                <h3 className="text-13 font-semibold text-text-primary">
+                  Tags
+                </h3>
               </div>
               <div className="flex flex-wrap gap-[6px]">
                 {order.tags.map((tag) => (
@@ -629,13 +721,17 @@ export default function OrderDetail() {
             <div className="card p-[20px]">
               <div className="flex items-center gap-[8px] mb-[10px]">
                 <FileText size={14} className="text-text-muted" />
-                <h3 className="text-13 font-semibold text-text-primary">Note</h3>
+                <h3 className="text-13 font-semibold text-text-primary">
+                  Note
+                </h3>
               </div>
-              <p className="text-14 text-text-secondary leading-relaxed">{order.note}</p>
+              <p className="text-14 text-text-secondary leading-relaxed">
+                {order.note}
+              </p>
             </div>
           )}
         </div>
       )}
     </DashboardLayout>
-  )
+  );
 }
