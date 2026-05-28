@@ -281,6 +281,46 @@ export async function syncAllCustomerProfiles(since) {
   return { synced, skipped, total: customerIds.length };
 }
 
+const GET_ORDERS_FOR_PRODUCT = `
+  query GetOrdersForProduct($query: String!, $first: Int!) {
+    orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true) {
+      edges {
+        node {
+          lineItems(first: 20) {
+            edges {
+              node {
+                product { id }
+                customAttributes { key value }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+export async function getProductFields(shopifyProductGid) {
+  const numericId = shopifyProductGid.split("/").pop();
+  const data = await gql(GET_ORDERS_FOR_PRODUCT, {
+    query: `product_id:${numericId}`,
+    first: 20,
+  });
+
+  const keySet = new Set();
+  for (const { node: order } of data.orders.edges) {
+    for (const { node: item } of order.lineItems.edges) {
+      const itemNumericId = item.product?.id?.split("/").pop();
+      if (itemNumericId !== numericId) continue;
+      for (const attr of item.customAttributes) {
+        if (!attr.key.startsWith("_")) keySet.add(attr.key);
+      }
+    }
+  }
+
+  return [...keySet];
+}
+
 const CREATE_DRAFT_ORDER = `
   mutation DraftOrderCreate($input: DraftOrderInput!) {
     draftOrderCreate(input: $input) {

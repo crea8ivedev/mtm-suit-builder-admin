@@ -189,6 +189,50 @@ const GET_ORDER_QUERY = `
   }
 `;
 
+// ─── Products query ────────────────────────────────────────────────────────
+const GET_PRODUCTS_QUERY = `
+  query GetProducts($first: Int!, $after: String) {
+    products(first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          title
+          variants(first: 1) {
+            edges {
+              node {
+                id
+                price
+              }
+            }
+          }
+          metafield(namespace: "custom", key: "gc_builder") {
+            value
+          }
+        }
+      }
+    }
+  }
+`;
+
+let _gcProductsCache = null;
+
+export async function fetchGcBuilderProducts() {
+  if (_gcProductsCache) return _gcProductsCache;
+  const all = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(GET_PRODUCTS_QUERY, { first: 50, after: cursor });
+    const { edges, pageInfo } = data.products;
+    all.push(...edges.map((e) => e.node).filter((p) => p.metafield?.value?.trim()));
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+  _gcProductsCache = all;
+  return all;
+}
+
 // ─── Module-level cache ────────────────────────────────────────────────────
 let _cachedOrders = null;
 let _fetchPromise = null;

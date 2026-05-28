@@ -5,6 +5,7 @@ import {
   createDraftOrder,
   completeDraftOrder,
   updateOrder,
+  getProductFields,
 } from "../services/shopify.js";
 import { sendToKutetailor } from "../services/kutetailor.js";
 import { SUPPLIERS } from "./suppliers.js";
@@ -14,6 +15,19 @@ const router = Router();
 const HANDLERS = {
   kutetailor: sendToKutetailor,
 };
+
+// ─── Get field keys for a product (from past orders) ───────────────────────
+router.get("/product-fields", async (req, res) => {
+  const { productId } = req.query;
+  if (!productId) return res.status(400).json({ error: "productId required" });
+  try {
+    const fields = await getProductFields(productId);
+    return res.json({ fields });
+  } catch (err) {
+    console.error("[product-fields]", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // ─── Create new order ───────────────────────────────────────────────────────
 router.post("/create", async (req, res) => {
