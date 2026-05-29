@@ -1,20 +1,3 @@
-// ─── Vest Builder measurement ranges ──────────────────────────────────────
-const VEST_RANGES_BASE = {
-  Neck: { min: 11.8, max: 27.6, label: "11.8–27.6" },
-  Chest: { min: 26, max: 88.2, label: "26–88.2" },
-  Stomach: { min: 21.7, max: 86.2, label: "21.7–86.2" },
-  "Nape to Waist": { min: 10.6, max: 24.8, label: "10.6–24.8" },
-  "Front Waist Len": { min: 11.8, max: 29.5, label: "11.8–29.5" },
-  "Front Waist Ht": { min: 0, max: 11.8, label: "0–11.8" },
-  "Back Waist Ht": { min: 0, max: 6.7, label: "0–6.7" },
-  Shoulder: { min: 12.2, max: 28.3, label: "12.2–28.3" },
-  "Back Length": { min: 15, max: 30.7, label: "15–30.7" },
-  "Front Shoulder": { min: 11.4, max: 26.8, label: "11.4–26.8" },
-  "1st Btn Position": { min: 7.5, max: 23.6, label: "7.5–23.6" },
-  "Highest Point": { min: 22.8, max: 72.8, label: "22.8–72.8" },
-};
-
-// ─── Shirt Builder measurement ranges ─────────────────────────────────────
 const SHIRT_RANGES_BASE = {
   Neck: { min: 11.8, max: 27.6, label: "11.8–27.6" },
   Chest: { min: 26, max: 88.2, label: "26–88.2" },
@@ -77,7 +60,6 @@ const buildRangeMap = (base, prefix) =>
     ...Object.entries(base).map(([k, v]) => [`${prefix} ${k}`, v]),
   ]);
 
-export const VEST_MEASUREMENT_RANGES = buildRangeMap(VEST_RANGES_BASE, "Vest");
 export const SHIRT_MEASUREMENT_RANGES = buildRangeMap(
   SHIRT_RANGES_BASE,
   "Shirt",
@@ -97,7 +79,6 @@ export const TROUSER_MEASUREMENT_RANGES = buildRangeMap(
 export const SUIT_MEASUREMENT_RANGES = {
   ...buildRangeMap(JACKET_RANGES_BASE, "Jacket"),
   ...buildRangeMap(TROUSER_RANGES_BASE, "Trouser"),
-  ...buildRangeMap(VEST_RANGES_BASE, "Vest"),
 };
 
 // ─── Dashboard stat cards ──────────────────────────────────────────────────

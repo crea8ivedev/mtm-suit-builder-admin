@@ -22,7 +22,6 @@ import { useCustomerDetail } from "../hooks/useCustomerDetail";
 import { formatCurrency, formatDate, formatMoney } from "../lib/shopify";
 import { cn } from "../utils/cn";
 import {
-  VEST_MEASUREMENT_RANGES,
   SHIRT_MEASUREMENT_RANGES,
   JACKET_MEASUREMENT_RANGES,
   TROUSER_MEASUREMENT_RANGES,
@@ -125,7 +124,15 @@ export default function CustomerDetail() {
   const { customer, orders, loading, error } = useCustomerDetail(shopifyGid);
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [vestMap, setVestMap] = useState({});
   const profiles = useMemo(() => buildMeasurementProfiles(orders), [orders]);
+
+  useEffect(() => {
+    fetch("/api/customers/vest-ranges")
+      .then(r => r.json())
+      .then(json => { if (json.success && json.data) setVestMap(json.data); })
+      .catch(() => {});
+  }, []);
 
   // Compute total spent from gc_builder orders only (not Shopify's all-orders amountSpent)
   const totalSpent = useMemo(() => {
@@ -172,6 +179,30 @@ export default function CustomerDetail() {
   };
 
   const handleProfileSave = async (entry) => {
+    // Validate all measurements before saving — block if any out of range
+    const productLower = entry.productName.toLowerCase();
+    const isSuit = productLower.includes("tuxedo") || productLower.includes("suit");
+    const isJacket = productLower.includes("jacket") || productLower.includes("overcoat");
+    const isTrouser = productLower.includes("trouser");
+    const isVest = productLower.includes("vest");
+    const isShirt = productLower.includes("shirt");
+    const SAVE_RANGES = isSuit ? { ...SUIT_MEASUREMENT_RANGES, ...vestMap } : isJacket ? JACKET_MEASUREMENT_RANGES : isTrouser ? TROUSER_MEASUREMENT_RANGES : isVest ? vestMap : isShirt ? SHIRT_MEASUREMENT_RANGES : null;
+
+    if (SAVE_RANGES) {
+      const invalidKeys = Object.entries(editingValues).filter(([key, val]) => {
+        const range = getRangeForKey(SAVE_RANGES, key);
+        if (!range || !val) return false;
+        const n = parseFloat(val);
+        return !isNaN(n) && (n < range.min || n > range.max);
+      }).map(([key]) => key);
+
+      if (invalidKeys.length > 0) {
+        setTouchedFields(new Set(Object.keys(editingValues)));
+        setProfileErrors((prev) => ({ ...prev, [entry.id]: `${invalidKeys.length} measurement(s) out of valid range — fix before saving` }));
+        return;
+      }
+    }
+
     setSavingProfileId(entry.id);
     setProfileErrors((prev) => ({ ...prev, [entry.id]: null }));
 
@@ -524,13 +555,13 @@ export default function CustomerDetail() {
                   const isVest = productLower.includes("vest");
                   const isShirt = productLower.includes("shirt");
                   const RANGES = isSuit
-                    ? SUIT_MEASUREMENT_RANGES
+                    ? { ...SUIT_MEASUREMENT_RANGES, ...vestMap }
                     : isJacket
                       ? JACKET_MEASUREMENT_RANGES
                       : isTrouser
                         ? TROUSER_MEASUREMENT_RANGES
                         : isVest
-                          ? VEST_MEASUREMENT_RANGES
+                          ? vestMap
                           : isShirt
                             ? SHIRT_MEASUREMENT_RANGES
                             : null;
@@ -601,12 +632,13 @@ export default function CustomerDetail() {
                         {Object.entries(
                           isEditing ? editingValues : entry.measurements,
                         ).map(([key, val]) => {
+                          const vestEntry = vestMap[key];
+                          const displayKey = vestEntry ? vestEntry.label : key;
                           const isSizeType = key.toLowerCase() === "size type";
-                          const range = getRangeForKey(RANGES, key);
+                          const range = vestEntry ?? getRangeForKey(RANGES, key);
                           const isTouched = touchedFields.has(key);
                           const numVal = parseFloat(val);
                           const hasRange = !!range;
-                          // Only validate if user has actually typed in this field
                           const isValid =
                             isTouched &&
                             hasRange &&
@@ -625,7 +657,7 @@ export default function CustomerDetail() {
                               className="bg-gray-50 rounded-lg px-[10px] py-[8px] border border-border-light"
                             >
                               <p className="text-11 text-text-muted font-medium mb-[2px] truncate">
-                                {key}
+                                {displayKey}
                               </p>
                               {isEditing && !isSizeType ? (
                                 <>

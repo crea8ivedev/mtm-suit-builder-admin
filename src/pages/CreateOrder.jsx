@@ -13,6 +13,8 @@ import {
   User,
   ShoppingBag,
   Plus,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
@@ -24,6 +26,33 @@ import {
   clearOrdersCache,
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
+import {
+  SHIRT_MEASUREMENT_RANGES,
+  JACKET_MEASUREMENT_RANGES,
+  TROUSER_MEASUREMENT_RANGES,
+  SUIT_MEASUREMENT_RANGES,
+} from "../constants/data";
+
+function getRangeForKey(rangeMap, key) {
+  if (!rangeMap) return null;
+  if (rangeMap[key]) return rangeMap[key];
+  const n = key.toLowerCase().trim();
+  for (const [k, v] of Object.entries(rangeMap)) {
+    if (k.toLowerCase().trim() === n) return v;
+  }
+  return null;
+}
+
+function getProductRanges(title, vestRanges) {
+  if (!title) return null;
+  const t = title.toLowerCase();
+  if (t.includes("tuxedo") || t.includes("suit")) return { ...SUIT_MEASUREMENT_RANGES, ...(vestRanges ?? {}) };
+  if (t.includes("jacket") || t.includes("overcoat")) return JACKET_MEASUREMENT_RANGES;
+  if (t.includes("trouser")) return TROUSER_MEASUREMENT_RANGES;
+  if (t.includes("vest")) return vestRanges;
+  if (t.includes("shirt")) return SHIRT_MEASUREMENT_RANGES;
+  return null;
+}
 
 function categorize(customAttributes = []) {
   const general = [],
@@ -166,12 +195,32 @@ function CustomerSelector({ customers, value, onChange }) {
 }
 
 // ─── Attribute Editor ───────────────────────────────────────────────────────
-function AttributeEditor({ attributes, onChange }) {
+function AttributeEditor({ attributes, onChange, ranges = null, onValidChange }) {
+  const [touchedFields, setTouchedFields] = useState(new Set());
   const { general, measurements, vest } = useMemo(() => categorize(attributes), [attributes]);
 
   function updateAttr(originalKey, value) {
+    const newTouched = new Set([...touchedFields, originalKey]);
+    setTouchedFields(newTouched);
     onChange(attributes.map((a) => (a.key === originalKey ? { ...a, value } : a)));
   }
+
+  // Notify parent whenever validity changes
+  useEffect(() => {
+    if (!onValidChange) return;
+    if (!ranges) { onValidChange(true); return; }
+    const allM = [...measurements, ...vest];
+    const hasError = allM.some(({ key, originalKey }) => {
+      const val = attributes.find((a) => a.key === originalKey)?.value ?? "";
+      if (!val) return false;
+      const range = getRangeForKey(ranges, key);
+      if (!range) return false;
+      const n = parseFloat(val);
+      return !isNaN(n) && (n < range.min || n > range.max);
+    });
+    onValidChange(!hasError);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attributes, ranges]);
 
   function addField() {
     onChange([...attributes, { key: "", value: "" }]);
@@ -239,17 +288,33 @@ function AttributeEditor({ attributes, onChange }) {
             </span>
           </div>
           <div className="p-[16px] grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[10px]">
-            {measurements.map(({ key, originalKey }) => (
-              <div key={originalKey}>
-                <label className="input-label text-11">{key}</label>
-                <input
-                  type="text"
-                  value={attributes.find((a) => a.key === originalKey)?.value || ""}
-                  onChange={(e) => updateAttr(originalKey, e.target.value)}
-                  className="input py-[8px] text-15 font-bold"
-                />
-              </div>
-            ))}
+            {measurements.map(({ key, originalKey }) => {
+              const val = attributes.find((a) => a.key === originalKey)?.value ?? "";
+              const range = getRangeForKey(ranges, key);
+              const isTouched = touchedFields.has(originalKey);
+              const n = parseFloat(val);
+              const isInvalid = isTouched && range && val !== "" && !isNaN(n) && (n < range.min || n > range.max);
+              const isValid = isTouched && range && val !== "" && !isNaN(n) && n >= range.min && n <= range.max;
+              return (
+                <div key={originalKey}>
+                  <label className="input-label text-11">{key}</label>
+                  <input
+                    type="text"
+                    value={val}
+                    onChange={(e) => updateAttr(originalKey, e.target.value)}
+                    className={cn(
+                      "input py-[8px] text-15 font-bold",
+                      isValid ? "border-green-500 focus:ring-green-400" : isInvalid ? "border-red-400 focus:ring-red-400" : "",
+                    )}
+                  />
+                  {range && (isTouched || val) && (
+                    <p className={cn("text-[10px] mt-[2px] leading-tight", isValid ? "text-green-600" : isInvalid ? "text-red-500" : "text-text-muted")}>
+                      {range.label}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -264,51 +329,38 @@ function AttributeEditor({ attributes, onChange }) {
             </span>
           </div>
           <div className="p-[16px] grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[10px]">
-            {vest.map(({ key, originalKey }) => (
-              <div key={originalKey}>
-                <label className="input-label text-11">{key}</label>
-                <input
-                  type="text"
-                  value={attributes.find((a) => a.key === originalKey)?.value || ""}
-                  onChange={(e) => updateAttr(originalKey, e.target.value)}
-                  className="input py-[8px] text-15 font-bold"
-                />
-              </div>
-            ))}
+            {vest.map(({ key, originalKey }) => {
+              const val = attributes.find((a) => a.key === originalKey)?.value ?? "";
+              const range = getRangeForKey(ranges, key);
+              const isTouched = touchedFields.has(originalKey);
+              const n = parseFloat(val);
+              const isInvalid = isTouched && range && val !== "" && !isNaN(n) && (n < range.min || n > range.max);
+              const isValid = isTouched && range && val !== "" && !isNaN(n) && n >= range.min && n <= range.max;
+              return (
+                <div key={originalKey}>
+                  <label className="input-label text-11">{key}</label>
+                  <input
+                    type="text"
+                    value={val}
+                    onChange={(e) => updateAttr(originalKey, e.target.value)}
+                    className={cn(
+                      "input py-[8px] text-15 font-bold",
+                      isValid ? "border-green-500 focus:ring-green-400" : isInvalid ? "border-red-400 focus:ring-red-400" : "",
+                    )}
+                  />
+                  {range && (isTouched || val) && (
+                    <p className={cn("text-[10px] mt-[2px] leading-tight", isValid ? "text-green-600" : isInvalid ? "text-red-500" : "text-text-muted")}>
+                      {range.label}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Manual key-value rows (newly added blank fields) */}
-      {attributes
-        .map((a, idx) => ({ ...a, _idx: idx }))
-        .filter((a) => !a.key)
-        .map((a) => (
-          <div key={a._idx} className="card p-[14px] flex items-center gap-[10px]">
-            <input
-              type="text"
-              placeholder="Field name"
-              value={a.key}
-              onChange={(e) => updateRawKey(a._idx, e.target.value)}
-              className="input flex-1"
-            />
-            <input
-              type="text"
-              placeholder="Value"
-              value={a.value}
-              onChange={(e) => updateRawValue(a._idx, e.target.value)}
-              className="input flex-1"
-            />
-            <button onClick={() => removeField(a._idx)} className="btn-icon text-red-400 hover:text-red-600">
-              <X size={14} />
-            </button>
-          </div>
-        ))}
 
-      <button onClick={addField} className="btn-secondary gap-[8px]">
-        <Plus size={14} />
-        Add Field
-      </button>
     </div>
   );
 }
@@ -324,6 +376,7 @@ export default function CreateOrder() {
 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedTemplate, setSelectedTemplate] = useState(null); // past order template
 
   const [customerOrders, setCustomerOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -332,9 +385,37 @@ export default function CreateOrder() {
   const [fieldsLoading, setFieldsLoading] = useState(false);
   const [price, setPrice] = useState("0.00");
   const [note, setNote] = useState("");
+  const [measurementsValid, setMeasurementsValid] = useState(true);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+
+  const [vestRanges, setVestRanges] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/customers/vest-ranges")
+      .then(r => r.json())
+      .then(json => { if (json.success && Object.keys(json.data).length > 0) setVestRanges(json.data); })
+      .catch(() => {});
+  }, []);
+
+  const productRanges = useMemo(() => getProductRanges(selectedProduct?.title, vestRanges), [selectedProduct, vestRanges]);
+
+  // Past orders for selected product
+  const pastOrdersForProduct = useMemo(() => {
+    if (!selectedProduct || !customerOrders.length) return [];
+    return customerOrders
+      .filter((o) => o.lineItems?.edges?.some(({ node }) => node.title?.toLowerCase() === selectedProduct.title?.toLowerCase()))
+      .map((o) => {
+        const item = o.lineItems?.edges?.find(({ node }) => node.title?.toLowerCase() === selectedProduct.title?.toLowerCase())?.node;
+        return {
+          orderId: o.name,
+          date: (o.createdAt ?? "").split("T")[0],
+          attributes: (item?.customAttributes ?? []).filter((a) => !a.key.startsWith("_")),
+        };
+      })
+      .filter((o) => o.attributes.length > 0);
+  }, [selectedProduct, customerOrders]);
 
   // Load customers + gc_builder products on mount
   useEffect(() => {
@@ -369,11 +450,45 @@ export default function CreateOrder() {
       .catch(() => setOrdersLoading(false));
   }, [selectedCustomer]);
 
+  function applyDefaultSizeType(attrs) {
+    return attrs.map((a) =>
+      a.key.toLowerCase() === "size type" && !a.value ? { ...a, value: "Custom" } : a,
+    );
+  }
+
+  // Load empty measurement fields for a fresh new order entry
+  async function handleNewOrder() {
+    setSelectedTemplate(null);
+    if (!selectedProduct) return;
+    setFieldsLoading(true);
+    try {
+      const res = await fetch(`/api/orders/product-fields?productId=${encodeURIComponent(selectedProduct.id)}`);
+      const data = await res.json();
+      const serverFields = data.fields ?? [];
+      let attrs;
+      if (serverFields.length > 0) {
+        attrs = serverFields.map((key) => ({ key, value: key.toLowerCase() === "size type" ? "Custom" : "" }));
+      } else {
+        const gcFields = parseGcBuilderFields(selectedProduct.metafield?.value);
+        attrs = (gcFields ?? []).map((a) =>
+          a.key.toLowerCase() === "size type" ? { ...a, value: "Custom" } : { ...a, value: "" },
+        );
+      }
+      setAttributes(attrs);
+    } catch {
+      const gcFields = parseGcBuilderFields(selectedProduct.metafield?.value);
+      setAttributes(applyDefaultSizeType(gcFields ?? []));
+    } finally {
+      setFieldsLoading(false);
+    }
+  }
+
   // When product or customer orders change → fetch field keys from server, pre-fill values from customer history
   useEffect(() => {
     if (!selectedProduct) {
       setAttributes([]);
       setPrice("0.00");
+      setSelectedTemplate(null);
       return;
     }
 
@@ -403,24 +518,20 @@ export default function CreateOrder() {
         const serverFields = data.fields ?? [];
 
         if (serverFields.length > 0) {
-          // Fields from store orders — pre-fill values from customer history where available
-          setAttributes(serverFields.map((key) => ({ key, value: valueMap[key] ?? "" })));
+          setAttributes(applyDefaultSizeType(serverFields.map((key) => ({ key, value: valueMap[key] ?? "" }))));
         } else if (pastItem?.customAttributes?.length > 0) {
-          // No store-wide data, use customer's past attributes directly
-          setAttributes(pastItem.customAttributes.filter((a) => !a.key.startsWith("_")));
+          setAttributes(applyDefaultSizeType(pastItem.customAttributes.filter((a) => !a.key.startsWith("_"))));
         } else {
-          // Last resort: parse gc_builder JSON
           const gcFields = parseGcBuilderFields(selectedProduct.metafield?.value);
-          setAttributes(gcFields ?? []);
+          setAttributes(applyDefaultSizeType(gcFields ?? []));
         }
       })
       .catch(() => {
-        // Fallback on network error
         if (pastItem?.customAttributes?.length > 0) {
-          setAttributes(pastItem.customAttributes.filter((a) => !a.key.startsWith("_")));
+          setAttributes(applyDefaultSizeType(pastItem.customAttributes.filter((a) => !a.key.startsWith("_"))));
         } else {
           const gcFields = parseGcBuilderFields(selectedProduct.metafield?.value);
-          setAttributes(gcFields ?? []);
+          setAttributes(applyDefaultSizeType(gcFields ?? []));
         }
       })
       .finally(() => setFieldsLoading(false));
@@ -458,7 +569,7 @@ export default function CreateOrder() {
     }
   }
 
-  const canSubmit = !!selectedCustomer && !!selectedProduct && !submitting;
+  const canSubmit = !!selectedCustomer && !!selectedProduct && !submitting && measurementsValid;
 
   return (
     <DashboardLayout>
@@ -582,6 +693,46 @@ export default function CreateOrder() {
           </div>
         )}
 
+        {/* ── Step 2.5: Past order template ── */}
+        {selectedCustomer && selectedProduct && pastOrdersForProduct.length > 0 && (
+          <div className="card">
+            <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
+              <Clock size={14} className="text-text-muted" />
+              <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">Use Past Order as Template</h3>
+              <span className="ml-auto text-12 text-text-muted">{pastOrdersForProduct.length} past order{pastOrdersForProduct.length !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="p-[16px] flex flex-wrap gap-[10px]">
+              <button
+                onClick={handleNewOrder}
+                className={cn(
+                  "flex items-center gap-[7px] px-[14px] py-[8px] rounded-lg border-2 text-13 font-medium transition-all",
+                  !selectedTemplate ? "border-brand-600 bg-brand-50 text-brand-700" : "border-border bg-white text-text-muted hover:border-brand-300",
+                )}
+              >
+                <Plus size={13} />
+                New
+              </button>
+              {pastOrdersForProduct.map((o) => (
+                <button
+                  key={o.orderId}
+                  onClick={() => {
+                    setSelectedTemplate(o.orderId);
+                    setAttributes(o.attributes);
+                  }}
+                  className={cn(
+                    "flex items-center gap-[7px] px-[14px] py-[8px] rounded-lg border-2 text-13 font-medium transition-all",
+                    selectedTemplate === o.orderId ? "border-brand-600 bg-brand-50 text-brand-700" : "border-border bg-white text-text-secondary hover:border-brand-300 hover:bg-gray-50",
+                  )}
+                >
+                  {selectedTemplate === o.orderId && <CheckCircle2 size={13} />}
+                  {o.orderId}
+                  <span className="text-11 text-text-muted">{o.date}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Step 3: Measurements + Details ── */}
         {selectedCustomer && selectedProduct && (
           <>
@@ -620,7 +771,12 @@ export default function CreateOrder() {
                 <LoadingState message="Loading product fields…" />
               </div>
             ) : (
-              <AttributeEditor attributes={attributes} onChange={setAttributes} />
+              <AttributeEditor
+                attributes={attributes}
+                onChange={setAttributes}
+                ranges={productRanges}
+                onValidChange={setMeasurementsValid}
+              />
             )}
 
             {/* Note */}
@@ -637,6 +793,14 @@ export default function CreateOrder() {
                 className="input resize-none"
               />
             </div>
+
+            {/* Measurement validation warning */}
+            {!measurementsValid && (
+              <div className="flex items-start gap-[10px] px-[16px] py-[12px] bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-[1px]" />
+                <p className="text-13 text-amber-700">Some measurements are outside the valid range. Fix the red fields before creating the order.</p>
+              </div>
+            )}
 
             {/* Error */}
             {submitError && (

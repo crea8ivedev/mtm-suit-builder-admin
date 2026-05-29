@@ -2,6 +2,10 @@ import { config } from "../config.js";
 
 const ENDPOINT = `${config.shopify.storeDomain}/admin/api/${config.shopify.apiVersion}/graphql.json`;
 
+export async function gqlQuery(query, variables = {}) {
+  return gql(query, variables);
+}
+
 async function gql(query, variables = {}) {
   const res = await fetch(ENDPOINT, {
     method: "POST",
@@ -88,6 +92,27 @@ export async function setOrderMetafields(shopifyGid, fields) {
     type: "single_line_text_field",
   }));
   const data = await gql(SET_METAFIELDS, { metafields });
+  const errors = data.metafieldsSet?.userErrors ?? [];
+  if (errors.length) throw new Error(errors[0].message);
+  return data.metafieldsSet.metafields;
+}
+
+export async function getShopId() {
+  const data = await gql(`query { shop { id } }`);
+  return data.shop.id;
+}
+
+export async function setShopMetafield(namespace, key, value) {
+  const shopId = await getShopId();
+  const data = await gql(SET_METAFIELDS, {
+    metafields: [{
+      ownerId: shopId,
+      namespace,
+      key,
+      type: "json",
+      value: JSON.stringify(value),
+    }],
+  });
   const errors = data.metafieldsSet?.userErrors ?? [];
   if (errors.length) throw new Error(errors[0].message);
   return data.metafieldsSet.metafields;

@@ -2,7 +2,6 @@ import { config } from "../config.js";
 
 const BASE = config.kutetailor.apiUrl;
 
-// ─── Token cache ────────────────────────────────────────────────────────────
 let _token = null;
 let _tokenExpiry = 0;
 
@@ -25,24 +24,33 @@ async function fetchFreshToken() {
     body: form.toString(),
   });
 
-  const json = await res.json().catch(() => ({}));
+  const raw = await res.text().catch(() => "");
 
-  if (!res.ok || json.code !== "0") {
-    throw new Error(
-      json.message ||
-        json.error ||
-        `Kutetailor login failed: HTTP ${res.status}`,
-    );
+  let json = {};
+  try { json = JSON.parse(raw); } catch { /* non-JSON */ }
+
+  if (!res.ok || (json.code !== undefined && json.code !== "0")) {
+    throw new Error(json.message || json.error || `Kutetailor login failed: HTTP ${res.status}`);
   }
 
-  _token = json.data.access_token;
-  // expires_in is seconds — cache with 5-min safety buffer
-  _tokenExpiry = Date.now() + (json.data.expires_in - 300) * 1000;
-  console.log(
-    "[kutetailor] new token obtained, expires in",
-    json.data.expires_in,
-    "s",
-  );
+  let accessToken, expiresIn;
+  if (json.data && typeof json.data === "object") {
+    accessToken = json.data.access_token;
+    expiresIn = json.data.expires_in ?? 7200;
+  } else if (json.data && typeof json.data === "string") {
+    accessToken = json.data;
+    expiresIn = 7200;
+  } else if (json.access_token) {
+    accessToken = json.access_token;
+    expiresIn = json.expires_in ?? 7200;
+  }
+
+  if (!accessToken) {
+    throw new Error(`No access_token in response: ${raw.slice(0, 200)}`);
+  }
+
+  _token = accessToken;
+  _tokenExpiry = Date.now() + (expiresIn - 300) * 1000;
   return _token;
 }
 
@@ -51,11 +59,6 @@ export async function getToken() {
   return fetchFreshToken();
 }
 
-// ─── Payload builder ─────────────────────────────────────────────────────────
-// Maps Shopify customAttributes to Kutetailor orderSizes.
-// positionEcode comes from the Kuttailor EXCEL reference;
-// for now we store the attribute key directly and let it be overridden
-// via a _kute_positionEcode:<key>=<code> attribute if needed.
 function mapSizes(customAttributes = []) {
   return customAttributes
     .filter(
@@ -67,8 +70,6 @@ function mapSizes(customAttributes = []) {
     }));
 }
 
-// Read a Kutetailor-specific override from Shopify custom attributes.
-// e.g. attribute key="_kute_category" value="T"
 function kuteAttr(customAttributes = [], key) {
   return customAttributes.find((a) => a.key === `_kute_${key}`)?.value ?? null;
 }
@@ -79,7 +80,6 @@ function buildPayload(order, { submit }) {
   const lastName = order.customer?.lastName ?? "";
   const lineItems = order.lineItems?.edges?.map((e) => e.node) ?? [];
 
-  // Extract customer-level Kutetailor fields from order attributes
   const height = parseFloat(kuteAttr(attrs, "height") ?? "0") || 0;
   const weight = parseFloat(kuteAttr(attrs, "weight") ?? "0") || 0;
   const gender = parseInt(kuteAttr(attrs, "gender") ?? "1004", 10); // 1004=unknown
@@ -90,7 +90,6 @@ function buildPayload(order, { submit }) {
     addProduct: lineItems.length > 1,
     amount: lineItems.reduce((s, i) => s + (i.quantity ?? 1), 0),
     isSample: 0,
-    // category + fabric come from order-level _kute_* attributes or fallback
     category: kuteAttr(attrs, "category") ?? "T",
     measuresType: parseInt(kuteAttr(attrs, "measuresType") ?? "10001", 10),
     fabric: kuteAttr(attrs, "fabric") ?? "",
@@ -122,8 +121,6 @@ function buildPayload(order, { submit }) {
   };
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
 export async function testAuth() {
   const token = await getToken();
   return { ok: true, tokenPreview: token.slice(0, 30) + "..." };
@@ -132,8 +129,6 @@ export async function testAuth() {
 export async function sendToKutetailor(order, { submit = true } = {}) {
   const token = await getToken();
   const payload = buildPayload(order, { submit });
-
-  console.log("[kutetailor] sendOrder", order.name, "| submit:", submit);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.kutetailor.timeout);
