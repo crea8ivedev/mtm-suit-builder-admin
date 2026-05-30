@@ -72,14 +72,14 @@ export default function TopBar({ onMenuClick }) {
         <div className="w-[1px] h-[22px] bg-border mx-[6px]" />
 
         {/* User */}
-        <button className="flex items-center gap-[8px] py-[6px] px-[8px] rounded-lg hover:bg-gray-100 transition-colors">
+        <div className="flex items-center gap-[8px] py-[6px] px-[8px] rounded-lg">
           <div className="w-[32px] h-[32px] rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
             <span className="text-white text-13 font-bold">{adminInitial}</span>
           </div>
           <span className="text-14 font-medium text-text-primary hidden sm:block">
             {adminName}
           </span>
-        </button>
+        </div>
       </div>
     </header>
   );

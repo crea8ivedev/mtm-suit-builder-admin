@@ -1,10 +1,8 @@
 {
   "version": 2,
   "builds": [
-    {
-      "src": "server/index.js",
-      "use": "@vercel/node"
-    },
+    { "src": "api/shopify.js", "use": "@vercel/node" },
+    { "src": "api/kt.js", "use": "@vercel/node" },
     {
       "src": "package.json",
       "use": "@vercel/static-build",
@@ -12,7 +10,8 @@
     }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "server/index.js" },
+    { "src": "/api/shopify(.*)", "dest": "/api/shopify" },
+    { "src": "/api/kt(.*)", "dest": "/api/kt" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

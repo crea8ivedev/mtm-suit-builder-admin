@@ -1,6 +1,18 @@
 import { useState, useEffect } from "react";
-import { Loader2, AlertCircle, RefreshCw, ChevronDown, Upload } from "lucide-react";
+import {
+  Loader2,
+  AlertCircle,
+  RefreshCw,
+  ChevronDown,
+  Upload,
+} from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
+import {
+  getCrafts,
+  getCraftOptions,
+  buildSyncPayload,
+} from "../lib/kutetailor";
+import { setShopMetafield } from "../lib/shopify";
 
 function Toggle({ on }) {
   return (
@@ -32,12 +44,8 @@ function OptionCards({ craft }) {
     setError(null);
     setOffIds(new Set());
     setFailedImgs(new Set());
-    fetch(`/api/kutetailor/craft-options?pid=${craft.pid}&categoryId=${craft.categoryId ?? 2}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (!json.success) throw new Error(json.error || "Failed to load");
-        setOptions(json.data);
-      })
+    getCraftOptions(craft.pid, craft.categoryId ?? 2)
+      .then((data) => setOptions(data))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [craft.pid]);
@@ -85,15 +93,18 @@ function OptionCards({ craft }) {
             key={opt.id}
             className={[
               "flex items-center gap-[12px] w-[240px] p-[12px] rounded-lg border transition-all",
-              isOn ? "border-[#9e7272] bg-white shadow-sm" : "border-border bg-white opacity-60",
+              isOn
+                ? "border-[#9e7272] bg-white shadow-sm"
+                : "border-border bg-white opacity-60",
             ].join(" ")}
           >
-            {/* Image — show name text if image missing */}
             {opt.imgUrl && !failedImgs.has(opt.id) ? (
               <img
                 src={opt.imgUrl}
                 alt={opt.name}
-                onError={() => setFailedImgs((prev) => new Set([...prev, opt.id]))}
+                onError={() =>
+                  setFailedImgs((prev) => new Set([...prev, opt.id]))
+                }
                 className="w-[52px] h-[52px] flex-shrink-0 rounded-md object-cover border border-border-light bg-gray-100"
               />
             ) : (
@@ -103,21 +114,21 @@ function OptionCards({ craft }) {
                 </span>
               </div>
             )}
-
-            {/* Name + code */}
             <div className="flex-1 min-w-0">
-              <p className={[
-                "text-[13px] font-medium leading-tight truncate",
-                isOn ? "text-[#9e7272]" : "text-text-secondary",
-              ].join(" ")}>
+              <p
+                className={[
+                  "text-[13px] font-medium leading-tight truncate",
+                  isOn ? "text-[#9e7272]" : "text-text-secondary",
+                ].join(" ")}
+              >
                 {opt.name}
               </p>
               {opt.code && (
-                <p className="text-[11px] font-mono text-text-muted mt-[2px]">{opt.code}</p>
+                <p className="text-[11px] font-mono text-text-muted mt-[2px]">
+                  {opt.code}
+                </p>
               )}
             </div>
-
-            {/* Toggle — click to turn on/off */}
             <div onClick={toggle} className="cursor-pointer">
               <Toggle on={isOn} />
             </div>
@@ -129,11 +140,11 @@ function OptionCards({ craft }) {
 }
 
 const CATEGORIES = [
-  { label: "Men Jacket",  categoryId: 2    },
-  { label: "Men Pants",   categoryId: 1001 },
-  { label: "Men Vest",    categoryId: 1002 },
-  { label: "Men Shirt",   categoryId: 1100 },
-  { label: "Men Tuxedo",  categoryId: 2853 },
+  { label: "Men Jacket", categoryId: 2 },
+  { label: "Men Pants", categoryId: 1001 },
+  { label: "Men Vest", categoryId: 1002 },
+  { label: "Men Shirt", categoryId: 1100 },
+  { label: "Men Tuxedo", categoryId: 2853 },
 ];
 
 export default function Kuttailor() {
@@ -149,10 +160,21 @@ export default function Kuttailor() {
     setSyncing(true);
     setSyncMsg(null);
     try {
-      const res = await fetch("/api/kutetailor/sync-to-shopify", { method: "POST" });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Sync failed");
-      setSyncMsg({ ok: true, text: `Saved — ${json.totalPositions} positions, ${json.totalOptions} options` });
+      const payload = await buildSyncPayload();
+      await setShopMetafield("custom", "fabric_options", payload);
+      const totalPositions = Object.values(payload).reduce(
+        (s, c) => s + Object.keys(c).length,
+        0,
+      );
+      const totalOptions = Object.values(payload).reduce(
+        (s, c) =>
+          s + Object.values(c).reduce((ss, p) => ss + p.options.length, 0),
+        0,
+      );
+      setSyncMsg({
+        ok: true,
+        text: `Saved — ${totalPositions} positions, ${totalOptions} options`,
+      });
     } catch (e) {
       setSyncMsg({ ok: false, text: e.message });
     } finally {
@@ -172,10 +194,8 @@ export default function Kuttailor() {
     setError(null);
     setExpandedPid(null);
     try {
-      const res = await fetch(`/api/kutetailor/crafts?categoryId=${categoryId}`);
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Failed to load");
-      setCrafts(json.data);
+      const data = await getCrafts(categoryId);
+      setCrafts(data);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -199,7 +219,6 @@ export default function Kuttailor() {
   return (
     <DashboardLayout>
       <div className="flex gap-[20px] items-start">
-
         {/* ── Left sidebar ── */}
         <div className="w-[200px] flex-shrink-0 card p-[16px]">
           <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-[10px]">
@@ -230,10 +249,14 @@ export default function Kuttailor() {
         <div className="flex-1 min-w-0 card overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-[24px] py-[16px] border-b border-border-light">
-            <p className="text-[15px] font-semibold text-text-primary">Default process</p>
+            <p className="text-[15px] font-semibold text-text-primary">
+              Default process
+            </p>
             <div className="flex items-center gap-[10px]">
               {syncMsg && (
-                <span className={`text-[12px] ${syncMsg.ok ? "text-green-600" : "text-red-500"}`}>
+                <span
+                  className={`text-[12px] ${syncMsg.ok ? "text-green-600" : "text-red-500"}`}
+                >
                   {syncMsg.text}
                 </span>
               )}
@@ -242,21 +265,31 @@ export default function Kuttailor() {
                 disabled={syncing}
                 className="btn-secondary gap-[6px] disabled:opacity-50"
               >
-                {syncing ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                {syncing ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Upload size={12} />
+                )}
                 {syncing ? "Syncing…" : "Sync to Shopify"}
               </button>
               <button
-                onClick={() => loadCrafts(CATEGORIES.find((c) => c.label === selected)?.categoryId)}
+                onClick={() =>
+                  loadCrafts(
+                    CATEGORIES.find((c) => c.label === selected)?.categoryId,
+                  )
+                }
                 disabled={loading}
                 className="btn-secondary gap-[6px] disabled:opacity-50"
               >
-                <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+                <RefreshCw
+                  size={12}
+                  className={loading ? "animate-spin" : ""}
+                />
                 Refresh
               </button>
             </div>
           </div>
 
-          {/* Loading */}
           {loading && (
             <div className="flex items-center justify-center py-[72px] gap-[10px] text-text-muted">
               <Loader2 size={20} className="animate-spin text-brand-600" />
@@ -264,14 +297,20 @@ export default function Kuttailor() {
             </div>
           )}
 
-          {/* Error */}
           {!loading && error && (
             <div className="m-[24px] flex items-start gap-[10px] p-[16px] bg-red-50 rounded-lg border border-red-200">
-              <AlertCircle size={16} className="text-red-500 flex-shrink-0 mt-[1px]" />
+              <AlertCircle
+                size={16}
+                className="text-red-500 flex-shrink-0 mt-[1px]"
+              />
               <div>
                 <p className="text-[13px] text-red-600">{error}</p>
                 <button
-                  onClick={() => loadCrafts(CATEGORIES.find((c) => c.label === selected)?.categoryId)}
+                  onClick={() =>
+                    loadCrafts(
+                      CATEGORIES.find((c) => c.label === selected)?.categoryId,
+                    )
+                  }
                   className="mt-[8px] btn-secondary text-[12px]"
                 >
                   Try again
@@ -280,22 +319,29 @@ export default function Kuttailor() {
             </div>
           )}
 
-          {/* Empty */}
           {!loading && !error && crafts.length === 0 && (
             <div className="py-[64px] text-center text-text-muted">
-              <p className="text-[14px] font-medium">No data configured for {selected}</p>
-              <p className="text-[12px] mt-[4px]">This category has not been set up in KuteTailor yet.</p>
+              <p className="text-[14px] font-medium">
+                No data configured for {selected}
+              </p>
+              <p className="text-[12px] mt-[4px]">
+                This category has not been set up in KuteTailor yet.
+              </p>
             </div>
           )}
 
-          {/* Accordion rows */}
           {!loading && !error && crafts.length > 0 && (
             <div className="divide-y divide-border-light">
-              {/* Column headers */}
               <div className="grid grid-cols-[1fr_120px_1fr_40px] px-[24px] py-[10px] bg-gray-50 border-b border-border-light">
-                <span className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Process Position</span>
-                <span className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Process Code</span>
-                <span className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Process Description</span>
+                <span className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">
+                  Process Position
+                </span>
+                <span className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">
+                  Process Code
+                </span>
+                <span className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">
+                  Process Description
+                </span>
                 <span />
               </div>
 
@@ -303,7 +349,6 @@ export default function Kuttailor() {
                 const isExpanded = expandedPid === craft.pid;
                 return (
                   <div key={craft.pid}>
-                    {/* Row */}
                     <div
                       onClick={() => handleRowClick(craft.pid)}
                       className={[
@@ -311,10 +356,12 @@ export default function Kuttailor() {
                         isExpanded ? "bg-[#f9f4f4]" : "hover:bg-gray-50/70",
                       ].join(" ")}
                     >
-                      <span className={[
-                        "text-[14px] font-medium",
-                        isExpanded ? "text-[#9e7272]" : "text-text-primary",
-                      ].join(" ")}>
+                      <span
+                        className={[
+                          "text-[14px] font-medium",
+                          isExpanded ? "text-[#9e7272]" : "text-text-primary",
+                        ].join(" ")}
+                      >
                         {craft.category}
                       </span>
                       <span className="text-[13px] font-mono text-text-secondary">
@@ -331,8 +378,6 @@ export default function Kuttailor() {
                         ].join(" ")}
                       />
                     </div>
-
-                    {/* Expanded option cards */}
                     {isExpanded && <OptionCards craft={craft} />}
                   </div>
                 );

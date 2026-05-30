@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, UserPlus, Loader } from "lucide-react";
 import { cn } from "../../utils/cn";
+import { createCustomer } from "../../lib/shopify";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -73,21 +74,16 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
     setSaving(true);
     setApiError(null);
     try {
-      const res = await fetch("/api/customers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+      const customer = await createCustomer({
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim(),
+        phone: form.phone?.trim() || undefined,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.field)
-          setErrors((er) => ({ ...er, [data.field]: data.error }));
-        else setApiError(data.error ?? "Failed to create customer");
-        return;
-      }
-      onCreated(data.customer);
-    } catch {
-      setApiError("Network error — check the server is running");
+      onCreated(customer);
+    } catch (err) {
+      if (err.field) setErrors((er) => ({ ...er, [err.field]: err.message }));
+      else setApiError(err.message ?? "Failed to create customer");
     } finally {
       setSaving(false);
     }

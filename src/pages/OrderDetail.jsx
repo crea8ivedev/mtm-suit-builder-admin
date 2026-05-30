@@ -21,7 +21,7 @@ import Badge from "../components/ui/Badge";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
 import { useOrderDetail } from "../hooks/useOrderDetail";
-import { useSupplierSubmit } from "../hooks/useSupplierSubmit";
+import { useSupplierSubmit, SUPPLIERS } from "../hooks/useSupplierSubmit";
 import { formatCurrency, formatDate } from "../lib/shopify";
 
 // Categorize purely from Shopify data — no hardcoded key lists.
@@ -165,10 +165,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
   );
 
   useEffect(() => {
-    fetch("/api/suppliers")
-      .then((r) => r.json())
-      .then(setSuppliers)
-      .catch(() => {});
+    setSuppliers(SUPPLIERS);
   }, []);
 
   // Keep dropdown in sync when order refetches

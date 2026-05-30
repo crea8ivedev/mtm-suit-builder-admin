@@ -1,7 +1,3 @@
-// Shopify Admin GraphQL API — routed through Vite proxy to avoid CORS.
-// All requests go to /api/shopify/* which Vite rewrites to
-// https://<store>/admin/api/2024-01/* and injects X-Shopify-Access-Token.
-
 const ENDPOINT = "/api/shopify/graphql.json";
 
 // ─── GraphQL query ─────────────────────────────────────────────────────────
@@ -223,9 +219,14 @@ export async function fetchGcBuilderProducts() {
   let hasNextPage = true;
   let cursor = null;
   while (hasNextPage) {
-    const data = await shopifyGraphQL(GET_PRODUCTS_QUERY, { first: 50, after: cursor });
+    const data = await shopifyGraphQL(GET_PRODUCTS_QUERY, {
+      first: 50,
+      after: cursor,
+    });
     const { edges, pageInfo } = data.products;
-    all.push(...edges.map((e) => e.node).filter((p) => p.metafield?.value?.trim()));
+    all.push(
+      ...edges.map((e) => e.node).filter((p) => p.metafield?.value?.trim()),
+    );
     hasNextPage = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
   }
@@ -634,4 +635,245 @@ export function transformOrder(node) {
     })(),
     tags: [],
   };
+}
+
+// ─── Mutations (previously server-side) ───────────────────────────────────
+
+const SET_METAFIELDS = `
+  mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+    metafieldsSet(metafields: $metafields) {
+      metafields { key value }
+      userErrors { field message }
+    }
+  }
+`;
+
+export async function setOrderMetafields(shopifyGid, fields) {
+  const metafields = fields.map(({ key, value }) => ({
+    ownerId: shopifyGid,
+    namespace: "suit_admin",
+    key,
+    value: String(value),
+    type: "single_line_text_field",
+  }));
+  const data = await shopifyGraphQL(SET_METAFIELDS, { metafields });
+  const errors = data.metafieldsSet?.userErrors ?? [];
+  if (errors.length) throw new Error(errors[0].message);
+  return data.metafieldsSet.metafields;
+}
+
+export async function setShopMetafield(namespace, key, value) {
+  const shopData = await shopifyGraphQL(`query { shop { id } }`);
+  const shopId = shopData.shop.id;
+  const data = await shopifyGraphQL(SET_METAFIELDS, {
+    metafields: [
+      {
+        ownerId: shopId,
+        namespace,
+        key,
+        type: "json",
+        value: JSON.stringify(value),
+      },
+    ],
+  });
+  const errors = data.metafieldsSet?.userErrors ?? [];
+  if (errors.length) throw new Error(errors[0].message);
+  return data.metafieldsSet.metafields;
+}
+
+const CREATE_CUSTOMER_MUTATION = `
+  mutation CustomerCreate($input: CustomerInput!) {
+    customerCreate(input: $input) {
+      customer { id firstName lastName email phone createdAt numberOfOrders amountSpent { amount currencyCode } }
+      userErrors { field message }
+    }
+  }
+`;
+
+export async function createCustomer({ firstName, lastName, email, phone }) {
+  const input = { firstName, lastName, email };
+  if (phone) input.phone = phone;
+  const data = await shopifyGraphQL(CREATE_CUSTOMER_MUTATION, { input });
+  const { customer, userErrors } = data.customerCreate;
+  if (userErrors?.length) {
+    const err = new Error(userErrors[0].message);
+    err.field = userErrors[0].field?.[0] ?? null;
+    throw err;
+  }
+  return customer;
+}
+
+const CREATE_DRAFT_ORDER = `
+  mutation DraftOrderCreate($input: DraftOrderInput!) {
+    draftOrderCreate(input: $input) {
+      draftOrder { id name }
+      userErrors { field message }
+    }
+  }
+`;
+
+const COMPLETE_DRAFT_ORDER = `
+  mutation DraftOrderComplete($id: ID!, $paymentPending: Boolean) {
+    draftOrderComplete(id: $id, paymentPending: $paymentPending) {
+      draftOrder { order { id name } }
+      userErrors { field message }
+    }
+  }
+`;
+
+const UPDATE_ORDER_MUTATION = `
+  mutation OrderUpdate($input: OrderInput!) {
+    orderUpdate(input: $input) {
+      order { id name note tags }
+      userErrors { field message }
+    }
+  }
+`;
+
+export async function createDraftOrder(input) {
+  const data = await shopifyGraphQL(CREATE_DRAFT_ORDER, { input });
+  const { draftOrder, userErrors } = data.draftOrderCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return draftOrder;
+}
+
+export async function completeDraftOrder(id, paymentPending = true) {
+  const data = await shopifyGraphQL(COMPLETE_DRAFT_ORDER, {
+    id,
+    paymentPending,
+  });
+  const { draftOrder, userErrors } = data.draftOrderComplete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return draftOrder.order;
+}
+
+export async function updateOrder(id, { note, tags }) {
+  const input = { id };
+  if (note !== undefined) input.note = note;
+  if (tags !== undefined) input.tags = tags;
+  const data = await shopifyGraphQL(UPDATE_ORDER_MUTATION, { input });
+  const { order, userErrors } = data.orderUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return order;
+}
+
+export async function setCustomerProductsMetafield(customerGid, products) {
+  const data = await shopifyGraphQL(SET_METAFIELDS, {
+    metafields: [
+      {
+        ownerId: customerGid,
+        namespace: "profiles",
+        key: "gc_measurements",
+        type: "json",
+        value: JSON.stringify(products),
+      },
+    ],
+  });
+  const errors = data.metafieldsSet?.userErrors ?? [];
+  if (errors.length) throw new Error(errors[0].message);
+  return data.metafieldsSet.metafields;
+}
+
+const GET_ORDERS_FOR_PRODUCT = `
+  query GetOrdersForProduct($query: String!, $first: Int!) {
+    orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true) {
+      edges {
+        node {
+          lineItems(first: 20) {
+            edges {
+              node {
+                product { id }
+                customAttributes { key value }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+export async function getProductFields(shopifyProductGid) {
+  const numericId = shopifyProductGid.split("/").pop();
+  const data = await shopifyGraphQL(GET_ORDERS_FOR_PRODUCT, {
+    query: `product_id:${numericId}`,
+    first: 20,
+  });
+  const keySet = new Set();
+  for (const { node: order } of data.orders.edges) {
+    for (const { node: item } of order.lineItems.edges) {
+      const itemNumericId = item.product?.id?.split("/").pop();
+      if (itemNumericId !== numericId) continue;
+      for (const attr of item.customAttributes) {
+        if (!attr.key.startsWith("_")) keySet.add(attr.key);
+      }
+    }
+  }
+  return [...keySet];
+}
+
+const GET_ORDER_FOR_SUPPLIER = `
+  query GetOrderForSupplier($id: ID!) {
+    order(id: $id) {
+      id
+      name
+      customer { firstName lastName email phone }
+      shippingAddress { address1 }
+      customAttributes { key value }
+      lineItems(first: 50) {
+        edges { node { id title quantity customAttributes { key value } } }
+      }
+    }
+  }
+`;
+
+export async function getOrderForSupplier(shopifyGid) {
+  const data = await shopifyGraphQL(GET_ORDER_FOR_SUPPLIER, { id: shopifyGid });
+  return data.order;
+}
+
+const GET_VEST_RANGES = `
+  {
+    metaobjects(type: "vest_custom_measurement", first: 250) {
+      edges {
+        node {
+          handle
+          fields { key value }
+        }
+      }
+    }
+  }
+`;
+
+let _vestRangesCache = null;
+let _vestRangesCacheAt = 0;
+const VEST_CACHE_TTL = 30 * 60 * 1000;
+
+export async function fetchVestRanges() {
+  if (_vestRangesCache && Date.now() - _vestRangesCacheAt < VEST_CACHE_TTL) {
+    return _vestRangesCache;
+  }
+  const data = await shopifyGraphQL(GET_VEST_RANGES);
+  const entries = data?.metaobjects?.edges ?? [];
+  const map = {};
+  for (const { node } of entries) {
+    const fields = Object.fromEntries(node.fields.map((f) => [f.key, f.value]));
+    const label = fields.label;
+    const vKey = fields.key ?? node.handle;
+    const min = parseFloat(fields.min ?? 0);
+    const max = parseFloat(fields.max ?? 0);
+    if (!label || isNaN(min) || isNaN(max)) continue;
+    const entry = { label, min, max, hint: `${min}–${max}` };
+    map[vKey] = entry;
+    map[`Vest ${vKey}`] = entry;
+    map[label] = entry;
+    map[`Vest ${label}`] = entry;
+  }
+  _vestRangesCache = map;
+  _vestRangesCacheAt = Date.now();
+  return map;
+}
+
+export async function shopifyGqlQuery(query, variables = {}) {
+  return shopifyGraphQL(query, variables);
 }

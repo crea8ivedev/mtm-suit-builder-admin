@@ -19,7 +19,13 @@ import Badge from "../components/ui/Badge";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
 import { useCustomerDetail } from "../hooks/useCustomerDetail";
-import { formatCurrency, formatDate, formatMoney } from "../lib/shopify";
+import {
+  formatCurrency,
+  formatDate,
+  formatMoney,
+  fetchVestRanges,
+  setCustomerProductsMetafield,
+} from "../lib/shopify";
 import { cn } from "../utils/cn";
 import {
   SHIRT_MEASUREMENT_RANGES,
@@ -128,9 +134,10 @@ export default function CustomerDetail() {
   const profiles = useMemo(() => buildMeasurementProfiles(orders), [orders]);
 
   useEffect(() => {
-    fetch("/api/customers/vest-ranges")
-      .then(r => r.json())
-      .then(json => { if (json.success && json.data) setVestMap(json.data); })
+    fetchVestRanges()
+      .then((data) => {
+        if (data) setVestMap(data);
+      })
       .catch(() => {});
   }, []);
 
@@ -181,24 +188,41 @@ export default function CustomerDetail() {
   const handleProfileSave = async (entry) => {
     // Validate all measurements before saving — block if any out of range
     const productLower = entry.productName.toLowerCase();
-    const isSuit = productLower.includes("tuxedo") || productLower.includes("suit");
-    const isJacket = productLower.includes("jacket") || productLower.includes("overcoat");
+    const isSuit =
+      productLower.includes("tuxedo") || productLower.includes("suit");
+    const isJacket =
+      productLower.includes("jacket") || productLower.includes("overcoat");
     const isTrouser = productLower.includes("trouser");
     const isVest = productLower.includes("vest");
     const isShirt = productLower.includes("shirt");
-    const SAVE_RANGES = isSuit ? { ...SUIT_MEASUREMENT_RANGES, ...vestMap } : isJacket ? JACKET_MEASUREMENT_RANGES : isTrouser ? TROUSER_MEASUREMENT_RANGES : isVest ? vestMap : isShirt ? SHIRT_MEASUREMENT_RANGES : null;
+    const SAVE_RANGES = isSuit
+      ? { ...SUIT_MEASUREMENT_RANGES, ...vestMap }
+      : isJacket
+        ? JACKET_MEASUREMENT_RANGES
+        : isTrouser
+          ? TROUSER_MEASUREMENT_RANGES
+          : isVest
+            ? vestMap
+            : isShirt
+              ? SHIRT_MEASUREMENT_RANGES
+              : null;
 
     if (SAVE_RANGES) {
-      const invalidKeys = Object.entries(editingValues).filter(([key, val]) => {
-        const range = getRangeForKey(SAVE_RANGES, key);
-        if (!range || !val) return false;
-        const n = parseFloat(val);
-        return !isNaN(n) && (n < range.min || n > range.max);
-      }).map(([key]) => key);
+      const invalidKeys = Object.entries(editingValues)
+        .filter(([key, val]) => {
+          const range = getRangeForKey(SAVE_RANGES, key);
+          if (!range || !val) return false;
+          const n = parseFloat(val);
+          return !isNaN(n) && (n < range.min || n > range.max);
+        })
+        .map(([key]) => key);
 
       if (invalidKeys.length > 0) {
         setTouchedFields(new Set(Object.keys(editingValues)));
-        setProfileErrors((prev) => ({ ...prev, [entry.id]: `${invalidKeys.length} measurement(s) out of valid range — fix before saving` }));
+        setProfileErrors((prev) => ({
+          ...prev,
+          [entry.id]: `${invalidKeys.length} measurement(s) out of valid range — fix before saving`,
+        }));
         return;
       }
     }
@@ -214,15 +238,8 @@ export default function CustomerDetail() {
     );
 
     try {
-      const res = await fetch(`/api/customers/${customerId}/sync-products`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: updatedProfiles }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json.error || `Server error ${res.status}`);
-      }
+      const customerGid = `gid://shopify/Customer/${customerId}`;
+      await setCustomerProductsMetafield(customerGid, updatedProfiles);
       setCommittedProfiles(updatedProfiles);
       setEditingProfileId(null);
       setEditingValues({});
@@ -247,11 +264,8 @@ export default function CustomerDetail() {
     if (!orders.length || !customerId) return;
     const data = profiles;
     if (Object.keys(data).length === 0) return;
-    fetch(`/api/customers/${customerId}/sync-products`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data }),
-    }).catch(() => {});
+    const customerGid = `gid://shopify/Customer/${customerId}`;
+    setCustomerProductsMetafield(customerGid, data).catch(() => {});
   }, [orders, customerId]);
 
   const totalPages = Math.max(1, Math.ceil(orders.length / ORDERS_PER_PAGE));
@@ -635,7 +649,8 @@ export default function CustomerDetail() {
                           const vestEntry = vestMap[key];
                           const displayKey = vestEntry ? vestEntry.label : key;
                           const isSizeType = key.toLowerCase() === "size type";
-                          const range = vestEntry ?? getRangeForKey(RANGES, key);
+                          const range =
+                            vestEntry ?? getRangeForKey(RANGES, key);
                           const isTouched = touchedFields.has(key);
                           const numVal = parseFloat(val);
                           const hasRange = !!range;

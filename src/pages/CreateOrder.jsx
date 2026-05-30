@@ -24,6 +24,10 @@ import {
   fetchCustomerWithOrders,
   transformCustomer,
   clearOrdersCache,
+  getProductFields,
+  createDraftOrder,
+  completeDraftOrder,
+  fetchVestRanges,
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
 import {
@@ -46,8 +50,10 @@ function getRangeForKey(rangeMap, key) {
 function getProductRanges(title, vestRanges) {
   if (!title) return null;
   const t = title.toLowerCase();
-  if (t.includes("tuxedo") || t.includes("suit")) return { ...SUIT_MEASUREMENT_RANGES, ...(vestRanges ?? {}) };
-  if (t.includes("jacket") || t.includes("overcoat")) return JACKET_MEASUREMENT_RANGES;
+  if (t.includes("tuxedo") || t.includes("suit"))
+    return { ...SUIT_MEASUREMENT_RANGES, ...(vestRanges ?? {}) };
+  if (t.includes("jacket") || t.includes("overcoat"))
+    return JACKET_MEASUREMENT_RANGES;
   if (t.includes("trouser")) return TROUSER_MEASUREMENT_RANGES;
   if (t.includes("vest")) return vestRanges;
   if (t.includes("shirt")) return SHIRT_MEASUREMENT_RANGES;
@@ -61,9 +67,17 @@ function categorize(customAttributes = []) {
   for (const attr of customAttributes) {
     if (attr.key.startsWith("_")) continue;
     if (attr.key.startsWith("Vest ")) {
-      vest.push({ key: attr.key.replace("Vest ", ""), originalKey: attr.key, value: attr.value });
+      vest.push({
+        key: attr.key.replace("Vest ", ""),
+        originalKey: attr.key,
+        value: attr.value,
+      });
     } else if (attr.value && /^\d/.test(attr.value)) {
-      measurements.push({ key: attr.key, originalKey: attr.key, value: attr.value });
+      measurements.push({
+        key: attr.key,
+        originalKey: attr.key,
+        value: attr.value,
+      });
     } else {
       general.push({ key: attr.key, originalKey: attr.key, value: attr.value });
     }
@@ -86,14 +100,27 @@ function parseGcBuilderFields(jsonValue) {
         return;
       }
       const keyProp = obj.key || obj.name || obj.label;
-      const hasChildren = ["fields", "sections", "measurements", "components", "children", "items"].some(
-        (k) => Array.isArray(obj[k]),
-      );
+      const hasChildren = [
+        "fields",
+        "sections",
+        "measurements",
+        "components",
+        "children",
+        "items",
+      ].some((k) => Array.isArray(obj[k]));
       if (keyProp && typeof keyProp === "string" && !hasChildren) {
         fields.push({ key: keyProp, value: "" });
         return;
       }
-      ["fields", "measurements", "sections", "components", "children", "items", "attributes"].forEach((k) => {
+      [
+        "fields",
+        "measurements",
+        "sections",
+        "components",
+        "children",
+        "items",
+        "attributes",
+      ].forEach((k) => {
         if (Array.isArray(obj[k])) extract(obj[k]);
       });
     }
@@ -135,14 +162,26 @@ function CustomerSelector({ customers, value, onChange }) {
     return (
       <div className="flex items-center gap-[12px] p-[14px] border border-border rounded-lg bg-white">
         <div className="w-[40px] h-[40px] bg-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-16 font-bold">{value.name.charAt(0).toUpperCase()}</span>
+          <span className="text-white text-16 font-bold">
+            {value.name.charAt(0).toUpperCase()}
+          </span>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-text-primary text-15">{value.name}</p>
-          {value.email && <p className="text-12 text-text-muted">{value.email}</p>}
+          <p className="font-semibold text-text-primary text-15">
+            {value.name}
+          </p>
+          {value.email && (
+            <p className="text-12 text-text-muted">{value.email}</p>
+          )}
         </div>
-        <span className="text-12 text-text-muted mr-[8px]">{value.numberOfOrders} orders</span>
-        <button onClick={() => onChange(null)} className="btn-icon" title="Change customer">
+        <span className="text-12 text-text-muted mr-[8px]">
+          {value.numberOfOrders} orders
+        </span>
+        <button
+          onClick={() => onChange(null)}
+          className="btn-icon"
+          title="Change customer"
+        >
           <X size={15} />
         </button>
       </div>
@@ -165,7 +204,9 @@ function CustomerSelector({ customers, value, onChange }) {
       {open && (
         <div className="absolute top-full left-0 right-0 z-50 mt-[4px] bg-white border border-border rounded-lg shadow-lg max-h-[240px] overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="p-[16px] text-14 text-text-muted text-center">No customers found</div>
+            <div className="p-[16px] text-14 text-text-muted text-center">
+              No customers found
+            </div>
           ) : (
             filtered.map((customer) => (
               <button
@@ -178,13 +219,23 @@ function CustomerSelector({ customers, value, onChange }) {
                 className="w-full flex items-center gap-[10px] px-[14px] py-[10px] hover:bg-gray-50 text-left transition-colors border-b border-border-light last:border-b-0"
               >
                 <div className="w-[32px] h-[32px] bg-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-12 font-bold">{customer.name.charAt(0).toUpperCase()}</span>
+                  <span className="text-white text-12 font-bold">
+                    {customer.name.charAt(0).toUpperCase()}
+                  </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-14 font-medium text-text-primary">{customer.name}</p>
-                  {customer.email && <p className="text-12 text-text-muted truncate">{customer.email}</p>}
+                  <p className="text-14 font-medium text-text-primary">
+                    {customer.name}
+                  </p>
+                  {customer.email && (
+                    <p className="text-12 text-text-muted truncate">
+                      {customer.email}
+                    </p>
+                  )}
                 </div>
-                <span className="text-12 text-text-muted flex-shrink-0">{customer.numberOfOrders} orders</span>
+                <span className="text-12 text-text-muted flex-shrink-0">
+                  {customer.numberOfOrders} orders
+                </span>
               </button>
             ))
           )}
@@ -195,20 +246,33 @@ function CustomerSelector({ customers, value, onChange }) {
 }
 
 // ─── Attribute Editor ───────────────────────────────────────────────────────
-function AttributeEditor({ attributes, onChange, ranges = null, onValidChange }) {
+function AttributeEditor({
+  attributes,
+  onChange,
+  ranges = null,
+  onValidChange,
+}) {
   const [touchedFields, setTouchedFields] = useState(new Set());
-  const { general, measurements, vest } = useMemo(() => categorize(attributes), [attributes]);
+  const { general, measurements, vest } = useMemo(
+    () => categorize(attributes),
+    [attributes],
+  );
 
   function updateAttr(originalKey, value) {
     const newTouched = new Set([...touchedFields, originalKey]);
     setTouchedFields(newTouched);
-    onChange(attributes.map((a) => (a.key === originalKey ? { ...a, value } : a)));
+    onChange(
+      attributes.map((a) => (a.key === originalKey ? { ...a, value } : a)),
+    );
   }
 
   // Notify parent whenever validity changes
   useEffect(() => {
     if (!onValidChange) return;
-    if (!ranges) { onValidChange(true); return; }
+    if (!ranges) {
+      onValidChange(true);
+      return;
+    }
     const allM = [...measurements, ...vest];
     const hasError = allM.some(({ key, originalKey }) => {
       const val = attributes.find((a) => a.key === originalKey)?.value ?? "";
@@ -219,7 +283,7 @@ function AttributeEditor({ attributes, onChange, ranges = null, onValidChange })
       return !isNaN(n) && (n < range.min || n > range.max);
     });
     onValidChange(!hasError);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attributes, ranges]);
 
   function addField() {
@@ -239,12 +303,16 @@ function AttributeEditor({ attributes, onChange, ranges = null, onValidChange })
   }
 
   // Raw attrs that don't fit categorize (empty key or unrecognized)
-  const rawNewFields = attributes.filter((a) => !a.key || a.key.startsWith("_new_"));
+  const rawNewFields = attributes.filter(
+    (a) => !a.key || a.key.startsWith("_new_"),
+  );
 
   if (attributes.length === 0) {
     return (
       <div className="card p-[20px] space-y-[12px]">
-        <p className="text-14 text-text-muted">No fields loaded. Add fields manually below.</p>
+        <p className="text-14 text-text-muted">
+          No fields loaded. Add fields manually below.
+        </p>
         <button onClick={addField} className="btn-secondary gap-[8px]">
           <Plus size={14} />
           Add Field
@@ -259,8 +327,12 @@ function AttributeEditor({ attributes, onChange, ranges = null, onValidChange })
         <div className="card overflow-hidden border-l-4 border-gray-300">
           <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
             <Tag size={14} className="text-text-muted" />
-            <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">Details</h3>
-            <span className="ml-auto text-11 text-text-muted">{general.length} fields</span>
+            <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">
+              Details
+            </h3>
+            <span className="ml-auto text-11 text-text-muted">
+              {general.length} fields
+            </span>
           </div>
           <div className="p-[20px] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[14px]">
             {general.map(({ key, originalKey }) => (
@@ -268,7 +340,9 @@ function AttributeEditor({ attributes, onChange, ranges = null, onValidChange })
                 <label className="input-label">{key}</label>
                 <input
                   type="text"
-                  value={attributes.find((a) => a.key === originalKey)?.value || ""}
+                  value={
+                    attributes.find((a) => a.key === originalKey)?.value || ""
+                  }
                   onChange={(e) => updateAttr(originalKey, e.target.value)}
                   className="input"
                 />
@@ -282,19 +356,33 @@ function AttributeEditor({ attributes, onChange, ranges = null, onValidChange })
         <div className="card overflow-hidden border-l-4 border-brand-600">
           <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
             <Ruler size={14} className="text-brand-700" />
-            <h3 className="text-13 font-bold uppercase tracking-wider text-brand-700">Measurements</h3>
+            <h3 className="text-13 font-bold uppercase tracking-wider text-brand-700">
+              Measurements
+            </h3>
             <span className="ml-auto text-11 font-semibold text-brand-700 bg-brand-50 px-[8px] py-[2px] rounded-full">
               {measurements.length} measurements
             </span>
           </div>
           <div className="p-[16px] grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[10px]">
             {measurements.map(({ key, originalKey }) => {
-              const val = attributes.find((a) => a.key === originalKey)?.value ?? "";
+              const val =
+                attributes.find((a) => a.key === originalKey)?.value ?? "";
               const range = getRangeForKey(ranges, key);
               const isTouched = touchedFields.has(originalKey);
               const n = parseFloat(val);
-              const isInvalid = isTouched && range && val !== "" && !isNaN(n) && (n < range.min || n > range.max);
-              const isValid = isTouched && range && val !== "" && !isNaN(n) && n >= range.min && n <= range.max;
+              const isInvalid =
+                isTouched &&
+                range &&
+                val !== "" &&
+                !isNaN(n) &&
+                (n < range.min || n > range.max);
+              const isValid =
+                isTouched &&
+                range &&
+                val !== "" &&
+                !isNaN(n) &&
+                n >= range.min &&
+                n <= range.max;
               return (
                 <div key={originalKey}>
                   <label className="input-label text-11">{key}</label>
@@ -304,11 +392,24 @@ function AttributeEditor({ attributes, onChange, ranges = null, onValidChange })
                     onChange={(e) => updateAttr(originalKey, e.target.value)}
                     className={cn(
                       "input py-[8px] text-15 font-bold",
-                      isValid ? "border-green-500 focus:ring-green-400" : isInvalid ? "border-red-400 focus:ring-red-400" : "",
+                      isValid
+                        ? "border-green-500 focus:ring-green-400"
+                        : isInvalid
+                          ? "border-red-400 focus:ring-red-400"
+                          : "",
                     )}
                   />
                   {range && (isTouched || val) && (
-                    <p className={cn("text-[10px] mt-[2px] leading-tight", isValid ? "text-green-600" : isInvalid ? "text-red-500" : "text-text-muted")}>
+                    <p
+                      className={cn(
+                        "text-[10px] mt-[2px] leading-tight",
+                        isValid
+                          ? "text-green-600"
+                          : isInvalid
+                            ? "text-red-500"
+                            : "text-text-muted",
+                      )}
+                    >
                       {range.label}
                     </p>
                   )}
@@ -323,19 +424,33 @@ function AttributeEditor({ attributes, onChange, ranges = null, onValidChange })
         <div className="card overflow-hidden border-l-4 border-pending">
           <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
             <Package size={14} className="text-pending" />
-            <h3 className="text-13 font-bold uppercase tracking-wider text-pending">Vest Measurements</h3>
+            <h3 className="text-13 font-bold uppercase tracking-wider text-pending">
+              Vest Measurements
+            </h3>
             <span className="ml-auto text-11 font-semibold text-pending bg-pending-bg px-[8px] py-[2px] rounded-full">
               {vest.length} measurements
             </span>
           </div>
           <div className="p-[16px] grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[10px]">
             {vest.map(({ key, originalKey }) => {
-              const val = attributes.find((a) => a.key === originalKey)?.value ?? "";
+              const val =
+                attributes.find((a) => a.key === originalKey)?.value ?? "";
               const range = getRangeForKey(ranges, key);
               const isTouched = touchedFields.has(originalKey);
               const n = parseFloat(val);
-              const isInvalid = isTouched && range && val !== "" && !isNaN(n) && (n < range.min || n > range.max);
-              const isValid = isTouched && range && val !== "" && !isNaN(n) && n >= range.min && n <= range.max;
+              const isInvalid =
+                isTouched &&
+                range &&
+                val !== "" &&
+                !isNaN(n) &&
+                (n < range.min || n > range.max);
+              const isValid =
+                isTouched &&
+                range &&
+                val !== "" &&
+                !isNaN(n) &&
+                n >= range.min &&
+                n <= range.max;
               return (
                 <div key={originalKey}>
                   <label className="input-label text-11">{key}</label>
@@ -345,11 +460,24 @@ function AttributeEditor({ attributes, onChange, ranges = null, onValidChange })
                     onChange={(e) => updateAttr(originalKey, e.target.value)}
                     className={cn(
                       "input py-[8px] text-15 font-bold",
-                      isValid ? "border-green-500 focus:ring-green-400" : isInvalid ? "border-red-400 focus:ring-red-400" : "",
+                      isValid
+                        ? "border-green-500 focus:ring-green-400"
+                        : isInvalid
+                          ? "border-red-400 focus:ring-red-400"
+                          : "",
                     )}
                   />
                   {range && (isTouched || val) && (
-                    <p className={cn("text-[10px] mt-[2px] leading-tight", isValid ? "text-green-600" : isInvalid ? "text-red-500" : "text-text-muted")}>
+                    <p
+                      className={cn(
+                        "text-[10px] mt-[2px] leading-tight",
+                        isValid
+                          ? "text-green-600"
+                          : isInvalid
+                            ? "text-red-500"
+                            : "text-text-muted",
+                      )}
+                    >
                       {range.label}
                     </p>
                   )}
@@ -359,8 +487,6 @@ function AttributeEditor({ attributes, onChange, ranges = null, onValidChange })
           </div>
         </div>
       )}
-
-
     </div>
   );
 }
@@ -393,25 +519,39 @@ export default function CreateOrder() {
   const [vestRanges, setVestRanges] = useState(null);
 
   useEffect(() => {
-    fetch("/api/customers/vest-ranges")
-      .then(r => r.json())
-      .then(json => { if (json.success && Object.keys(json.data).length > 0) setVestRanges(json.data); })
+    fetchVestRanges()
+      .then((data) => {
+        if (data && Object.keys(data).length > 0) setVestRanges(data);
+      })
       .catch(() => {});
   }, []);
 
-  const productRanges = useMemo(() => getProductRanges(selectedProduct?.title, vestRanges), [selectedProduct, vestRanges]);
+  const productRanges = useMemo(
+    () => getProductRanges(selectedProduct?.title, vestRanges),
+    [selectedProduct, vestRanges],
+  );
 
   // Past orders for selected product
   const pastOrdersForProduct = useMemo(() => {
     if (!selectedProduct || !customerOrders.length) return [];
     return customerOrders
-      .filter((o) => o.lineItems?.edges?.some(({ node }) => node.title?.toLowerCase() === selectedProduct.title?.toLowerCase()))
+      .filter((o) =>
+        o.lineItems?.edges?.some(
+          ({ node }) =>
+            node.title?.toLowerCase() === selectedProduct.title?.toLowerCase(),
+        ),
+      )
       .map((o) => {
-        const item = o.lineItems?.edges?.find(({ node }) => node.title?.toLowerCase() === selectedProduct.title?.toLowerCase())?.node;
+        const item = o.lineItems?.edges?.find(
+          ({ node }) =>
+            node.title?.toLowerCase() === selectedProduct.title?.toLowerCase(),
+        )?.node;
         return {
           orderId: o.name,
           date: (o.createdAt ?? "").split("T")[0],
-          attributes: (item?.customAttributes ?? []).filter((a) => !a.key.startsWith("_")),
+          attributes: (item?.customAttributes ?? []).filter(
+            (a) => !a.key.startsWith("_"),
+          ),
         };
       })
       .filter((o) => o.attributes.length > 0);
@@ -452,7 +592,9 @@ export default function CreateOrder() {
 
   function applyDefaultSizeType(attrs) {
     return attrs.map((a) =>
-      a.key.toLowerCase() === "size type" && !a.value ? { ...a, value: "Custom" } : a,
+      a.key.toLowerCase() === "size type" && !a.value
+        ? { ...a, value: "Custom" }
+        : a,
     );
   }
 
@@ -462,16 +604,19 @@ export default function CreateOrder() {
     if (!selectedProduct) return;
     setFieldsLoading(true);
     try {
-      const res = await fetch(`/api/orders/product-fields?productId=${encodeURIComponent(selectedProduct.id)}`);
-      const data = await res.json();
-      const serverFields = data.fields ?? [];
+      const serverFields = await getProductFields(selectedProduct.id);
       let attrs;
       if (serverFields.length > 0) {
-        attrs = serverFields.map((key) => ({ key, value: key.toLowerCase() === "size type" ? "Custom" : "" }));
+        attrs = serverFields.map((key) => ({
+          key,
+          value: key.toLowerCase() === "size type" ? "Custom" : "",
+        }));
       } else {
         const gcFields = parseGcBuilderFields(selectedProduct.metafield?.value);
         attrs = (gcFields ?? []).map((a) =>
-          a.key.toLowerCase() === "size type" ? { ...a, value: "Custom" } : { ...a, value: "" },
+          a.key.toLowerCase() === "size type"
+            ? { ...a, value: "Custom" }
+            : { ...a, value: "" },
         );
       }
       setAttributes(attrs);
@@ -492,17 +637,20 @@ export default function CreateOrder() {
       return;
     }
 
-    const variantPrice = selectedProduct.variants?.edges?.[0]?.node?.price || "0.00";
+    const variantPrice =
+      selectedProduct.variants?.edges?.[0]?.node?.price || "0.00";
     setPrice(variantPrice);
 
     // Build a value map from customer's latest order for this product (for pre-filling)
     const matchingOrder = customerOrders.find((order) =>
       order.lineItems?.edges?.some(
-        ({ node }) => node.title?.toLowerCase() === selectedProduct.title?.toLowerCase(),
+        ({ node }) =>
+          node.title?.toLowerCase() === selectedProduct.title?.toLowerCase(),
       ),
     );
     const pastItem = matchingOrder?.lineItems?.edges?.find(
-      ({ node }) => node.title?.toLowerCase() === selectedProduct.title?.toLowerCase(),
+      ({ node }) =>
+        node.title?.toLowerCase() === selectedProduct.title?.toLowerCase(),
     )?.node;
     const valueMap = Object.fromEntries(
       (pastItem?.customAttributes ?? [])
@@ -512,25 +660,38 @@ export default function CreateOrder() {
 
     setFieldsLoading(true);
 
-    fetch(`/api/orders/product-fields?productId=${encodeURIComponent(selectedProduct.id)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        const serverFields = data.fields ?? [];
-
+    getProductFields(selectedProduct.id)
+      .then((serverFields) => {
         if (serverFields.length > 0) {
-          setAttributes(applyDefaultSizeType(serverFields.map((key) => ({ key, value: valueMap[key] ?? "" }))));
+          setAttributes(
+            applyDefaultSizeType(
+              serverFields.map((key) => ({ key, value: valueMap[key] ?? "" })),
+            ),
+          );
         } else if (pastItem?.customAttributes?.length > 0) {
-          setAttributes(applyDefaultSizeType(pastItem.customAttributes.filter((a) => !a.key.startsWith("_"))));
+          setAttributes(
+            applyDefaultSizeType(
+              pastItem.customAttributes.filter((a) => !a.key.startsWith("_")),
+            ),
+          );
         } else {
-          const gcFields = parseGcBuilderFields(selectedProduct.metafield?.value);
+          const gcFields = parseGcBuilderFields(
+            selectedProduct.metafield?.value,
+          );
           setAttributes(applyDefaultSizeType(gcFields ?? []));
         }
       })
       .catch(() => {
         if (pastItem?.customAttributes?.length > 0) {
-          setAttributes(applyDefaultSizeType(pastItem.customAttributes.filter((a) => !a.key.startsWith("_"))));
+          setAttributes(
+            applyDefaultSizeType(
+              pastItem.customAttributes.filter((a) => !a.key.startsWith("_")),
+            ),
+          );
         } else {
-          const gcFields = parseGcBuilderFields(selectedProduct.metafield?.value);
+          const gcFields = parseGcBuilderFields(
+            selectedProduct.metafield?.value,
+          );
           setAttributes(applyDefaultSizeType(gcFields ?? []));
         }
       })
@@ -542,34 +703,33 @@ export default function CreateOrder() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await fetch("/api/orders/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: selectedCustomer.id,
-          lineItems: [
-            {
-              title: selectedProduct.title,
-              quantity: 1,
-              originalUnitPrice: price || "0.00",
-              customAttributes: attributes.filter((a) => a.key),
-            },
-          ],
-          note,
-          tags: ["admin-created"],
-        }),
+      const draft = await createDraftOrder({
+        customerId: selectedCustomer.id,
+        lineItems: [
+          {
+            title: selectedProduct.title,
+            quantity: 1,
+            originalUnitPrice: String(price || "0.00"),
+            customAttributes: attributes
+              .filter((a) => a.key)
+              .map(({ key, value }) => ({ key, value: String(value) })),
+          },
+        ],
+        note: note || "",
+        tags: ["admin-created"],
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create order");
+      const order = await completeDraftOrder(draft.id, true);
+      const numericId = order.id.split("/").pop();
       clearOrdersCache();
-      navigate(`/orders/${data.orderId}`);
+      navigate(`/orders/${numericId}`);
     } catch (err) {
       setSubmitError(err.message);
       setSubmitting(false);
     }
   }
 
-  const canSubmit = !!selectedCustomer && !!selectedProduct && !submitting && measurementsValid;
+  const canSubmit =
+    !!selectedCustomer && !!selectedProduct && !submitting && measurementsValid;
 
   return (
     <DashboardLayout>
@@ -587,7 +747,9 @@ export default function CreateOrder() {
       {/* Page header */}
       <div className="section-header mb-[24px]">
         <div>
-          <h2 className="text-24 font-bold text-text-primary">Create New Order</h2>
+          <h2 className="text-24 font-bold text-text-primary">
+            Create New Order
+          </h2>
           <p className="text-14 text-text-muted mt-[3px]">
             Select customer, pick a product, fill measurements and create
           </p>
@@ -601,7 +763,9 @@ export default function CreateOrder() {
             <div className="w-[20px] h-[20px] rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
               <span className="text-white text-11 font-bold">1</span>
             </div>
-            <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">Select Customer</h3>
+            <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">
+              Select Customer
+            </h3>
           </div>
           <div className="p-[20px]">
             {customersLoading ? (
@@ -626,30 +790,41 @@ export default function CreateOrder() {
               <div className="w-[20px] h-[20px] rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-11 font-bold">2</span>
               </div>
-              <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">Select Product</h3>
+              <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">
+                Select Product
+              </h3>
               {!productsLoading && (
-                <span className="ml-auto text-12 text-text-muted">{gcProducts.length} products</span>
+                <span className="ml-auto text-12 text-text-muted">
+                  {gcProducts.length} products
+                </span>
               )}
             </div>
             <div className="p-[20px]">
               {productsLoading ? (
                 <p className="text-14 text-text-muted">Loading products…</p>
               ) : gcProducts.length === 0 ? (
-                <p className="text-14 text-text-muted">No gc_builder products found in store.</p>
+                <p className="text-14 text-text-muted">
+                  No gc_builder products found in store.
+                </p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[12px]">
                   {gcProducts.map((product) => {
                     const isSelected = selectedProduct?.id === product.id;
-                    const variantPrice = product.variants?.edges?.[0]?.node?.price;
+                    const variantPrice =
+                      product.variants?.edges?.[0]?.node?.price;
                     const pastCount = customerOrders.filter((o) =>
                       o.lineItems?.edges?.some(
-                        ({ node }) => node.title?.toLowerCase() === product.title?.toLowerCase(),
+                        ({ node }) =>
+                          node.title?.toLowerCase() ===
+                          product.title?.toLowerCase(),
                       ),
                     ).length;
                     return (
                       <button
                         key={product.id}
-                        onClick={() => setSelectedProduct(isSelected ? null : product)}
+                        onClick={() =>
+                          setSelectedProduct(isSelected ? null : product)
+                        }
                         className={cn(
                           "flex flex-col items-start gap-[6px] p-[14px] rounded-lg border-2 text-left transition-all",
                           isSelected
@@ -660,12 +835,16 @@ export default function CreateOrder() {
                         <div className="flex items-center gap-[8px] w-full">
                           <ShoppingBag
                             size={14}
-                            className={isSelected ? "text-brand-600" : "text-text-muted"}
+                            className={
+                              isSelected ? "text-brand-600" : "text-text-muted"
+                            }
                           />
                           <span
                             className={cn(
                               "text-14 font-semibold flex-1",
-                              isSelected ? "text-brand-700" : "text-text-primary",
+                              isSelected
+                                ? "text-brand-700"
+                                : "text-text-primary",
                             )}
                           >
                             {product.title}
@@ -677,7 +856,9 @@ export default function CreateOrder() {
                           )}
                         </div>
                         {variantPrice && (
-                          <span className="text-12 text-text-muted ml-[22px]">From {variantPrice}</span>
+                          <span className="text-12 text-text-muted ml-[22px]">
+                            From {variantPrice}
+                          </span>
                         )}
                         {pastCount > 0 && (
                           <span className="text-11 text-brand-700 bg-brand-50 border border-brand-200 px-[7px] py-[2px] rounded-full ml-[22px]">
@@ -694,44 +875,57 @@ export default function CreateOrder() {
         )}
 
         {/* ── Step 2.5: Past order template ── */}
-        {selectedCustomer && selectedProduct && pastOrdersForProduct.length > 0 && (
-          <div className="card">
-            <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
-              <Clock size={14} className="text-text-muted" />
-              <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">Use Past Order as Template</h3>
-              <span className="ml-auto text-12 text-text-muted">{pastOrdersForProduct.length} past order{pastOrdersForProduct.length !== 1 ? "s" : ""}</span>
-            </div>
-            <div className="p-[16px] flex flex-wrap gap-[10px]">
-              <button
-                onClick={handleNewOrder}
-                className={cn(
-                  "flex items-center gap-[7px] px-[14px] py-[8px] rounded-lg border-2 text-13 font-medium transition-all",
-                  !selectedTemplate ? "border-brand-600 bg-brand-50 text-brand-700" : "border-border bg-white text-text-muted hover:border-brand-300",
-                )}
-              >
-                <Plus size={13} />
-                New
-              </button>
-              {pastOrdersForProduct.map((o) => (
+        {selectedCustomer &&
+          selectedProduct &&
+          pastOrdersForProduct.length > 0 && (
+            <div className="card">
+              <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
+                <Clock size={14} className="text-text-muted" />
+                <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">
+                  Use Past Order as Template
+                </h3>
+                <span className="ml-auto text-12 text-text-muted">
+                  {pastOrdersForProduct.length} past order
+                  {pastOrdersForProduct.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="p-[16px] flex flex-wrap gap-[10px]">
                 <button
-                  key={o.orderId}
-                  onClick={() => {
-                    setSelectedTemplate(o.orderId);
-                    setAttributes(o.attributes);
-                  }}
+                  onClick={handleNewOrder}
                   className={cn(
                     "flex items-center gap-[7px] px-[14px] py-[8px] rounded-lg border-2 text-13 font-medium transition-all",
-                    selectedTemplate === o.orderId ? "border-brand-600 bg-brand-50 text-brand-700" : "border-border bg-white text-text-secondary hover:border-brand-300 hover:bg-gray-50",
+                    !selectedTemplate
+                      ? "border-brand-600 bg-brand-50 text-brand-700"
+                      : "border-border bg-white text-text-muted hover:border-brand-300",
                   )}
                 >
-                  {selectedTemplate === o.orderId && <CheckCircle2 size={13} />}
-                  {o.orderId}
-                  <span className="text-11 text-text-muted">{o.date}</span>
+                  <Plus size={13} />
+                  New
                 </button>
-              ))}
+                {pastOrdersForProduct.map((o) => (
+                  <button
+                    key={o.orderId}
+                    onClick={() => {
+                      setSelectedTemplate(o.orderId);
+                      setAttributes(o.attributes);
+                    }}
+                    className={cn(
+                      "flex items-center gap-[7px] px-[14px] py-[8px] rounded-lg border-2 text-13 font-medium transition-all",
+                      selectedTemplate === o.orderId
+                        ? "border-brand-600 bg-brand-50 text-brand-700"
+                        : "border-border bg-white text-text-secondary hover:border-brand-300 hover:bg-gray-50",
+                    )}
+                  >
+                    {selectedTemplate === o.orderId && (
+                      <CheckCircle2 size={13} />
+                    )}
+                    {o.orderId}
+                    <span className="text-11 text-text-muted">{o.date}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* ── Step 3: Measurements + Details ── */}
         {selectedCustomer && selectedProduct && (
@@ -783,7 +977,9 @@ export default function CreateOrder() {
             <div className="card p-[20px]">
               <div className="flex items-center gap-[8px] mb-[12px]">
                 <FileText size={14} className="text-text-muted" />
-                <h3 className="text-13 font-semibold text-text-primary">Order Note</h3>
+                <h3 className="text-13 font-semibold text-text-primary">
+                  Order Note
+                </h3>
               </div>
               <textarea
                 value={note}
@@ -797,17 +993,28 @@ export default function CreateOrder() {
             {/* Measurement validation warning */}
             {!measurementsValid && (
               <div className="flex items-start gap-[10px] px-[16px] py-[12px] bg-amber-50 border border-amber-200 rounded-lg">
-                <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-[1px]" />
-                <p className="text-13 text-amber-700">Some measurements are outside the valid range. Fix the red fields before creating the order.</p>
+                <AlertCircle
+                  size={16}
+                  className="text-amber-600 flex-shrink-0 mt-[1px]"
+                />
+                <p className="text-13 text-amber-700">
+                  Some measurements are outside the valid range. Fix the red
+                  fields before creating the order.
+                </p>
               </div>
             )}
 
             {/* Error */}
             {submitError && (
               <div className="flex items-start gap-[10px] px-[16px] py-[12px] bg-red-50 border border-red-200 rounded-lg">
-                <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-[1px]" />
+                <AlertCircle
+                  size={16}
+                  className="text-red-600 flex-shrink-0 mt-[1px]"
+                />
                 <div>
-                  <p className="text-13 font-semibold text-red-700">Failed to create order</p>
+                  <p className="text-13 font-semibold text-red-700">
+                    Failed to create order
+                  </p>
                   <p className="text-12 text-red-600 mt-[2px]">{submitError}</p>
                 </div>
               </div>
@@ -835,8 +1042,12 @@ export default function CreateOrder() {
         {!selectedCustomer && !customersLoading && (
           <div className="card p-[48px] text-center">
             <User size={32} className="mx-auto text-text-muted mb-[12px]" />
-            <p className="text-16 font-semibold text-text-primary mb-[4px]">Select a customer to start</p>
-            <p className="text-14 text-text-muted">Choose a customer to begin creating their order</p>
+            <p className="text-16 font-semibold text-text-primary mb-[4px]">
+              Select a customer to start
+            </p>
+            <p className="text-14 text-text-muted">
+              Choose a customer to begin creating their order
+            </p>
           </div>
         )}
       </div>

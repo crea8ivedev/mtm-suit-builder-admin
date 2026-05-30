@@ -1,176 +1,50 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Scissors,
-  ArrowRight,
-  Mail,
-  RotateCw,
-  ShieldCheck,
-  ArrowLeft,
-} from "lucide-react";
+import { Scissors, ArrowRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
 
-// ─── OTP Box Input ──────────────────────────────────────────────────────────
-function OtpInput({ value, onChange }) {
-  const inputs = useRef([]);
-  const digits = value.padEnd(6, " ").split("").slice(0, 6);
+const ALLOWED_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL ?? "")
+  .toLowerCase()
+  .trim();
+const ALLOWED_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD ?? "";
 
-  function handleKey(idx, e) {
-    if (e.key === "Backspace") {
-      e.preventDefault();
-      const next = value.slice(0, Math.max(idx, value.length - 1));
-      onChange(next.length === value.length ? value.slice(0, idx) : next);
-      if (idx > 0 && (value.length - 1 === idx || value[idx] === undefined)) {
-        inputs.current[idx - 1]?.focus();
-      }
-      return;
-    }
-    if (e.key === "ArrowLeft" && idx > 0) {
-      inputs.current[idx - 1]?.focus();
-      return;
-    }
-    if (e.key === "ArrowRight" && idx < 5) {
-      inputs.current[idx + 1]?.focus();
-      return;
-    }
-  }
-
-  function handleChange(idx, e) {
-    const char = e.target.value.replace(/\D/g, "").slice(-1);
-    if (!char) return;
-    const arr = value.split("");
-    arr[idx] = char;
-    const next = arr.join("").slice(0, 6);
-    onChange(next);
-    if (idx < 5) inputs.current[idx + 1]?.focus();
-  }
-
-  function handlePaste(e) {
-    e.preventDefault();
-    const pasted = e.clipboardData
-      .getData("text")
-      .replace(/\D/g, "")
-      .slice(0, 6);
-    if (pasted) {
-      onChange(pasted);
-      const focusIdx = Math.min(pasted.length, 5);
-      inputs.current[focusIdx]?.focus();
-    }
-  }
-
-  // Focus first empty box when value changes
-  useEffect(() => {
-    const firstEmpty = Math.min(value.length, 5);
-    inputs.current[firstEmpty]?.focus();
-  }, []); // only on mount
-
-  return (
-    <div className="flex gap-[10px] justify-center">
-      {digits.map((d, i) => (
-        <input
-          key={i}
-          ref={(el) => (inputs.current[i] = el)}
-          type="text"
-          inputMode="numeric"
-          maxLength={1}
-          value={i < value.length ? value[i] : ""}
-          onChange={(e) => handleChange(i, e)}
-          onKeyDown={(e) => handleKey(i, e)}
-          onPaste={handlePaste}
-          onFocus={(e) => e.target.select()}
-          className="w-[46px] h-[56px] text-center text-22 font-bold border-2 rounded-xl outline-none transition-all duration-150
-            text-text-primary bg-white
-            border-border focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20"
-          style={{ caretColor: "transparent" }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ─── Page ──────────────────────────────────────────────────────────────────
 export default function Login() {
   const navigate = useNavigate();
-
-  const [step, setStep] = useState("email"); // 'email' | 'otp'
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [resendCooldown, setResendCooldown] = useState(0);
+  const [loading, setLoading] = useState(false);
 
-  // Resend countdown timer
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [resendCooldown]);
-
-  async function handleRequestOtp(e) {
-    e?.preventDefault();
+  async function handleSubmit(e) {
+    e.preventDefault();
     setError("");
+
     if (!email.trim()) {
       setError("Enter your email address.");
       return;
     }
-
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/request-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send OTP");
-      setOtp("");
-      setStep("otp");
-      setResendCooldown(60);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleVerifyOtp(e) {
-    e?.preventDefault();
-    setError("");
-    if (otp.length < 6) {
-      setError("Enter the 6-digit code.");
+    if (!password) {
+      setError("Enter your password.");
       return;
     }
 
     setLoading(true);
-    try {
-      const res = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), otp }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Invalid OTP");
-      localStorage.setItem("suit_admin_auth", "true");
-      localStorage.setItem("suit_admin_name", data.name || "");
-      localStorage.setItem("suit_admin_email", email.trim());
-      navigate("/dashboard");
-    } catch (err) {
-      setError(err.message);
-      setOtp("");
-    } finally {
-      setLoading(false);
-    }
-  }
+    await new Promise((r) => setTimeout(r, 400));
 
-  async function handleResend() {
-    if (resendCooldown > 0 || loading) return;
-    setError("");
-    setOtp("");
-    await handleRequestOtp();
+    const enteredEmail = email.trim().toLowerCase();
+    if (enteredEmail !== ALLOWED_EMAIL || password !== ALLOWED_PASSWORD) {
+      setError("Invalid email or password.");
+      setLoading(false);
+      return;
+    }
+
+    localStorage.setItem("suit_admin_auth", "true");
+    localStorage.setItem("suit_admin_email", enteredEmail);
+    navigate("/dashboard");
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-[16px]">
-      {/* Background subtle pattern */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -195,150 +69,92 @@ export default function Login() {
 
         {/* Card */}
         <div className="bg-white rounded-2xl border border-border shadow-lg p-[32px]">
-          {step === "email" ? (
-            <>
-              {/* Email step */}
-              <div className="mb-[24px]">
-                <h2 className="text-20 font-bold text-text-primary mb-[6px]">
-                  Admin sign in
-                </h2>
-                <p className="text-14 text-text-secondary">
-                  Enter your email — we'll send a one-time code to verify.
-                </p>
+          <div className="mb-[24px]">
+            <h2 className="text-20 font-bold text-text-primary mb-[6px]">
+              Admin sign in
+            </h2>
+            <p className="text-14 text-text-secondary">
+              Enter your credentials to access the dashboard.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            {error && (
+              <div className="mb-[16px] px-[14px] py-[10px] bg-red-50 border border-red-200 rounded-lg text-14 text-red-600">
+                {error}
               </div>
+            )}
 
-              <form onSubmit={handleRequestOtp}>
-                {error && (
-                  <div className="mb-[16px] px-[14px] py-[10px] bg-red-50 border border-red-200 rounded-lg text-14 text-red-600">
-                    {error}
-                  </div>
-                )}
-
-                <div className="mb-[20px]">
-                  <label className="input-label">Email Address</label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        setError("");
-                      }}
-                      placeholder="you@example.com"
-                      className="input pl-[40px]"
-                      autoComplete="email"
-                      autoFocus
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full btn-primary py-[12px] text-15 gap-[8px] disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {loading ? (
-                    <>
-                      <span className="w-[16px] h-[16px] border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" />
-                      Checking…
-                    </>
-                  ) : (
-                    <>
-                      Send OTP
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
-              </form>
-            </>
-          ) : (
-            <>
-              {/* OTP step */}
-              <div className="mb-[24px]">
-                <div className="w-[40px] h-[40px] rounded-xl bg-brand-50 flex items-center justify-center mb-[14px]">
-                  <ShieldCheck size={20} className="text-brand-600" />
-                </div>
-                <h2 className="text-20 font-bold text-text-primary mb-[6px]">
-                  Check your email
-                </h2>
-                <p className="text-14 text-text-secondary">
-                  We sent a 6-digit code to{" "}
-                  <span className="font-semibold text-text-primary">
-                    {email}
-                  </span>
-                </p>
-              </div>
-
-              <form onSubmit={handleVerifyOtp}>
-                {error && (
-                  <div className="mb-[16px] px-[14px] py-[10px] bg-red-50 border border-red-200 rounded-lg text-14 text-red-600">
-                    {error}
-                  </div>
-                )}
-
-                <div className="mb-[24px]">
-                  <label className="input-label text-center block mb-[14px]">
-                    Enter 6-digit code
-                  </label>
-                  <OtpInput
-                    value={otp}
-                    onChange={(v) => {
-                      setOtp(v);
-                      setError("");
-                    }}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading || otp.length < 6}
-                  className="w-full btn-primary py-[12px] text-15 gap-[8px] disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {loading ? (
-                    <>
-                      <span className="w-[16px] h-[16px] border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" />
-                      Verifying…
-                    </>
-                  ) : (
-                    <>
-                      Verify &amp; Sign In
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
-              </form>
-
-              {/* Resend + back */}
-              <div className="flex items-center justify-between mt-[20px] pt-[20px] border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep("email");
+            {/* Email */}
+            <div className="mb-[16px]">
+              <label className="input-label">Email Address</label>
+              <div className="relative">
+                <Mail
+                  size={15}
+                  className="absolute left-[12px] top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
                     setError("");
-                    setOtp("");
                   }}
-                  className="inline-flex items-center gap-[5px] text-13 text-text-muted hover:text-text-primary transition-colors"
-                >
-                  <ArrowLeft size={13} />
-                  Change email
-                </button>
+                  placeholder="you@example.com"
+                  className="input pl-[36px]"
+                  autoComplete="email"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div className="mb-[24px]">
+              <label className="input-label">Password</label>
+              <div className="relative">
+                <Lock
+                  size={15}
+                  className="absolute left-[12px] top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError("");
+                  }}
+                  placeholder="••••••••"
+                  className="input pl-[36px] pr-[40px]"
+                  autoComplete="current-password"
+                />
                 <button
                   type="button"
-                  onClick={handleResend}
-                  disabled={resendCooldown > 0 || loading}
-                  className="inline-flex items-center gap-[5px] text-13 text-brand-600 hover:text-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-[12px] top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
                 >
-                  <RotateCw
-                    size={13}
-                    className={loading ? "animate-spin" : ""}
-                  />
-                  {resendCooldown > 0
-                    ? `Resend in ${resendCooldown}s`
-                    : "Resend OTP"}
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-            </>
-          )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full btn-primary py-[12px] text-15 gap-[8px] disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <span className="w-[16px] h-[16px] border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" />
+                  Signing in…
+                </>
+              ) : (
+                <>
+                  Sign In
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </form>
         </div>
 
         <p className="text-center text-12 text-text-muted mt-[24px]">

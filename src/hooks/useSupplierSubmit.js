@@ -1,4 +1,41 @@
 import { useState, useCallback } from "react";
+import { sendToKutetailor } from "../lib/kutetailor";
+import { getOrderForSupplier, setOrderMetafields } from "../lib/shopify";
+
+export const SUPPLIERS = [
+  { id: "kutetailor", name: "Kutetailor", enabled: true },
+];
+
+const HANDLERS = {
+  kutetailor: sendToKutetailor,
+};
+
+async function handleSendToSupplier(orderId, supplierId) {
+  const supplier = SUPPLIERS.find((s) => s.id === supplierId && s.enabled);
+  if (!supplier) throw new Error(`Unknown supplier: ${supplierId}`);
+  const handler = HANDLERS[supplierId];
+  if (!handler) throw new Error(`No handler for: ${supplierId}`);
+
+  const shopifyGid = `gid://shopify/Order/${orderId}`;
+
+  await setOrderMetafields(shopifyGid, [
+    { key: "supplier_name", value: supplier.id },
+    { key: "supplier_status", value: "processing" },
+    { key: "supplier_error", value: "" },
+  ]).catch(() => {});
+
+  const order = await getOrderForSupplier(shopifyGid);
+  const result = await handler(order);
+
+  await setOrderMetafields(shopifyGid, [
+    { key: "supplier_name", value: supplier.id },
+    { key: "supplier_status", value: "submitted" },
+    { key: "supplier_submitted_at", value: new Date().toISOString() },
+    { key: "supplier_error", value: "" },
+  ]);
+
+  return result;
+}
 
 export function useSupplierSubmit(orderId, onSettled) {
   const [submitting, setSubmitting] = useState(false);
@@ -9,16 +46,14 @@ export function useSupplierSubmit(orderId, onSettled) {
       if (!supplierId) return;
       setSubmitting(true);
       setSubmitError(null);
-
       try {
-        const res = await fetch(`/api/orders/${orderId}/send-to-supplier`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ supplierId }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "Submission failed");
+        await handleSendToSupplier(orderId, supplierId);
       } catch (err) {
+        const shopifyGid = `gid://shopify/Order/${orderId}`;
+        await setOrderMetafields(shopifyGid, [
+          { key: "supplier_status", value: "failed" },
+          { key: "supplier_error", value: err.message },
+        ]).catch(() => {});
         setSubmitError(err.message);
       } finally {
         setSubmitting(false);

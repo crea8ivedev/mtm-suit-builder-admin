@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, Loader2, AlertCircle } from "lucide-react";
+import { getCrafts } from "../../lib/kutetailor";
 
 function JacketIcon() {
   return (
@@ -84,13 +85,8 @@ export default function FabricDetailModal({ fabric, onClose }) {
   useEffect(() => {
     setCraftsLoading(true);
     setCraftsError(null);
-    fetch("/api/kutetailor/crafts")
-      .then((r) => r.json())
-      .then((json) => {
-        if (!json.success)
-          throw new Error(json.error || "Failed to load craft data");
-        setCrafts(json.data);
-      })
+    getCrafts(2)
+      .then((data) => setCrafts(data))
       .catch((e) => setCraftsError(e.message))
       .finally(() => setCraftsLoading(false));
   }, []);

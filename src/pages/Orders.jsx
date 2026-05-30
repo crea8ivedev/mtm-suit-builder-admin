@@ -1,6 +1,12 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Download, ChevronLeft, ChevronRight, RefreshCw, Plus } from "lucide-react";
+import {
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Plus,
+} from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Badge from "../components/ui/Badge";
 import LoadingState from "../components/ui/LoadingState";

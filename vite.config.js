@@ -19,25 +19,13 @@ export default defineConfig(({ mode }) => {
             'X-Shopify-Access-Token': env.VITE_SHOPIFY_ACCESS_TOKEN || '',
           },
         },
-        '/api/auth': {
-          target: 'http://localhost:3002',
+        '/api/kt': {
+          target: env.VITE_KUTETAILOR_API_URL
+            ? new URL(env.VITE_KUTETAILOR_API_URL).origin
+            : 'https://platform.kutetailor.com',
           changeOrigin: true,
-        },
-        '/api/suppliers': {
-          target: 'http://localhost:3002',
-          changeOrigin: true,
-        },
-        '/api/orders': {
-          target: 'http://localhost:3002',
-          changeOrigin: true,
-        },
-        '/api/customers': {
-          target: 'http://localhost:3002',
-          changeOrigin: true,
-        },
-        '/api/kutetailor': {
-          target: 'http://localhost:3002',
-          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/kt/, '/api'),
         },
       },
     },
