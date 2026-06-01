@@ -1,32 +1,65 @@
-import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Download,
   ChevronLeft,
   ChevronRight,
-  RefreshCw,
   Plus,
+  Download,
+  SlidersHorizontal,
+  Check,
 } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
-import Badge from "../components/ui/Badge";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
 import { useOrders } from "../hooks/useOrders";
 import { cn } from "../utils/cn";
 import { generateCSV } from "../utils/exportUtils";
 
-const STATUS_FILTERS = ["All", "Pending", "Submitted", "Failed"];
-const PAYMENT_FILTERS = ["All", "Paid", "Unpaid"];
+const ITEMS_PER_PAGE = 20;
+const SUPPLIER_OPTIONS = ["Pending", "Verified"];
 
-const ITEMS_PER_PAGE = 25;
+const SP_CLASS = {
+  paid: "sp-paid",
+  verified: "sp-verified",
+  shipped: "sp-shipped",
+  processing: "sp-processing",
+  pending: "sp-pending",
+  failed: "sp-failed",
+};
+
+function StatusPill({ status }) {
+  const s = (status ?? "").toLowerCase();
+  return (
+    <span className={cn("status-pill", SP_CLASS[s] ?? "sp-default")}>
+      {s.charAt(0).toUpperCase() + s.slice(1)}
+    </span>
+  );
+}
+
+function ItemsBadge({ count }) {
+  return <span className="items-badge">{count}</span>;
+}
 
 export default function Orders() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const search = searchParams.get("search") || "";
   const { orders, stats, loading, error, progress, retry } = useOrders();
 
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [paymentFilter, setPaymentFilter] = useState("All");
+  const [supplierFilter, setSupplierFilter] = useState(null);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const filterRef = useRef(null);
+
+  useEffect(() => {
+    function handler(e) {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setFilterOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const resetPage = () => setCurrentPage(1);
 
@@ -38,17 +71,12 @@ export default function Orders() {
         order.id.toLowerCase().includes(q) ||
         order.customer.name.toLowerCase().includes(q) ||
         order.customer.email.toLowerCase().includes(q);
-
-      const matchStatus =
-        statusFilter === "All" || order.status === statusFilter.toLowerCase();
-
-      const matchPayment =
-        paymentFilter === "All" ||
-        order.paymentStatus === paymentFilter.toLowerCase();
-
-      return matchSearch && matchStatus && matchPayment;
+      const matchSupplier =
+        !supplierFilter ||
+        order.supplierStatus?.toLowerCase() === supplierFilter.toLowerCase();
+      return matchSearch && matchSupplier;
     });
-  }, [orders, search, statusFilter, paymentFilter]);
+  }, [orders, search, supplierFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated = filtered.slice(
@@ -56,7 +84,6 @@ export default function Orders() {
     currentPage * ITEMS_PER_PAGE,
   );
 
-  // Show up to 7 page buttons, centered around current page
   const visiblePages = useMemo(() => {
     const range = 3;
     const start = Math.max(1, currentPage - range);
@@ -67,198 +94,170 @@ export default function Orders() {
   const handleExportCSV = () => generateCSV(filtered);
 
   return (
-    <DashboardLayout>
-      {/* Page header */}
-      <div className="section-header">
+    <DashboardLayout onRefresh={retry}>
+      {/* ── Page Header ── */}
+      <div className="flex items-start justify-between mb-[30px]">
         <div>
-          <h2 className="text-24 font-bold text-text-primary">Orders</h2>
-          <p className="text-14 text-text-muted mt-[3px]">
+          <h2 className="gc-page-title">Order Management</h2>
+          <p className="gc-page-subtitle">
             {loading
               ? "Fetching from Shopify…"
               : error
                 ? "Could not load orders"
-                : `${filtered.length} of ${stats.total} order${stats.total !== 1 ? "s" : ""}`}
+                : `Real-time overview of ${stats.total} active order${stats.total !== 1 ? "s" : ""}.`}
           </p>
         </div>
 
-        <div className="flex items-center gap-[8px]">
-          {!loading && !error && (
+        <div className="flex items-center gap-[10px] mt-[6px]">
+          {/* Filter dropdown */}
+          <div className="relative" ref={filterRef}>
             <button
-              onClick={retry}
-              className="btn-icon border border-border"
-              title="Refresh orders"
+              onClick={() => setFilterOpen((v) => !v)}
+              className={cn(
+                "gc-btn",
+                supplierFilter && "border-gc-primary bg-[rgba(164,93,65,0.08)]",
+              )}
             >
-              <RefreshCw size={15} />
+              <SlidersHorizontal size={14} />
+              Filter
+              {supplierFilter && (
+                <span className="text-[11px] font-semibold text-gc-id">
+                  · {supplierFilter}
+                </span>
+              )}
             </button>
-          )}
+
+            {filterOpen && (
+              <div className="absolute right-0 top-[calc(100%+6px)] w-[180px] bg-white border border-gc-border rounded-[10px] shadow-lg z-50 overflow-hidden py-[6px]">
+                <p className="font-hanken px-[14px] pt-[6px] pb-[8px] text-[11px] font-semibold uppercase tracking-wider text-gc-text">
+                  Supplier Status
+                </p>
+                <button
+                  onClick={() => {
+                    setSupplierFilter(null);
+                    resetPage();
+                    setFilterOpen(false);
+                  }}
+                  className="font-hanken w-full flex items-center justify-between px-[14px] py-[9px] text-[14px] font-medium text-gc-dark hover:bg-gc-bg transition-colors"
+                >
+                  All
+                  {!supplierFilter && (
+                    <Check size={14} className="text-gc-primary" />
+                  )}
+                </button>
+                {SUPPLIER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => {
+                      setSupplierFilter(opt);
+                      resetPage();
+                      setFilterOpen(false);
+                    }}
+                    className="font-hanken w-full flex items-center justify-between px-[14px] py-[9px] text-[14px] font-medium text-gc-dark hover:bg-gc-bg transition-colors"
+                  >
+                    {opt}
+                    {supplierFilter === opt && (
+                      <Check size={14} className="text-gc-primary" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={handleExportCSV}
             disabled={loading || !!error || !filtered.length}
-            className="btn-secondary gap-[8px] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="gc-btn"
           >
-            <Download size={15} />
-            Export CSV
+            <Download size={14} />
+            Export
           </button>
-          <Link to="/orders/new" className="btn-primary gap-[8px]">
-            <Plus size={15} />
-            Create Order
-          </Link>
-        </div>
-      </div>
 
-      {/* ── Filters ── */}
-      <div className="card p-[16px] md:p-[20px] mb-[20px]">
-        <div className="flex flex-wrap gap-[12px] items-center">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px] max-w-[320px]">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                resetPage();
-              }}
-              placeholder="Order #, customer name or email…"
-              className="input pl-[38px] py-[9px]"
-            />
-          </div>
-
-          {/* Status pills */}
-          <div className="flex items-center gap-[6px] flex-wrap">
-            <span className="text-13 text-text-muted font-medium hidden sm:block whitespace-nowrap">
-              Status:
-            </span>
-            {STATUS_FILTERS.map((s) => (
-              <button
-                key={s}
-                onClick={() => {
-                  setStatusFilter(s);
-                  resetPage();
-                }}
-                className={cn(
-                  "px-[12px] py-[6px] rounded-lg text-13 font-medium transition-colors",
-                  statusFilter === s
-                    ? "bg-brand-600 text-white"
-                    : "bg-gray-100 text-text-secondary hover:bg-gray-200",
-                )}
-              >
-                {s}
-                {!loading && !error && s !== "All" && (
-                  <span
-                    className={cn(
-                      "ml-[5px] text-[11px] font-semibold",
-                      statusFilter === s ? "opacity-80" : "text-text-muted",
-                    )}
-                  >
-                    {s === "Pending" && stats.pending}
-                    {s === "Submitted" && stats.submitted}
-                    {s === "Failed" && stats.failed}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Payment select */}
-          <select
-            value={paymentFilter}
-            onChange={(e) => {
-              setPaymentFilter(e.target.value);
-              resetPage();
-            }}
-            className="input w-auto py-[9px] cursor-pointer"
+          <button
+            onClick={() => navigate("/orders/new")}
+            className="gc-btn gc-btn-primary"
           >
-            {PAYMENT_FILTERS.map((p) => (
-              <option key={p}>{p}</option>
-            ))}
-          </select>
+            <Plus size={14} />
+            Create Order
+          </button>
         </div>
       </div>
 
-      {/* ── Table card ── */}
-      <div className="card">
+      {/* ── Table ── */}
+      <div className="gc-table-container">
         {loading && <LoadingState progress={progress} />}
         {error && <ErrorState message={error} onRetry={retry} />}
 
         {!loading && !error && (
           <>
-            <div className="table-wrapper">
-              <table className="table">
+            <div className="overflow-x-auto">
+              <table className="w-full">
                 <thead>
-                  <tr>
-                    <th>Order</th>
-                    <th>Date</th>
-                    <th>Customer</th>
-                    <th>Total</th>
-                    <th>Payment Status</th>
-                    <th>Items</th>
-                    <th>Fulfillment Status</th>
-                    <th>Supplier Status</th>
+                  <tr className="gc-table-header-row">
+                    {[
+                      "ORDER #",
+                      "DATE",
+                      "CUSTOMER",
+                      "TOTAL",
+                      "PAYMENT",
+                      "ITEMS",
+                      "FULFILLMENT",
+                      "SUPPLIER",
+                    ].map((h) => (
+                      <th key={h} className="gc-th">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {paginated.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={9}
-                        className="text-center py-[64px] text-text-muted text-15"
+                        colSpan={8}
+                        className="font-hanken text-center py-[64px] text-[14px] text-gc-text"
                       >
                         No orders match your filters.
                       </td>
                     </tr>
                   ) : (
                     paginated.map((order) => (
-                      <tr key={order.shopifyGid}>
-                        {/* Order name — clickable, navigates to detail */}
-                        <td>
-                          <Link
-                            to={`/orders/${order.numericId}`}
-                            className="font-bold text-brand-600 hover:text-brand-700 hover:underline transition-colors"
-                          >
-                            {order.id}
-                          </Link>
+                      <tr
+                        key={order.shopifyGid}
+                        onClick={() => navigate(`/orders/${order.numericId}`)}
+                        className="gc-table-row"
+                      >
+                        <td className="gc-td gc-order-id pl-[22px]">
+                          {order.id}
                         </td>
-
-                        {/* Date */}
-                        <td className="text-text-secondary whitespace-nowrap">
+                        <td className="gc-td text-gc-text font-normal">
                           {order.orderDate}
                         </td>
-
-                        {/* Customer */}
-                        <td>
-                          <p className="font-medium text-text-primary">
+                        <td className="gc-td">
+                          <p className="gc-customer-name">
                             {order.customer.name}
                           </p>
                           {order.customer.email && (
-                            <p className="text-12 text-text-muted">
+                            <p className="gc-customer-email">
                               {order.customer.email}
                             </p>
                           )}
                         </td>
-
-                        {/* Total */}
-                        <td className="font-semibold text-text-primary">
+                        <td className="gc-td font-medium text-gc-dark">
                           {order.total}
                         </td>
-
-                        {/* Payment status — raw Shopify label + badge */}
-                        <td>
-                          <Badge status={order.paymentStatus} />
+                        <td className="gc-td">
+                          <StatusPill status={order.paymentStatus} />
                         </td>
-
-                        {/* Items count */}
-                        <td className="text-text-secondary">
-                          {order.itemsDisplay}
+                        <td className="gc-td">
+                          <ItemsBadge count={order.itemCount} />
                         </td>
-
-                        {/* Custom status column */}
-                        <td>
-                          <Badge status={order.status} />
+                        <td className="gc-td">
+                          <StatusPill status={order.status} />
                         </td>
-
-                        {/* Supplier status column */}
-                        <td>
-                          <Badge status={order.supplierStatus} />
+                        <td className="gc-td">
+                          <StatusPill status={order.supplierStatus} />
                         </td>
                       </tr>
                     ))
@@ -267,29 +266,24 @@ export default function Orders() {
               </table>
             </div>
 
-            {/* ── Pagination ── */}
+            {/* Pagination */}
             {filtered.length > ITEMS_PER_PAGE && (
-              <div className="flex items-center justify-between px-[20px] py-[14px] border-t border-border flex-wrap gap-[10px]">
-                <p className="text-13 text-text-muted">
+              <div className="gc-divider flex items-center justify-between px-[24px] py-[16px] flex-wrap gap-[12px]">
+                <p className="gc-pagination-count">
                   Showing{" "}
-                  <span className="font-semibold text-text-primary">
-                    {(currentPage - 1) * ITEMS_PER_PAGE + 1}
-                  </span>{" "}
-                  –{" "}
-                  <span className="font-semibold text-text-primary">
+                  <strong>{(currentPage - 1) * ITEMS_PER_PAGE + 1}</strong>
+                  {" – "}
+                  <strong>
                     {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-semibold text-text-primary">
-                    {filtered.length}
-                  </span>
+                  </strong>
+                  {" of "}
+                  <strong>{filtered.length}</strong> orders
                 </p>
-
-                <div className="flex items-center gap-[5px]">
+                <div className="flex items-center gap-[4px]">
                   <button
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
-                    className="p-[7px] rounded-lg border border-border text-text-secondary hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="gc-pagination-btn"
                   >
                     <ChevronLeft size={15} />
                   </button>
@@ -298,12 +292,14 @@ export default function Orders() {
                     <>
                       <button
                         onClick={() => setCurrentPage(1)}
-                        className="w-[34px] h-[34px] rounded-lg text-13 font-medium border border-border text-text-secondary hover:bg-gray-50 transition-colors"
+                        className="gc-pagination-btn"
                       >
                         1
                       </button>
                       {visiblePages[0] > 2 && (
-                        <span className="text-text-muted px-[4px]">…</span>
+                        <span className="w-[36px] text-center text-gc-text">
+                          …
+                        </span>
                       )}
                     </>
                   )}
@@ -313,10 +309,8 @@ export default function Orders() {
                       key={page}
                       onClick={() => setCurrentPage(page)}
                       className={cn(
-                        "w-[34px] h-[34px] rounded-lg text-13 font-medium transition-colors",
-                        currentPage === page
-                          ? "bg-brand-600 text-white"
-                          : "border border-border text-text-secondary hover:bg-gray-50",
+                        "gc-pagination-btn",
+                        currentPage === page && "active",
                       )}
                     >
                       {page}
@@ -327,11 +321,13 @@ export default function Orders() {
                     <>
                       {visiblePages[visiblePages.length - 1] <
                         totalPages - 1 && (
-                        <span className="text-text-muted px-[4px]">…</span>
+                        <span className="w-[36px] text-center text-gc-text">
+                          …
+                        </span>
                       )}
                       <button
                         onClick={() => setCurrentPage(totalPages)}
-                        className="w-[34px] h-[34px] rounded-lg text-13 font-medium border border-border text-text-secondary hover:bg-gray-50 transition-colors"
+                        className="gc-pagination-btn"
                       >
                         {totalPages}
                       </button>
@@ -343,7 +339,7 @@ export default function Orders() {
                       setCurrentPage((p) => Math.min(totalPages, p + 1))
                     }
                     disabled={currentPage === totalPages}
-                    className="p-[7px] rounded-lg border border-border text-text-secondary hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="gc-pagination-btn"
                   >
                     <ChevronRight size={15} />
                   </button>

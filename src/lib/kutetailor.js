@@ -98,102 +98,6 @@ function decodeUserId(token) {
   }
 }
 
-async function fetchFabricBatch(codes, token) {
-  const results = [];
-  const BATCH = 10;
-  for (let i = 0; i < codes.length; i += BATCH) {
-    const slice = codes.slice(i, i + BATCH);
-    const items = await Promise.all(
-      slice.map((code) =>
-        ktFetch(`/fabric/fabric/queryFabric?fabricCode=${code}`, token)
-          .then((j) =>
-            Array.isArray(j.data) && j.data.length ? j.data[0] : null,
-          )
-          .catch(() => null),
-      ),
-    );
-    results.push(...items.filter(Boolean));
-  }
-  return results;
-}
-
-const JACKET_CODES = [
-  "DEE1001",
-  "DEE1002",
-  "DEE1003",
-  "DEE1004",
-  "DEE1005",
-  "DEE1007",
-  "DEE1008",
-  "DEE1009",
-  "DEE1010",
-  "DEE1011",
-  "DEE1012",
-  "DEE1013",
-  "DEE1014",
-  "DEE1015",
-  "DEE1016",
-  "DEE1017",
-  "DEE1018",
-  "DEE1019",
-  "DEE1020",
-  "DEE1021",
-  "DEE1022",
-  "DEE1023",
-  "DEE1024",
-  "DEE1025",
-  "DEE2001",
-  "DEE2002",
-  "DEE2003",
-  "DEE2004",
-  "DEE2005",
-  "DEE2006",
-  "DEE2007",
-  "DEE2008",
-  "DEE2009",
-  "DEE2010",
-  "DEE2011",
-  "DEE2012",
-  "DEE2013",
-  "DEE2014",
-  "DEE2015",
-  "DEE2016",
-  "DEE2017",
-  "DEE2018",
-  "DEE2019",
-  "DEE2020",
-  "DEE2021",
-  "DEE2022",
-  "DEE2023",
-  "DEE2024",
-  "DEE2025",
-  "DEE2026",
-  "DEE2027",
-  "DEE2028",
-  "DEE2029",
-  "DEE2030",
-  "DEE2031",
-  "DEE2032",
-  "DEE2034",
-  "DEE2035",
-  "DEE2036",
-  "DEE2037",
-];
-
-let _jacketCache = null;
-let _jacketCacheAt = 0;
-const CACHE_TTL = 10 * 60 * 1000;
-
-export async function fetchJackets() {
-  if (_jacketCache && Date.now() - _jacketCacheAt < CACHE_TTL)
-    return _jacketCache;
-  const token = await getToken();
-  const fabrics = await fetchFabricBatch(JACKET_CODES, token);
-  _jacketCache = fabrics;
-  _jacketCacheAt = Date.now();
-  return fabrics;
-}
-
 const CRAFTS_CACHE_TTL = 30 * 60 * 1000;
 const _craftsCache = {};
 const _craftsCacheAt = {};
@@ -435,8 +339,13 @@ function buildOrderPayload(order, { submit }) {
   const weight = parseFloat(kuteAttr(attrs, "weight") ?? "0") || 0;
   const gender = parseInt(kuteAttr(attrs, "gender") ?? "1004", 10);
 
+  // Kutetailor requires customerNo to be at least 8 digits.
+  // order.name is "#1167" (too short) — use the numeric Shopify order ID instead.
+  const customerNo =
+    (order.id ?? "").split("/").pop() || order.name.replace(/\D/g, "");
+
   return {
-    customerNo: order.name,
+    customerNo,
     submit,
     addProduct: lineItems.length > 1,
     amount: lineItems.reduce((s, i) => s + (i.quantity ?? 1), 0),

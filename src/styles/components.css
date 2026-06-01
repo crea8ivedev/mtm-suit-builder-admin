@@ -50,6 +50,292 @@
   @apply bg-gray-50 transition-colors duration-100;
 }
 
+/* ─────────────────────────────────────────────
+   GC Figma Design System Components
+   ───────────────────────────────────────────── */
+
+/* Page titles */
+.gc-page-title {
+  font-family: var(--font-garamond);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 1.1;
+  color: var(--color-gc-heading);
+}
+
+.gc-page-subtitle {
+  font-family: var(--font-hanken);
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 20px;
+  color: #000;
+  margin-top: 4px;
+}
+
+/* GC Button base — border, rounded, Hanken Grotesk */
+.gc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 17px;
+  border: 1px solid var(--color-gc-border-btn);
+  border-radius: 8px;
+  font-family: var(--font-hanken);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-gc-dark);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.gc-btn:hover { background: #f9fafb; }
+.gc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.gc-btn-primary {
+  background: var(--color-gc-primary);
+  border-color: var(--color-gc-primary);
+  color: #fff;
+}
+.gc-btn-primary:hover { background: var(--color-gc-primary-dark); }
+
+/* GC Search input */
+.gc-search {
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  padding: 9px 17px;
+  background: var(--color-gc-bg);
+  border: 1px solid var(--color-gc-border-input);
+}
+.gc-search input {
+  flex: 1;
+  margin-left: 12px;
+  background: transparent;
+  font-family: var(--font-hanken);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-gc-muted);
+  outline: none;
+}
+.gc-search input::placeholder { color: var(--color-gc-muted); }
+
+/* GC Table container */
+.gc-table-container {
+  background: var(--color-gc-surface);
+  border: 1px solid var(--color-gc-border);
+  border-bottom-left-radius: 12px;
+  border-top-left-radius: 12px;
+  overflow: hidden;
+}
+
+/* GC Table header row */
+.gc-table-header-row {
+  background: rgba(164, 93, 65, 0.12);
+  border-bottom: 1px solid var(--color-gc-primary);
+}
+
+/* GC Table header cell */
+.gc-th {
+  padding: 14px 20px;
+  text-align: left;
+  font-family: var(--font-hanken);
+  font-size: 14px;
+  font-weight: 500;
+  color: #000;
+  white-space: nowrap;
+}
+
+/* GC Table body row */
+.gc-table-row {
+  border-left: 3px solid transparent;
+  transition: background-color 0.15s, border-color 0.15s;
+  cursor: pointer;
+}
+.gc-table-row:not(:first-child) {
+  border-top: 1px solid rgba(194, 198, 216, 0.2);
+}
+.gc-table-row:hover {
+  border-left-color: var(--color-gc-primary);
+  background: rgba(164, 93, 65, 0.04);
+}
+
+/* GC Table body cell */
+.gc-td {
+  padding: 18px 20px;
+  font-family: var(--font-hanken);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* GC Order ID link */
+.gc-order-id {
+  font-family: var(--font-hanken);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-gc-primary-dark);
+  white-space: nowrap;
+}
+
+/* GC Customer cell */
+.gc-customer-name {
+  font-family: var(--font-hanken);
+  font-size: 14px;
+  font-weight: 700;
+  color: #000;
+}
+.gc-customer-email {
+  font-family: var(--font-hanken);
+  font-size: 10px;
+  font-style: italic;
+  line-height: 15px;
+  color: rgba(66, 70, 86, 0.7);
+}
+
+/* Status pill badges */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-family: var(--font-hanken);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+/* Payment: Paid */
+.sp-paid, .sp-verified {
+  background: #dcfce7;
+  color: #15803d;
+  box-shadow: 0 0 0 0.8px rgba(22,163,74,0.2);
+}
+/* Payment: Pending / Supplier: Pending */
+.sp-pending {
+  background: #fef3c7;
+  color: #b45309;
+  box-shadow: 0 0 0 0.8px rgba(217,119,6,0.2);
+}
+/* Fulfillment: Shipped */
+.sp-shipped {
+  background: #dbeafe;
+  color: #1d4ed8;
+  box-shadow: 0 0 0 0.8px rgba(37,99,235,0.2);
+}
+/* Fulfillment: Processing */
+.sp-processing {
+  background: #f1f5f9;
+  color: #334155;
+  box-shadow: 0 0 0 0.8px rgba(71,85,105,0.2);
+}
+/* Failed */
+.sp-failed {
+  background: #fee2e2;
+  color: #dc2626;
+  box-shadow: 0 0 0 0.8px rgba(220,38,38,0.2);
+}
+.sp-default {
+  background: #f1f5f9;
+  color: #334155;
+  box-shadow: 0 0 0 0.8px rgba(71,85,105,0.2);
+}
+
+/* Items count badge */
+.items-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: rgba(146, 73, 50, 0.1);
+  color: var(--color-gc-primary-dark);
+  font-family: var(--font-hanken);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* GC Stat card */
+.gc-stat-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 166px;
+  border: 1px solid rgba(194, 198, 216, 0.2);
+  box-shadow: 0px 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+.gc-stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(146, 73, 50, 0.1);
+  border: 0.5px solid var(--color-gc-primary-dark);
+  flex-shrink: 0;
+  margin-bottom: 16px;
+  color: var(--color-gc-primary-dark);
+}
+
+.gc-stat-value {
+  font-family: var(--font-garamond);
+  font-weight: 500;
+  font-size: 48px;
+  line-height: 52.8px;
+  letter-spacing: -0.96px;
+  color: var(--color-gc-primary-num);
+}
+
+.gc-stat-label {
+  font-family: var(--font-hanken);
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--color-gc-primary-label);
+  margin-top: 2px;
+}
+
+/* GC Pagination */
+.gc-pagination-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--color-gc-border-btn);
+  color: var(--color-gc-text);
+  background: transparent;
+  font-family: var(--font-hanken);
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.gc-pagination-btn:hover { background: var(--color-gc-bg); }
+.gc-pagination-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.gc-pagination-btn.active {
+  background: var(--color-gc-primary);
+  border-color: var(--color-gc-primary);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.gc-pagination-count {
+  font-family: var(--font-hanken);
+  font-size: 13px;
+  color: var(--color-gc-text);
+}
+.gc-pagination-count strong { color: var(--color-gc-dark); font-weight: 600; }
+
+/* GC section divider */
+.gc-divider {
+  border-top: 1px solid rgba(194, 198, 216, 0.3);
+}
+
 /* Sidebar nav item */
 .nav-item {
   @apply flex items-center gap-[12px] px-[12px] py-[9px] rounded-lg text-14 text-sidebar-text cursor-pointer transition-all duration-150 hover:bg-sidebar-hover hover:text-white w-full text-left border-0 outline-none bg-transparent;

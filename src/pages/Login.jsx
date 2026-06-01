@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Scissors, ArrowRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ArrowRight } from "lucide-react";
+import { checkSuperAdmin } from "../lib/shopify";
 
-const ALLOWED_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL ?? "")
-  .toLowerCase()
-  .trim();
 const ALLOWED_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD ?? "";
 
 export default function Login() {
@@ -18,8 +16,8 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-
-    if (!email.trim()) {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail) {
       setError("Enter your email address.");
       return;
     }
@@ -27,139 +25,241 @@ export default function Login() {
       setError("Enter your password.");
       return;
     }
-
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 400));
-
-    const enteredEmail = email.trim().toLowerCase();
-    if (enteredEmail !== ALLOWED_EMAIL || password !== ALLOWED_PASSWORD) {
-      setError("Invalid email or password.");
+    try {
+      const isSuperAdmin = await checkSuperAdmin(trimmedEmail);
+      if (!isSuperAdmin) {
+        setError("This email is not authorized to access the admin panel.");
+        return;
+      }
+      if (password !== ALLOWED_PASSWORD) {
+        setError("Incorrect password.");
+        return;
+      }
+      localStorage.setItem("suit_admin_auth", "true");
+      localStorage.setItem("suit_admin_email", trimmedEmail);
+      navigate("/dashboard");
+    } catch {
+      setError("Unable to verify email. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    localStorage.setItem("suit_admin_auth", "true");
-    localStorage.setItem("suit_admin_email", enteredEmail);
-    navigate("/dashboard");
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-[16px]">
+    <div
+      className="min-h-screen flex items-center justify-center p-[24px]"
+      style={{ backgroundColor: "#f4f1ed" }}
+    >
+      {/* Two-column centered card */}
       <div
-        className="fixed inset-0 pointer-events-none"
+        className="relative w-full overflow-hidden"
         style={{
-          backgroundImage: `radial-gradient(circle at 20% 20%, rgba(37,99,235,0.06) 0%, transparent 50%),
-                            radial-gradient(circle at 80% 80%, rgba(37,99,235,0.04) 0%, transparent 50%)`,
+          maxWidth: "1100px",
+          display: "grid",
+          gridTemplateColumns: "54% 46%",
+          minHeight: "660px",
+          boxShadow: "20px 0 60px rgba(0,0,0,0.12)",
+          borderRadius: "4px",
         }}
-      />
-
-      <div className="relative w-full max-w-[420px]">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-[32px]">
-          <div className="w-[52px] h-[52px] rounded-2xl bg-brand-600 flex items-center justify-center mb-[14px] shadow-md">
-            <Scissors size={24} className="text-white" />
+      >
+        {/* ── LEFT: Brand narrative — no logo ── */}
+        <div
+          className="relative flex flex-col justify-center px-[52px] py-[56px]"
+          style={{ backgroundColor: "#f4f1ed" }}
+        >
+          {/* Scissors — bottom-left corner inside left box */}
+          <div
+            className="absolute bottom-0 left-0 w-[180px] h-[180px] pointer-events-none select-none"
+            style={{ opacity: 0.03, mixBlendMode: "multiply" }}
+          >
+            <img
+              src="/watermark-scissors.png"
+              alt=""
+              className="w-full h-full object-contain"
+            />
           </div>
-          <h1 className="text-22 font-bold text-text-primary leading-tight">
-            SuitAdmin
-          </h1>
-          <p className="text-13 text-text-muted mt-[3px]">
-            Order Management System
-          </p>
-        </div>
 
-        {/* Card */}
-        <div className="bg-white rounded-2xl border border-border shadow-lg p-[32px]">
-          <div className="mb-[24px]">
-            <h2 className="text-20 font-bold text-text-primary mb-[6px]">
-              Admin sign in
-            </h2>
-            <p className="text-14 text-text-secondary">
-              Enter your credentials to access the dashboard.
+          <div
+            className="flex flex-col gap-[20px]"
+            style={{ maxWidth: "380px" }}
+          >
+            <h1
+              className="font-garamond font-bold italic leading-none"
+              style={{ fontSize: "50px", color: "#3c3c3c" }}
+            >
+              AUTHENTICITY
+              <br />
+              REQUIRED
+            </h1>
+            <p
+              className="font-hanken text-[14px] leading-[20px]"
+              style={{ color: "#44474c" }}
+            >
+              Access the private atelier management system. Every stitch
+              recorded, every measurement preserved with the precision of a
+              master's eye.
             </p>
           </div>
-
-          <form onSubmit={handleSubmit}>
-            {error && (
-              <div className="mb-[16px] px-[14px] py-[10px] bg-red-50 border border-red-200 rounded-lg text-14 text-red-600">
-                {error}
-              </div>
-            )}
-
-            {/* Email */}
-            <div className="mb-[16px]">
-              <label className="input-label">Email Address</label>
-              <div className="relative">
-                <Mail
-                  size={15}
-                  className="absolute left-[12px] top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
-                />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setError("");
-                  }}
-                  placeholder="you@example.com"
-                  className="input pl-[36px]"
-                  autoComplete="email"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div className="mb-[24px]">
-              <label className="input-label">Password</label>
-              <div className="relative">
-                <Lock
-                  size={15}
-                  className="absolute left-[12px] top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
-                />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setError("");
-                  }}
-                  placeholder="••••••••"
-                  className="input pl-[36px] pr-[40px]"
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-[12px] top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
-                >
-                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full btn-primary py-[12px] text-15 gap-[8px] disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <span className="w-[16px] h-[16px] border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" />
-                  Signing in…
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight size={16} />
-                </>
-              )}
-            </button>
-          </form>
         </div>
 
-        <p className="text-center text-12 text-text-muted mt-[24px]">
-          Access restricted to authorized administrators only.
-        </p>
+        {/* ── RULER: full card height, at the column boundary ── */}
+        <div
+          className="absolute pointer-events-none select-none"
+          style={{
+            left: "50%",
+            transform: "translateX(-50%)",
+            top: 0,
+            bottom: 0,
+            width: "64px",
+            zIndex: 10,
+          }}
+        >
+          <img
+            src="/ruler-scale.png"
+            alt=""
+            className="w-full h-full object-contain"
+          />
+        </div>
+
+        {/* ── RIGHT: Login form — white, no footer line ── */}
+        <div
+          className="bg-white flex flex-col justify-start"
+          style={{ padding: "79px 60px 100px 70px" }}
+        >
+          <div
+            className="flex flex-col gap-[48px]"
+            style={{ maxWidth: "380px", width: "100%" }}
+          >
+            {/* Heading */}
+            <div className="flex flex-col gap-[8px]">
+              <h2
+                className="font-garamond font-semibold text-black"
+                style={{ fontSize: "30px", lineHeight: "normal" }}
+              >
+                Sign In
+              </h2>
+              <p
+                className="font-hanken text-[14px] leading-[21px]"
+                style={{ color: "#44474c" }}
+              >
+                Provide your atelier credentials to continue.
+              </p>
+            </div>
+
+            {/* Form */}
+            <form
+              onSubmit={handleSubmit}
+              noValidate
+              className="flex flex-col gap-[40px]"
+            >
+              {/* Error */}
+              {error && (
+                <div className="px-[14px] py-[10px] bg-red-50 border border-red-200 rounded-[4px]">
+                  <p className="font-hanken text-[13px] text-red-600">
+                    {error}
+                  </p>
+                </div>
+              )}
+
+              {/* Email */}
+              <div className="flex flex-col gap-[8px]">
+                <label
+                  className="font-hanken font-medium text-black uppercase"
+                  style={{ fontSize: "14px", letterSpacing: "0.6px" }}
+                >
+                  Email Address
+                </label>
+                <div
+                  className="flex items-center"
+                  style={{
+                    borderBottom: "1px solid #6b7280",
+                    paddingBottom: "15px",
+                    paddingTop: "13px",
+                    paddingLeft: "2px",
+                  }}
+                >
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError("");
+                    }}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    autoFocus
+                    className="font-hanken flex-1 bg-transparent outline-none text-black"
+                    style={{ fontSize: "16px" }}
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="flex flex-col gap-[8px]">
+                <label
+                  className="font-hanken font-medium text-black uppercase"
+                  style={{ fontSize: "14px", letterSpacing: "0.6px" }}
+                >
+                  Password
+                </label>
+                <div
+                  className="flex items-center"
+                  style={{
+                    borderBottom: "1px solid #6b7280",
+                    paddingBottom: "15px",
+                    paddingTop: "13px",
+                    paddingLeft: "2px",
+                  }}
+                >
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setError("");
+                    }}
+                    placeholder="••••••••••••"
+                    autoComplete="current-password"
+                    className="font-hanken flex-1 bg-transparent outline-none text-black"
+                    style={{ fontSize: "16px" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="text-[#6b7280] hover:text-black transition-colors ml-[8px]"
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="font-hanken flex items-center justify-center gap-[8px] w-full rounded-[8px] text-white font-semibold uppercase tracking-wide transition-opacity disabled:opacity-70 disabled:cursor-not-allowed"
+                style={{
+                  backgroundColor: "#a45d41",
+                  height: "52px",
+                  fontSize: "14px",
+                }}
+              >
+                {loading ? (
+                  <>
+                    <span className="w-[16px] h-[16px] border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0" />
+                    Signing in…
+                  </>
+                ) : (
+                  <>
+                    Sign In
+                    <ArrowRight size={14} />
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
     </div>
   );

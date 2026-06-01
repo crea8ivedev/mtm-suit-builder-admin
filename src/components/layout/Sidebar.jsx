@@ -7,7 +7,6 @@ import {
   Shirt,
   LogOut,
   X,
-  Scissors,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 
@@ -20,7 +19,13 @@ const NAV_ITEMS = [
   },
   { id: "orders", label: "Orders", path: "/orders", icon: ShoppingBag },
   { id: "customers", label: "Customers", path: "/customers", icon: Users },
-  { id: "kuttailor", label: "Kuttailor", path: "/kuttailor", icon: Shirt },
+  {
+    id: "kuttailor",
+    label: "Style Adjustments",
+    path: "/kuttailor",
+    icon: Shirt,
+    disabled: true,
+  },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -49,89 +54,87 @@ export default function Sidebar({ isOpen, onClose }) {
 
       <aside
         className={cn(
-          "fixed left-0 top-0 h-screen w-[260px] bg-sidebar flex flex-col z-50 transition-transform duration-300 ease-in-out",
+          "fixed left-0 top-0 h-screen w-[256px] flex flex-col z-50 transition-transform duration-300 ease-in-out rounded-br-[12px]",
           "lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full",
         )}
-        style={{ boxShadow: "2px 0 8px rgba(0,0,0,0.15)" }}
+        style={{ backgroundColor: "#a45d41" }}
       >
         {/* Brand */}
-        <div className="flex items-center justify-between px-[20px] py-[18px] border-b border-sidebar-border">
-          <div className="flex items-center gap-[10px]">
-            <div className="w-[36px] h-[36px] rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
-              <Scissors size={17} className="text-white" />
-            </div>
-            <div>
-              <p className="text-white font-bold text-15 leading-tight">
-                SuitAdmin
-              </p>
-              <p className="text-sidebar-text text-11 leading-tight">
-                Order Management
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="lg:hidden text-sidebar-text hover:text-white p-[4px] rounded transition-colors"
-          >
-            <X size={17} />
-          </button>
+        <div className="px-[24px] pt-[32px] pb-[48px]">
+          <p className="font-garamond text-white text-[24px] font-bold uppercase tracking-[2px] leading-tight">
+            GAGE COURT
+          </p>
+          <p className="font-garamond text-white text-[10px] pl-[45px] font-bold uppercase tracking-[2px] leading-tight">
+            clothiers
+          </p>
         </div>
 
+        {/* Close button mobile */}
+        <button
+          onClick={onClose}
+          className="absolute top-[16px] right-[16px] lg:hidden text-white/70 hover:text-white p-[4px] rounded transition-colors"
+        >
+          <X size={17} />
+        </button>
+
         {/* Nav */}
-        <nav className="flex-1 px-[12px] py-[16px] overflow-y-auto scroll-hidden">
-          <p className="text-[10px] font-semibold text-sidebar-text uppercase tracking-widest px-[12px] mb-[10px] opacity-50">
-            Main Menu
-          </p>
-          <ul className="space-y-[2px]">
-            {NAV_ITEMS.map(({ id, label, path, icon: Icon, badge }) => {
-              const isActive = location.pathname === path;
+        <nav className="flex-1 flex flex-col gap-[4px] overflow-y-auto">
+          {NAV_ITEMS.map(({ id, label, path, icon: Icon, disabled }) => {
+            const isActive = location.pathname === path;
+            if (disabled) {
               return (
-                <li key={id}>
-                  <Link
-                    to={path}
-                    onClick={onClose}
-                    className={cn("nav-item", isActive && "active")}
-                  >
-                    <Icon size={17} className="flex-shrink-0" />
-                    <span>{label}</span>
-                    {/* {badge && (
-                      <span className="ml-auto bg-brand-600 text-white text-[10px] font-semibold px-[7px] py-[2px] rounded-full leading-tight">
-                        {badge}
-                      </span>
-                    )} */}
-                  </Link>
-                </li>
+                <div
+                  key={id}
+                  className="flex items-center py-[12px] pl-[16px] opacity-40 cursor-not-allowed select-none"
+                >
+                  <Icon
+                    size={16}
+                    className="text-white flex-shrink-0 mr-[12px]"
+                  />
+                  <span className="font-hanken text-white text-[14px] font-semibold tracking-[0.7px] whitespace-nowrap leading-[16.8px]">
+                    {label}
+                  </span>
+                </div>
               );
-            })}
-          </ul>
+            }
+            return (
+              <Link
+                key={id}
+                to={path}
+                onClick={onClose}
+                className={cn(
+                  "flex items-center py-[12px] transition-colors",
+                  isActive
+                    ? "bg-[rgba(255,255,255,0.2)] border-l-2 border-white pl-[18px]"
+                    : "pl-[16px] hover:bg-[rgba(255,255,255,0.1)]",
+                )}
+              >
+                <Icon
+                  size={16}
+                  className="text-white flex-shrink-0 mr-[12px]"
+                />
+                <span className="font-hanken text-white text-[14px] font-semibold tracking-[0.7px] whitespace-nowrap leading-[16.8px]">
+                  {label}
+                </span>
+              </Link>
+            );
+          })}
         </nav>
 
-        {/* User / Logout */}
-        <div className="px-[12px] py-[16px] border-t border-sidebar-border">
-          <div className="flex items-center gap-[10px] px-[12px] mb-[10px]">
-            <div className="w-[34px] h-[34px] rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-13 font-bold">
-                {adminInitial}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-13 font-semibold truncate leading-tight">
-                {adminName}
-              </p>
-              {adminEmail && (
-                <p className="text-sidebar-text text-11 truncate leading-tight">
-                  {adminEmail}
-                </p>
-              )}
-            </div>
-          </div>
+        {/* Logout */}
+        <div
+          className="px-[24px] pb-[32px] pt-[25px]"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.2)" }}
+        >
           <button
             onClick={handleLogout}
-            className="nav-item hover:text-red-400 hover:bg-red-900/20"
+            className="flex items-center gap-[4px] hover:opacity-80 transition-opacity"
           >
-            <LogOut size={16} className="flex-shrink-0" />
-            <span>Logout</span>
+            <LogOut size={14} className="text-white" />
+            <span className="font-hanken text-white text-[14px] font-medium whitespace-nowrap">
+              Log Out
+            </span>
           </button>
         </div>
       </aside>

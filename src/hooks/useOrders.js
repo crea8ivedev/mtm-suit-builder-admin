@@ -49,8 +49,8 @@ export function useOrders() {
   const stats = useMemo(
     () => ({
       total: orders.length,
-      pending: orders.filter((o) => o.status === "pending").length,
-      submitted: orders.filter((o) => o.status === "submitted").length,
+      pending: orders.filter((o) => o.status === "processing").length,
+      submitted: orders.filter((o) => o.status === "shipped").length,
       failed: orders.filter((o) => o.status === "failed").length,
     }),
     [orders],

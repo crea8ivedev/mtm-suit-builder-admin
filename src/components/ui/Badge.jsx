@@ -1,39 +1,36 @@
 import { cn } from "../../utils/cn";
 
 const VARIANTS = {
-  pending: "text-pending bg-pending-bg",
-  submitted: "text-submitted bg-submitted-bg",
-  failed: "text-failed bg-failed-bg",
-  processing: "text-processing bg-processing-bg",
   paid: "text-submitted bg-submitted-bg",
-  unpaid: "text-failed bg-failed-bg",
-  partial: "text-pending bg-pending-bg",
+  pending: "text-pending bg-pending-bg",
+  shipped: "text-brand-700 bg-brand-100",
+  processing: "text-processing bg-processing-bg",
+  verified: "text-submitted bg-submitted-bg",
+  failed: "text-failed bg-failed-bg",
   fulfilled: "text-brand-600 bg-brand-50",
   unfulfilled: "text-gray-500 bg-gray-100",
 };
 
 const DOT_COLORS = {
-  pending: "bg-pending",
-  submitted: "bg-submitted",
-  failed: "bg-failed",
-  processing: "bg-processing",
   paid: "bg-submitted",
-  unpaid: "bg-failed",
-  partial: "bg-pending",
+  pending: "bg-pending",
+  shipped: "bg-brand-700",
+  processing: "bg-processing",
+  verified: "bg-submitted",
+  failed: "bg-failed",
   fulfilled: "bg-brand-600",
   unfulfilled: "bg-gray-400",
 };
 
 const LABELS = {
   paid: "Paid",
-  unpaid: "Unpaid",
-  partial: "Partial",
+  pending: "Pending",
+  shipped: "Shipped",
+  processing: "Processing",
+  verified: "Verified",
+  failed: "Failed",
   fulfilled: "Fulfilled",
   unfulfilled: "Unfulfilled",
-  pending: "Pending",
-  submitted: "Submitted",
-  failed: "Failed",
-  processing: "Processing",
 };
 
 export default function Badge({ status, className }) {

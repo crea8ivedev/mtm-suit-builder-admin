@@ -28,14 +28,11 @@ import {
   createDraftOrder,
   completeDraftOrder,
   fetchVestRanges,
+  fetchShirtRanges,
+  fetchTrouserRanges,
+  fetchJacketRanges,
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
-import {
-  SHIRT_MEASUREMENT_RANGES,
-  JACKET_MEASUREMENT_RANGES,
-  TROUSER_MEASUREMENT_RANGES,
-  SUIT_MEASUREMENT_RANGES,
-} from "../constants/data";
 
 function getRangeForKey(rangeMap, key) {
   if (!rangeMap) return null;
@@ -47,16 +44,26 @@ function getRangeForKey(rangeMap, key) {
   return null;
 }
 
-function getProductRanges(title, vestRanges) {
+function getProductRanges(
+  title,
+  vestRanges,
+  shirtRanges,
+  trouserRanges,
+  jacketRanges,
+) {
   if (!title) return null;
   const t = title.toLowerCase();
   if (t.includes("tuxedo") || t.includes("suit"))
-    return { ...SUIT_MEASUREMENT_RANGES, ...(vestRanges ?? {}) };
-  if (t.includes("jacket") || t.includes("overcoat"))
-    return JACKET_MEASUREMENT_RANGES;
-  if (t.includes("trouser")) return TROUSER_MEASUREMENT_RANGES;
+    return {
+      ...(jacketRanges ?? {}),
+      ...(trouserRanges ?? {}),
+      ...(vestRanges ?? {}),
+      ...(shirtRanges ?? {}),
+    };
+  if (t.includes("jacket") || t.includes("overcoat")) return jacketRanges;
+  if (t.includes("trouser")) return trouserRanges;
   if (t.includes("vest")) return vestRanges;
-  if (t.includes("shirt")) return SHIRT_MEASUREMENT_RANGES;
+  if (t.includes("shirt")) return shirtRanges;
   return null;
 }
 
@@ -517,6 +524,9 @@ export default function CreateOrder() {
   const [submitError, setSubmitError] = useState(null);
 
   const [vestRanges, setVestRanges] = useState(null);
+  const [shirtRanges, setShirtRanges] = useState(null);
+  const [trouserRanges, setTrouserRanges] = useState(null);
+  const [jacketRanges, setJacketRanges] = useState(null);
 
   useEffect(() => {
     fetchVestRanges()
@@ -524,11 +534,33 @@ export default function CreateOrder() {
         if (data && Object.keys(data).length > 0) setVestRanges(data);
       })
       .catch(() => {});
+    fetchShirtRanges()
+      .then((data) => {
+        if (data && Object.keys(data).length > 0) setShirtRanges(data);
+      })
+      .catch(() => {});
+    fetchTrouserRanges()
+      .then((data) => {
+        if (data && Object.keys(data).length > 0) setTrouserRanges(data);
+      })
+      .catch(() => {});
+    fetchJacketRanges()
+      .then((data) => {
+        if (data && Object.keys(data).length > 0) setJacketRanges(data);
+      })
+      .catch(() => {});
   }, []);
 
   const productRanges = useMemo(
-    () => getProductRanges(selectedProduct?.title, vestRanges),
-    [selectedProduct, vestRanges],
+    () =>
+      getProductRanges(
+        selectedProduct?.title,
+        vestRanges,
+        shirtRanges,
+        trouserRanges,
+        jacketRanges,
+      ),
+    [selectedProduct, vestRanges, shirtRanges, trouserRanges, jacketRanges],
   );
 
   // Past orders for selected product

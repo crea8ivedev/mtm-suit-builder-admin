@@ -1,19 +1,28 @@
-import { Menu, Search } from "lucide-react";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { Menu, Search, RefreshCw, ArrowLeft } from "lucide-react";
+import {
+  useLocation,
+  useSearchParams,
+  useNavigate,
+  useMatch,
+} from "react-router-dom";
 import { useAdminUser } from "../../hooks/useAdminUser";
 
-const PAGE_TITLES = {
-  "/dashboard": "Dashboard",
-  "/orders": "Orders",
-  "/customers": "Customers",
-  "/suppliers": "Suppliers",
-  "/settings": "Settings",
-};
-
-export default function TopBar({ onMenuClick }) {
+export default function TopBar({ onMenuClick, onRefresh }) {
+  const {
+    name: adminName,
+    email: adminEmail,
+    initial: adminInitial,
+  } = useAdminUser();
   const location = useLocation();
-  const pageTitle = PAGE_TITLES[location.pathname] || "Dashboard";
-  const { name: adminName, initial: adminInitial } = useAdminUser();
+  const navigate = useNavigate();
+  const isOrderDetail = !!useMatch("/orders/:orderId");
+  const isCustomerDetail = !!useMatch("/customers/:customerId");
+  const isCustomersPage = location.pathname === "/customers";
+  const isSearchablePage =
+    !isOrderDetail &&
+    !isCustomerDetail &&
+    !isCustomersPage &&
+    (location.pathname === "/orders" || location.pathname === "/dashboard");
   const [searchParams, setSearchParams] = useSearchParams();
   const searchValue = searchParams.get("search") || "";
 
@@ -31,54 +40,111 @@ export default function TopBar({ onMenuClick }) {
   };
 
   return (
-    <header className="fixed top-0 right-0 left-0 lg:left-[260px] h-[64px] bg-topbar-bg border-b border-border z-30 flex items-center px-[16px] md:px-[24px] gap-[12px]">
+    <header
+      className="fixed top-0 right-0 left-0 lg:left-[256px] h-[64px] z-30 flex items-center justify-between pb-[16px] pt-[15px] px-[24px]"
+      style={{
+        backgroundColor: "#fdfcfb",
+        backdropFilter: "blur(6px)",
+        borderBottom: "1px solid rgba(194,198,216,0.3)",
+      }}
+    >
       {/* Mobile hamburger */}
       <button
         onClick={onMenuClick}
-        className="lg:hidden p-[8px] rounded-lg hover:bg-gray-100 text-text-secondary transition-colors"
+        className="lg:hidden p-[8px] rounded-lg text-[#424656] hover:bg-gray-100 transition-colors mr-[12px]"
       >
         <Menu size={20} />
       </button>
 
-      {/* Page title */}
-      <div className="flex-1 min-w-0">
-        <h1 className="text-18 font-semibold text-text-primary hidden sm:block truncate">
-          {pageTitle}
-        </h1>
-      </div>
+      {/* Left area: back button OR search OR empty */}
+      {isOrderDetail ? (
+        <div className="flex items-center gap-[32px]">
+          <button
+            onClick={() => navigate("/orders")}
+            className="font-hanken flex items-center gap-[8px] text-[14px] text-black hover:text-[#424656] transition-colors"
+          >
+            <ArrowLeft size={14} />
+            Back to orders
+          </button>
+          <div
+            className="w-px h-[24px]"
+            style={{ backgroundColor: "#c5c6cd" }}
+          />
+        </div>
+      ) : isCustomerDetail ? (
+        <div className="flex items-center gap-[32px]">
+          <button
+            onClick={() => navigate("/customers")}
+            className="font-hanken flex items-center gap-[8px] text-[14px] text-black hover:text-[#424656] transition-colors"
+          >
+            <ArrowLeft size={14} />
+            Back to customers
+          </button>
+          <div
+            className="w-px h-[24px]"
+            style={{ backgroundColor: "#c5c6cd" }}
+          />
+        </div>
+      ) : isCustomersPage ? (
+        <div />
+      ) : (
+        <div
+          className="flex items-center w-[351px] rounded-[12px] px-[17px] py-[9px]"
+          style={{ backgroundColor: "#f4f1ed", border: "1px solid #d1c7bd" }}
+        >
+          <Search size={17} className="text-[#6b7280] flex-shrink-0" />
+          <input
+            type="text"
+            value={isSearchablePage ? searchValue : ""}
+            onChange={isSearchablePage ? handleSearch : undefined}
+            readOnly={!isSearchablePage}
+            placeholder="Search orders..."
+            className="font-hanken flex-1 ml-[12px] bg-transparent text-[14px] font-medium text-gc-muted outline-none placeholder:text-gc-muted"
+            style={{ cursor: isSearchablePage ? "text" : "default" }}
+          />
+        </div>
+      )}
 
-      {/* Search */}
-      <div className="relative hidden md:flex items-center">
-        <Search
-          size={15}
-          className="absolute left-[12px] top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+      {/* Right side */}
+      <div className="flex items-center gap-[20px]">
+        {/* Refresh */}
+        <button
+          onClick={onRefresh}
+          className="flex items-center justify-center size-[18px] text-gc-text hover:text-gc-dark transition-colors"
+          title="Refresh"
+        >
+          <RefreshCw size={18} />
+        </button>
+
+        {/* Divider */}
+        <div
+          className="w-px h-[32px]"
+          style={{ backgroundColor: "rgba(194,198,216,0.3)" }}
         />
-        <input
-          type="text"
-          value={searchValue}
-          onChange={handleSearch}
-          placeholder="Search orders, customers..."
-          className="pl-[38px] pr-[16px] py-[8px] w-[260px] xl:w-[300px] rounded-lg bg-gray-100 border border-transparent text-14 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-border focus:bg-white transition-all duration-200"
-        />
-      </div>
 
-      <div className="flex items-center gap-[4px]">
-        {/* Notifications */}
-        {/* <button className="relative p-[8px] rounded-lg hover:bg-gray-100 text-text-secondary transition-colors">
-          <Bell size={18} />
-          <span className="absolute top-[7px] right-[7px] w-[7px] h-[7px] bg-failed rounded-full border-2 border-white" />
-        </button> */}
-
-        <div className="w-[1px] h-[22px] bg-border mx-[6px]" />
-
-        {/* User */}
-        <div className="flex items-center gap-[8px] py-[6px] px-[8px] rounded-lg">
-          <div className="w-[32px] h-[32px] rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-13 font-bold">{adminInitial}</span>
+        {/* User info */}
+        <div className="flex items-center gap-[12px]">
+          <div className="flex flex-col items-end">
+            <span className="font-garamond text-[12px] font-bold text-gc-dark leading-[14px] whitespace-nowrap">
+              {adminName || "Admin"}
+            </span>
+            {adminEmail && (
+              <span className="font-hanken text-[10px] text-gc-text leading-normal whitespace-nowrap">
+                {adminEmail}
+              </span>
+            )}
           </div>
-          <span className="text-14 font-medium text-text-primary hidden sm:block">
-            {adminName}
-          </span>
+          <div
+            className="w-[40px] h-[40px] rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: "#924932" }}
+          >
+            <span
+              className="text-white text-[16px] font-bold"
+              style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
+            >
+              {adminInitial}
+            </span>
+          </div>
         </div>
       </div>
     </header>

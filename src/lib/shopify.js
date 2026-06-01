@@ -1,5 +1,28 @@
 const ENDPOINT = "/api/shopify/graphql.json";
 
+const CHECK_SUPERADMIN_QUERY = `
+  query CheckSuperAdmin($query: String!) {
+    customers(first: 1, query: $query) {
+      edges {
+        node {
+          id
+          email
+          tags
+        }
+      }
+    }
+  }
+`;
+
+export async function checkSuperAdmin(email) {
+  const data = await shopifyGraphQL(CHECK_SUPERADMIN_QUERY, {
+    query: `email:"${email.trim().toLowerCase()}"`,
+  });
+  const customer = data?.customers?.edges?.[0]?.node;
+  if (!customer) return false;
+  return customer.tags.some((t) => t.trim().toLowerCase() === "super_admin");
+}
+
 // ─── GraphQL query ─────────────────────────────────────────────────────────
 // Fetches one page of orders with cursor-based pagination.
 // lineItems(first: 10) keeps per-request cost well under Shopify's 1 000-point limit.
@@ -530,11 +553,11 @@ export function transformCustomer(node) {
 // ─── Status mapping ────────────────────────────────────────────────────────
 const PAYMENT_STATUS_MAP = {
   PAID: "paid",
-  UNPAID: "unpaid",
-  PENDING: "unpaid",
-  AUTHORIZED: "unpaid",
-  PARTIALLY_PAID: "partial",
-  PARTIALLY_REFUNDED: "partial",
+  UNPAID: "pending",
+  PENDING: "pending",
+  AUTHORIZED: "pending",
+  PARTIALLY_PAID: "pending",
+  PARTIALLY_REFUNDED: "pending",
   REFUNDED: "failed",
   VOIDED: "failed",
 };
@@ -560,8 +583,8 @@ function mapCustomStatus(node) {
   ) {
     return "failed";
   }
-  if (node.displayFulfillmentStatus === "FULFILLED") return "submitted";
-  return "pending";
+  if (node.displayFulfillmentStatus === "FULFILLED") return "shipped";
+  return "processing";
 }
 
 export function formatCurrency(totalPriceSet) {
@@ -853,24 +876,210 @@ export async function fetchVestRanges() {
   if (_vestRangesCache && Date.now() - _vestRangesCacheAt < VEST_CACHE_TTL) {
     return _vestRangesCache;
   }
+  // Abbreviated keys the vest builder stores on order customAttributes
+  const VEST_BUILDER_ABBR = {
+    v_nape_to_waist: "Nape to Waist",
+    v_front_waist_length: "Front Waist Len",
+    v_front_waist_height: "Front Waist Ht",
+    v_back_waist_height: "Back Waist Ht",
+    v_first_button_position: "1st Btn Position",
+    v_highest_point_of: "Highest Point",
+  };
+
   const data = await shopifyGraphQL(GET_VEST_RANGES);
   const entries = data?.metaobjects?.edges ?? [];
   const map = {};
   for (const { node } of entries) {
-    const fields = Object.fromEntries(node.fields.map((f) => [f.key, f.value]));
-    const label = fields.label;
-    const vKey = fields.key ?? node.handle;
-    const min = parseFloat(fields.min ?? 0);
-    const max = parseFloat(fields.max ?? 0);
+    const fieldsMap = {};
+    for (const f of node.fields) {
+      if (f.key === "label" || f.key === "min" || f.key === "max") {
+        fieldsMap[f.key] = f.value;
+      }
+    }
+    const label = fieldsMap.label;
+    const min = parseFloat(fieldsMap.min ?? 0);
+    const max = parseFloat(fieldsMap.max ?? 0);
+    const vKey = node.handle;
     if (!label || isNaN(min) || isNaN(max)) continue;
     const entry = { label, min, max, hint: `${min}–${max}` };
     map[vKey] = entry;
-    map[`Vest ${vKey}`] = entry;
     map[label] = entry;
     map[`Vest ${label}`] = entry;
+    const abbr = VEST_BUILDER_ABBR[vKey];
+    if (abbr) {
+      map[abbr] = entry;
+      map[`Vest ${abbr}`] = entry;
+    }
   }
   _vestRangesCache = map;
   _vestRangesCacheAt = Date.now();
+  return map;
+}
+
+const GET_SHIRT_RANGES = `
+  {
+    metaobjects(type: "shirt_custom_measurement", first: 250) {
+      edges {
+        node {
+          handle
+          fields { key value }
+        }
+      }
+    }
+  }
+`;
+
+let _shirtRangesCache = null;
+let _shirtRangesCacheAt = 0;
+const SHIRT_CACHE_TTL = 30 * 60 * 1000;
+
+export async function fetchShirtRanges() {
+  if (_shirtRangesCache && Date.now() - _shirtRangesCacheAt < SHIRT_CACHE_TTL) {
+    return _shirtRangesCache;
+  }
+  const data = await shopifyGraphQL(GET_SHIRT_RANGES);
+  const entries = data?.metaobjects?.edges ?? [];
+  const map = {};
+  for (const { node } of entries) {
+    const fieldsMap = {};
+    for (const f of node.fields) {
+      if (f.key === "label" || f.key === "min" || f.key === "max") {
+        fieldsMap[f.key] = f.value;
+      }
+    }
+    const label = (fieldsMap.label ?? "").trim();
+    const min = parseFloat(fieldsMap.min ?? 0);
+    const max = parseFloat(fieldsMap.max ?? 0);
+    const sKey = node.handle;
+    if (!label || isNaN(min) || isNaN(max)) continue;
+    const entry = { label, min, max, hint: `${min}–${max}` };
+    map[sKey] = entry;
+    map[label] = entry;
+    map[`Shirt ${label}`] = entry;
+  }
+  _shirtRangesCache = map;
+  _shirtRangesCacheAt = Date.now();
+  return map;
+}
+
+const GET_TROUSER_RANGES = `
+  {
+    metaobjects(type: "trouser_custom_measurement", first: 250) {
+      edges {
+        node {
+          handle
+          fields { key value }
+        }
+      }
+    }
+  }
+`;
+
+let _trouserRangesCache = null;
+let _trouserRangesCacheAt = 0;
+const TROUSER_CACHE_TTL = 30 * 60 * 1000;
+
+export async function fetchTrouserRanges() {
+  if (
+    _trouserRangesCache &&
+    Date.now() - _trouserRangesCacheAt < TROUSER_CACHE_TTL
+  ) {
+    return _trouserRangesCache;
+  }
+  // Abbreviated keys the trouser builder stores on order customAttributes
+  const TROUSER_BUILDER_ABBR = {
+    t_front_waist_height: "Front Waist Ht",
+    t_back_waist_height: "Back Waist Ht",
+    t_u_rise: "Rise",
+  };
+
+  const data = await shopifyGraphQL(GET_TROUSER_RANGES);
+  const entries = data?.metaobjects?.edges ?? [];
+  const map = {};
+  for (const { node } of entries) {
+    const fieldsMap = {};
+    for (const f of node.fields) {
+      if (f.key === "label" || f.key === "min" || f.key === "max") {
+        fieldsMap[f.key] = f.value;
+      }
+    }
+    const label = (fieldsMap.label ?? "").trim();
+    const min = parseFloat(fieldsMap.min ?? 0);
+    const max = parseFloat(fieldsMap.max ?? 0);
+    const tKey = node.handle;
+    if (!label || isNaN(min) || isNaN(max)) continue;
+    const entry = { label, min, max, hint: `${min}–${max}` };
+    map[tKey] = entry;
+    map[label] = entry;
+    map[`Trouser ${label}`] = entry;
+    const abbr = TROUSER_BUILDER_ABBR[tKey];
+    if (abbr) {
+      map[abbr] = entry;
+      map[`Trouser ${abbr}`] = entry;
+    }
+  }
+  _trouserRangesCache = map;
+  _trouserRangesCacheAt = Date.now();
+  return map;
+}
+
+const GET_JACKET_RANGES = `
+  {
+    metaobjects(type: "jacket_custom_measurement", first: 250) {
+      edges {
+        node {
+          handle
+          fields { key value }
+        }
+      }
+    }
+  }
+`;
+
+let _jacketRangesCache = null;
+let _jacketRangesCacheAt = 0;
+const JACKET_CACHE_TTL = 30 * 60 * 1000;
+
+export async function fetchJacketRanges() {
+  if (
+    _jacketRangesCache &&
+    Date.now() - _jacketRangesCacheAt < JACKET_CACHE_TTL
+  ) {
+    return _jacketRangesCache;
+  }
+  // Abbreviated/alternate keys the jacket builder stores on order customAttributes
+  const JACKET_BUILDER_ABBR = {
+    seat: "Seat (Hip)",
+    "front-waist-length": "Front Waist Len",
+  };
+
+  const data = await shopifyGraphQL(GET_JACKET_RANGES);
+  const entries = data?.metaobjects?.edges ?? [];
+  const map = {};
+  for (const { node } of entries) {
+    const fieldsMap = {};
+    for (const f of node.fields) {
+      if (f.key === "label" || f.key === "min" || f.key === "max") {
+        fieldsMap[f.key] = f.value;
+      }
+    }
+    const label = (fieldsMap.label ?? "").trim();
+    const min = parseFloat(fieldsMap.min ?? 0);
+    const max = parseFloat(fieldsMap.max ?? 0);
+    const jKey = node.handle;
+    if (!label || isNaN(min) || isNaN(max)) continue;
+    const entry = { label, min, max, hint: `${min}–${max}` };
+    map[jKey] = entry;
+    map[label] = entry;
+    map[`Jacket ${label}`] = entry;
+    const abbr = JACKET_BUILDER_ABBR[jKey];
+    if (abbr) {
+      map[abbr] = entry;
+      map[`Jacket ${abbr}`] = entry;
+    }
+  }
+  _jacketRangesCache = map;
+  _jacketRangesCacheAt = Date.now();
   return map;
 }
 

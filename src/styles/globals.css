@@ -6,6 +6,31 @@
 @theme {
   --font-body: "Inter", sans-serif;
 
+  /* ── GC Figma Design Fonts ── */
+  --font-garamond: "EB Garamond", serif;
+  --font-hanken: "Hanken Grotesk", sans-serif;
+
+  /* ── GC Brand Colors ── */
+  --color-gc-primary: #a45d41;
+  --color-gc-primary-dark: #924932;
+  --color-gc-primary-num: #8c4633;
+  --color-gc-primary-label: #6b705c;
+
+  /* ── GC Text ── */
+  --color-gc-dark: #0b1c30;
+  --color-gc-heading: #3c3c3c;
+  --color-gc-text: #424656;
+  --color-gc-muted: #6b7280;
+
+  /* ── GC Surfaces ── */
+  --color-gc-bg: #f4f1ed;
+  --color-gc-surface: #fdfcfb;
+
+  /* ── GC Borders ── */
+  --color-gc-border: #e5e0da;
+  --color-gc-border-input: #d1c7bd;
+  --color-gc-border-btn: #d6d6d6;
+
   /* Brand */
   --color-brand: #3b82f6;
   --color-brand-50: #eff6ff;
