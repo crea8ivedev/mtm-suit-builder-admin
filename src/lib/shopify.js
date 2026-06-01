@@ -328,8 +328,8 @@ export function fetchAllOrders(onProgress) {
 
 // ─── Customer queries ──────────────────────────────────────────────────────
 const GET_CUSTOMERS_QUERY = `
-  query GetCustomers($first: Int!, $after: String) {
-    customers(first: $first, after: $after, sortKey: CREATED_AT, reverse: true) {
+  query GetCustomers($first: Int!, $after: String, $query: String) {
+    customers(first: $first, after: $after, sortKey: CREATED_AT, reverse: true, query: $query) {
       pageInfo { hasNextPage endCursor }
       edges {
         node {
@@ -346,6 +346,14 @@ const GET_CUSTOMERS_QUERY = `
     }
   }
 `;
+
+export async function fetchCustomersPage({ cursor = null, pageSize = 20, searchQuery = "" } = {}) {
+  const variables = { first: pageSize, after: cursor };
+  if (searchQuery.trim()) variables.query = searchQuery.trim();
+  const data = await shopifyGraphQL(GET_CUSTOMERS_QUERY, variables);
+  const { edges, pageInfo } = data.customers;
+  return { customers: edges.map((e) => e.node), pageInfo };
+}
 
 const GET_CUSTOMER_ORDERS_QUERY = `
   query GetCustomerOrders($id: ID!, $first: Int!, $after: String) {

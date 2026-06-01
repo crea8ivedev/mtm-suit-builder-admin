@@ -114,7 +114,7 @@ export default function Dashboard() {
           </div>
           <button
             onClick={() => navigate("/orders")}
-            className="font-hanken flex items-center gap-[5px] text-[14px] font-medium text-gc-id hover:text-gc-primary transition-colors"
+            className="font-hanken flex items-center gap-[5px] text-[14px] font-medium text-gc-id hover:text-gc-primary transition-colors cursor-pointer"
           >
             View all
             <ArrowRight size={14} />

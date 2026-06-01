@@ -1,32 +1,17 @@
-import { useState, useMemo, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Search, Plus, CheckCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { Search, Plus, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
 import CreateCustomerModal from "../components/ui/CreateCustomerModal";
 import { useCustomers } from "../hooks/useCustomers";
-import { cn } from "../utils/cn";
 
-const ITEMS_PER_PAGE = 20;
-
-// Avatar colours cycle for each row
 const AVATAR_STYLES = [
-  {
-    bg: "rgba(146,73,50,0.1)",
-    border: "rgba(146,73,50,0.2)",
-    color: "#924932",
-  },
-  {
-    bg: "rgba(119,90,25,0.1)",
-    border: "rgba(119,90,25,0.2)",
-    color: "#775a19",
-  },
-  {
-    bg: "rgba(0,0,0,0.05)",
-    border: "rgba(0,0,0,0.1)",
-    color: "#1a1c1b",
-  },
+  { bg: "rgba(146,73,50,0.1)", border: "rgba(146,73,50,0.2)", color: "#924932" },
+  { bg: "rgba(119,90,25,0.1)", border: "rgba(119,90,25,0.2)", color: "#775a19" },
+  { bg: "rgba(0,0,0,0.05)",    border: "rgba(0,0,0,0.1)",    color: "#1a1c1b" },
 ];
 
 function getInitials(name) {
@@ -37,18 +22,28 @@ function getInitials(name) {
 }
 
 export default function Customers() {
-  const { customers, loading, error, progress, retry } = useCustomers();
+  const { customers, loading, error, currentPage, hasNextPage, load, nextPage, prevPage, retry } = useCustomers();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const topSearch = searchParams.get("search") || "";
 
   const [inlineSearch, setInlineSearch] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Merge topbar search + inline search (topbar takes priority)
-  const search = topSearch || inlineSearch;
+  const activeSearch = topSearch || inlineSearch;
+  const isFirstLoad = useRef(true);
+
+  // Initial load + debounced search on change
+  useEffect(() => {
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
+      load(activeSearch);
+      return;
+    }
+    const t = setTimeout(() => load(activeSearch), 350);
+    return () => clearTimeout(t);
+  }, [activeSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!toast) return;
@@ -56,44 +51,14 @@ export default function Customers() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Reset page when search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search]);
-
   function handleCreated(customer) {
     setModalOpen(false);
     setToast({ name: `${customer.firstName} ${customer.lastName}`.trim() });
-    retry();
+    load(activeSearch);
   }
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return customers;
-    return customers.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        (c.phone || "").includes(q),
-    );
-  }, [customers, search]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = filtered.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
-  );
-
-  const visiblePages = useMemo(() => {
-    const range = 2;
-    const start = Math.max(1, currentPage - range);
-    const end = Math.min(totalPages, currentPage + range);
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
-  }, [currentPage, totalPages]);
 
   return (
     <DashboardLayout onRefresh={retry}>
-      {/* Success toast */}
       {toast && (
         <div className="flex items-center gap-[10px] mb-[16px] px-[16px] py-[12px] bg-green-50 border border-green-200 rounded-[8px]">
           <CheckCircle size={16} className="text-green-600 flex-shrink-0" />
@@ -104,7 +69,6 @@ export default function Customers() {
         </div>
       )}
 
-      {/* ── Page header ── */}
       <div className="flex items-end justify-between mb-[32px]">
         <div className="flex flex-col gap-[8px]">
           <h2 className="gc-page-title">Customers</h2>
@@ -114,7 +78,7 @@ export default function Customers() {
                 ? "Fetching from Shopify…"
                 : error
                   ? "Could not load customers"
-                  : `${filtered.length} OF ${customers.length} CUSTOMERS`}
+                  : `Page ${currentPage} · ${customers.length} shown`}
             </span>
           </div>
         </div>
@@ -128,7 +92,6 @@ export default function Customers() {
         </button>
       </div>
 
-      {/* ── Inline search bar ── */}
       <div
         className="flex items-center gap-[14px] h-[55px] px-[21px] rounded-[8px] mb-[20px]"
         style={{
@@ -146,13 +109,12 @@ export default function Customers() {
         />
       </div>
 
-      {/* ── Table ── */}
       <div className="flex flex-col gap-[20px]">
         <div
           className="bg-white rounded-[12px] overflow-hidden"
           style={{ border: "1px solid rgba(197,198,205,0.3)" }}
         >
-          {loading && <LoadingState progress={progress} />}
+          {loading && <LoadingState />}
           {error && <ErrorState message={error} onRetry={retry} />}
 
           {!loading && !error && (
@@ -174,7 +136,7 @@ export default function Customers() {
                 </tr>
               </thead>
               <tbody>
-                {paginated.length === 0 ? (
+                {customers.length === 0 ? (
                   <tr>
                     <td
                       colSpan={6}
@@ -184,7 +146,7 @@ export default function Customers() {
                     </td>
                   </tr>
                 ) : (
-                  paginated.map((c, i) => {
+                  customers.map((c, i) => {
                     const style = AVATAR_STYLES[i % AVATAR_STYLES.length];
                     const initials = getInitials(c.name);
                     return (
@@ -198,10 +160,8 @@ export default function Customers() {
                             : {}
                         }
                       >
-                        {/* Customer cell */}
                         <td className="pl-[24px] py-[20px] pr-[16px]">
                           <div className="flex items-center gap-[16px]">
-                            {/* Avatar square */}
                             <div
                               className="w-[40px] h-[40px] flex-shrink-0 flex items-center justify-center rounded-[3px]"
                               style={{
@@ -230,17 +190,14 @@ export default function Customers() {
                           </div>
                         </td>
 
-                        {/* Email */}
                         <td className="font-hanken text-[14px] text-black px-[24px] py-[20px] pl-[48px]">
                           {c.email || "—"}
                         </td>
 
-                        {/* Phone */}
                         <td className="font-hanken text-[14px] font-medium text-black px-[24px] py-[20px] whitespace-nowrap">
                           {c.phone || "—"}
                         </td>
 
-                        {/* Orders badge */}
                         <td className="px-[24px] py-[20px]">
                           <span
                             className="font-hanken inline-flex items-center px-[12px] py-[4px] rounded-[3px] text-[10px] font-semibold text-gc-primary-dark"
@@ -253,12 +210,10 @@ export default function Customers() {
                           </span>
                         </td>
 
-                        {/* Total spent */}
                         <td className="font-hanken text-[16px] font-semibold text-black px-[24px] py-[20px] whitespace-nowrap">
                           {c.totalSpent}
                         </td>
 
-                        {/* Registered */}
                         <td className="font-hanken text-[16px] text-gc-text px-[24px] py-[20px] whitespace-nowrap">
                           {c.registrationDate}
                         </td>
@@ -271,108 +226,30 @@ export default function Customers() {
           )}
         </div>
 
-        {/* ── Pagination footer ── */}
-        {!loading && !error && filtered.length > ITEMS_PER_PAGE && (
-          <div className="flex items-center justify-between">
-            <p
-              className="font-hanken text-[14px] font-medium"
-              style={{ color: "#656565" }}
-            >
-              Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
-              {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} of{" "}
-              {filtered.length} entries
+        {!loading && !error && (currentPage > 1 || hasNextPage) && (
+          <div className="gc-divider flex items-center justify-between px-[24px] py-[16px] flex-wrap gap-[12px]">
+            <p className="gc-pagination-count">
+              Page <strong>{currentPage}</strong>
+              {" · "}
+              <strong>{customers.length}</strong> customers
             </p>
-
-            <div className="flex items-center gap-[7px]">
-              {/* Prev */}
+            <div className="flex items-center gap-[4px]">
               <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                onClick={prevPage}
                 disabled={currentPage === 1}
-                className="w-[26px] h-[26px] flex items-center justify-center rounded-[3px] disabled:opacity-30 transition-colors"
-                style={{ border: "0.853px solid #8f8f8f" }}
+                className="gc-pagination-btn"
               >
-                <svg width="5" height="8" viewBox="0 0 5 8" fill="none">
-                  <path
-                    d="M4 1L1 4L4 7"
-                    stroke="#1a1c1b"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ChevronLeft size={15} />
               </button>
-
-              {/* Page numbers */}
-              {visiblePages[0] > 1 && (
-                <>
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    className="font-hanken min-w-[26px] h-[26px] px-[6px] flex items-center justify-center rounded-[3px] text-[10px] font-bold"
-                    style={{ border: "0.853px solid #d2d2d2" }}
-                  >
-                    1
-                  </button>
-                  {visiblePages[0] > 2 && (
-                    <span className="font-hanken text-[#656565] text-[12px]">
-                      …
-                    </span>
-                  )}
-                </>
-              )}
-
-              {visiblePages.map((page) => (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={cn(
-                    "font-hanken min-w-[26px] h-[26px] px-[10px] flex items-center justify-center rounded-[3px] text-[10px] font-bold transition-colors",
-                    currentPage === page ? "text-white" : "",
-                  )}
-                  style={
-                    currentPage === page
-                      ? { backgroundColor: "#924932" }
-                      : { border: "0.853px solid #d2d2d2" }
-                  }
-                >
-                  {page}
-                </button>
-              ))}
-
-              {visiblePages[visiblePages.length - 1] < totalPages && (
-                <>
-                  {visiblePages[visiblePages.length - 1] < totalPages - 1 && (
-                    <span className="font-hanken text-[#656565] text-[12px]">
-                      …
-                    </span>
-                  )}
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    className="font-hanken min-w-[26px] h-[26px] px-[6px] flex items-center justify-center rounded-[3px] text-[10px] font-bold"
-                    style={{ border: "0.853px solid #d2d2d2" }}
-                  >
-                    {totalPages}
-                  </button>
-                </>
-              )}
-
-              {/* Next */}
+              <button className="gc-pagination-btn active">
+                {currentPage}
+              </button>
               <button
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(totalPages, p + 1))
-                }
-                disabled={currentPage === totalPages}
-                className="w-[26px] h-[26px] flex items-center justify-center rounded-[3px] disabled:opacity-30 transition-colors"
-                style={{ border: "0.853px solid #d2d2d2" }}
+                onClick={nextPage}
+                disabled={!hasNextPage}
+                className="gc-pagination-btn"
               >
-                <svg width="5" height="8" viewBox="0 0 5 8" fill="none">
-                  <path
-                    d="M1 1L4 4L1 7"
-                    stroke="#1a1c1b"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ChevronRight size={15} />
               </button>
             </div>
           </div>
