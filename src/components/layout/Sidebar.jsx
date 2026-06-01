@@ -62,12 +62,14 @@ export default function Sidebar({ isOpen, onClose }) {
       >
         {/* Brand */}
         <div className="px-[24px] pt-[32px] pb-[48px]">
-          <p className="font-garamond text-white text-[24px] font-bold uppercase tracking-[2px] leading-tight">
-            GAGE COURT
-          </p>
-          <p className="font-garamond text-white text-[10px] pl-[45px] font-bold uppercase tracking-[2px] leading-tight">
-            clothiers
-          </p>
+          <div className="w-fit">
+            <p className="font-garamond text-white text-[24px] font-bold uppercase tracking-[2px] leading-tight">
+              GAGE COURT
+            </p>
+            <p className="font-garamond text-white text-[10px] font-bold uppercase tracking-[2px] leading-tight text-center">
+              clothiers
+            </p>
+          </div>
         </div>
 
         {/* Close button mobile */}
