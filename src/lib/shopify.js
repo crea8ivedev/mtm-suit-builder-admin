@@ -247,9 +247,7 @@ export async function fetchGcBuilderProducts() {
       after: cursor,
     });
     const { edges, pageInfo } = data.products;
-    all.push(
-      ...edges.map((e) => e.node).filter((p) => p.metafield?.value?.trim()),
-    );
+    all.push(...edges.map((e) => e.node));
     hasNextPage = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
   }
@@ -284,13 +282,6 @@ export async function fetchOrderById(shopifyGid) {
 // ─── Fetch ALL orders with cursor pagination ───────────────────────────────
 // Loops through pages until pageInfo.hasNextPage is false.
 // onProgress(count) is called after each page to allow live progress display.
-// Returns true if at least one line item belongs to a gc_builder product
-function hasGcBuilderItem(order) {
-  return (order.lineItems?.edges ?? []).some(({ node }) =>
-    node.product?.metafield?.value?.trim(),
-  );
-}
-
 async function _doFetch(onProgress) {
   const all = [];
   let hasNextPage = true;
@@ -303,9 +294,7 @@ async function _doFetch(onProgress) {
     });
 
     const { edges, pageInfo } = data.orders;
-    // Only keep orders that have at least one gc_builder product line item
-    const filtered = edges.map((e) => e.node).filter(hasGcBuilderItem);
-    all.push(...filtered);
+    all.push(...edges.map((e) => e.node));
     if (onProgress) onProgress(all.length);
 
     hasNextPage = pageInfo.hasNextPage;
@@ -417,29 +406,6 @@ export function clearCustomerDetailCache(shopifyGid) {
 }
 
 async function _doFetchCustomers(onProgress) {
-  // Always fetch fresh orders so customer.id is guaranteed in every node
-  clearOrdersCache();
-  const gcOrders = await fetchAllOrders();
-
-  // Build per-customer gc_builder order count and total spent
-  const gcOrderCountMap = new Map();
-  const gcTotalSpentMap = new Map(); // customerId -> { amount, currencyCode }
-  for (const order of gcOrders) {
-    const cid = order.customer?.id;
-    if (!cid) continue;
-    gcOrderCountMap.set(cid, (gcOrderCountMap.get(cid) ?? 0) + 1);
-    const shopMoney = order.totalPriceSet?.shopMoney;
-    if (shopMoney) {
-      const prev = gcTotalSpentMap.get(cid);
-      const sum =
-        parseFloat(prev?.amount ?? 0) + parseFloat(shopMoney.amount ?? 0);
-      gcTotalSpentMap.set(cid, {
-        amount: sum.toFixed(2),
-        currencyCode: shopMoney.currencyCode,
-      });
-    }
-  }
-
   const all = [];
   let hasNextPage = true;
   let cursor = null;
@@ -449,17 +415,7 @@ async function _doFetchCustomers(onProgress) {
       after: cursor,
     });
     const { edges, pageInfo } = data.customers;
-    // Only keep customers who appear in at least one gc_builder order
-    // Attach gcOrderCount so the UI shows the correct filtered count
-    const filtered = edges
-      .map((e) => e.node)
-      .filter((c) => gcOrderCountMap.has(c.id))
-      .map((c) => ({
-        ...c,
-        gcOrderCount: gcOrderCountMap.get(c.id),
-        gcTotalSpent: gcTotalSpentMap.get(c.id),
-      }));
-    all.push(...filtered);
+    all.push(...edges.map((e) => e.node));
     if (onProgress) onProgress(all.length);
     hasNextPage = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
@@ -506,9 +462,7 @@ export async function fetchCustomerWithOrders(shopifyGid) {
       customerInfo = info;
     }
     const { edges, pageInfo } = data.customer.orders;
-    // Only keep orders that have at least one gc_builder product line item
-    const gcOrders = edges.map((e) => e.node).filter(hasGcBuilderItem);
-    allOrders.push(...gcOrders);
+    allOrders.push(...edges.map((e) => e.node));
     hasNextPage = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
   }

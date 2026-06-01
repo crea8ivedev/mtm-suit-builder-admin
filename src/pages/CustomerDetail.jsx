@@ -60,7 +60,6 @@ function buildMeasurementProfiles(orders) {
   for (const order of orders) {
     const created = (order.createdAt ?? "").split("T")[0];
     for (const { node: item } of order.lineItems?.edges ?? []) {
-      if (!item.product?.metafield?.value) continue;
       const allAttrs = item.customAttributes ?? [];
       const measureAttrs = allAttrs.filter((a) => !a.key.startsWith("_"));
       if (!measureAttrs.length) continue;
