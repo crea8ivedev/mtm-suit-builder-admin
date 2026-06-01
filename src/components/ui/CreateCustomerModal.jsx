@@ -256,10 +256,9 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
           </div>
 
           {/* Section 02 — Residence */}
-          <div className="flex flex-col gap-[24px]">
+          {/* <div className="flex flex-col gap-[24px]">
             <SectionHeading num="02" title="Residence" />
             <div className="flex flex-col gap-[32px]">
-              {/* Row 1: Address + Apt */}
               <div className="grid grid-cols-2 gap-x-[24px]">
                 <div>
                   <FieldLabel>Address</FieldLabel>
@@ -278,7 +277,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                   />
                 </div>
               </div>
-              {/* Row 2: City + State + Zip */}
               <div className="grid grid-cols-3 gap-x-[24px]">
                 <div>
                   <FieldLabel>City</FieldLabel>
@@ -313,7 +311,7 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* API error */}
           {apiError && (
