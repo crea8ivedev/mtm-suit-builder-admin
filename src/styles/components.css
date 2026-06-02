@@ -326,10 +326,10 @@
 
 .gc-pagination-count {
   font-family: var(--font-hanken);
-  font-size: 13px;
-  color: var(--color-gc-text);
+  font-weight: 500;
+  font-size: 14px;
+  color: #656565;
 }
-.gc-pagination-count strong { color: var(--color-gc-dark); font-weight: 600; }
 
 /* GC section divider */
 .gc-divider {

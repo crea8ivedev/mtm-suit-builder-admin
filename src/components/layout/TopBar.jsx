@@ -110,7 +110,7 @@ export default function TopBar({ onMenuClick, onRefresh }) {
         {/* Refresh */}
         <button
           onClick={onRefresh}
-          className="flex items-center justify-center size-[18px] text-gc-text hover:text-gc-dark transition-colors"
+          className="flex items-center justify-center size-[18px] text-gc-text hover:text-gc-dark transition-colors cursor-pointer"
           title="Refresh"
         >
           <RefreshCw size={18} />

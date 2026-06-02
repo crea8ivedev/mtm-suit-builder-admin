@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Search,
+  Plus,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
@@ -9,9 +15,17 @@ import CreateCustomerModal from "../components/ui/CreateCustomerModal";
 import { useCustomers } from "../hooks/useCustomers";
 
 const AVATAR_STYLES = [
-  { bg: "rgba(146,73,50,0.1)", border: "rgba(146,73,50,0.2)", color: "#924932" },
-  { bg: "rgba(119,90,25,0.1)", border: "rgba(119,90,25,0.2)", color: "#775a19" },
-  { bg: "rgba(0,0,0,0.05)",    border: "rgba(0,0,0,0.1)",    color: "#1a1c1b" },
+  {
+    bg: "rgba(146,73,50,0.1)",
+    border: "rgba(146,73,50,0.2)",
+    color: "#924932",
+  },
+  {
+    bg: "rgba(119,90,25,0.1)",
+    border: "rgba(119,90,25,0.2)",
+    color: "#775a19",
+  },
+  { bg: "rgba(0,0,0,0.05)", border: "rgba(0,0,0,0.1)", color: "#1a1c1b" },
 ];
 
 function getInitials(name) {
@@ -22,7 +36,20 @@ function getInitials(name) {
 }
 
 export default function Customers() {
-  const { customers, loading, error, currentPage, hasNextPage, load, nextPage, prevPage, retry } = useCustomers();
+  const {
+    customers,
+    loading,
+    error,
+    currentPage,
+    hasNextPage,
+    maxKnownPage,
+    totalCount,
+    load,
+    nextPage,
+    prevPage,
+    goToPage,
+    retry,
+  } = useCustomers();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const topSearch = searchParams.get("search") || "";
@@ -73,12 +100,14 @@ export default function Customers() {
         <div className="flex flex-col gap-[8px]">
           <h2 className="gc-page-title">Customers</h2>
           <div className="flex items-center gap-[8px]">
-            <span className="font-hanken text-[14px] text-black">
+            <span className="font-hanken text-[14px] font-normal text-black">
               {loading
-                ? "Fetching from Shopify…"
+                ? "FETCHING FROM SHOPIFY…"
                 : error
-                  ? "Could not load customers"
-                  : `Page ${currentPage} · ${customers.length} shown`}
+                  ? "COULD NOT LOAD CUSTOMERS"
+                  : totalCount !== null
+                    ? `${(currentPage - 1) * 20 + customers.length} OF ${totalCount} CUSTOMERS`
+                    : `${customers.length} CUSTOMERS`}
             </span>
           </div>
         </div>
@@ -229,9 +258,8 @@ export default function Customers() {
         {!loading && !error && (currentPage > 1 || hasNextPage) && (
           <div className="gc-divider flex items-center justify-between px-[24px] py-[16px] flex-wrap gap-[12px]">
             <p className="gc-pagination-count">
-              Page <strong>{currentPage}</strong>
-              {" · "}
-              <strong>{customers.length}</strong> customers
+              Showing {(currentPage - 1) * 20 + 1} to{" "}
+              {(currentPage - 1) * 20 + customers.length} entries
             </p>
             <div className="flex items-center gap-[4px]">
               <button
@@ -241,9 +269,25 @@ export default function Customers() {
               >
                 <ChevronLeft size={15} />
               </button>
-              <button className="gc-pagination-btn active">
-                {currentPage}
-              </button>
+              {(() => {
+                const WINDOW = 5;
+                let start = Math.max(1, currentPage - Math.floor(WINDOW / 2));
+                let end = Math.min(maxKnownPage, start + WINDOW - 1);
+                if (end - start + 1 < WINDOW)
+                  start = Math.max(1, end - WINDOW + 1);
+                return Array.from(
+                  { length: end - start + 1 },
+                  (_, i) => start + i,
+                ).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => page !== currentPage && goToPage(page)}
+                    className={`gc-pagination-btn${page === currentPage ? " active" : ""}`}
+                  >
+                    {page}
+                  </button>
+                ));
+              })()}
               <button
                 onClick={nextPage}
                 disabled={!hasNextPage}

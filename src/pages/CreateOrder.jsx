@@ -19,7 +19,7 @@ import {
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import {
-  fetchAllCustomers,
+  fetchCustomersPage,
   fetchGcBuilderProducts,
   fetchCustomerWithOrders,
   transformCustomer,
@@ -139,10 +139,14 @@ function parseGcBuilderFields(jsonValue) {
 }
 
 // ─── Customer Selector ──────────────────────────────────────────────────────
-function CustomerSelector({ customers, value, onChange }) {
+function CustomerSelector({ value, onChange }) {
   const [search, setSearch] = useState("");
+  const [results, setResults] = useState([]);
+  const [resultsLoading, setResultsLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const debounceRef = useRef(null);
+  const initialFetched = useRef(false);
 
   useEffect(() => {
     function handleOutside(e) {
@@ -152,18 +156,31 @@ function CustomerSelector({ customers, value, onChange }) {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    return customers
-      .filter(
-        (c) =>
-          !q ||
-          c.name.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q) ||
-          (c.phone && c.phone.includes(q)),
-      )
-      .slice(0, 20);
-  }, [customers, search]);
+  function doFetch(query) {
+    setResultsLoading(true);
+    fetchCustomersPage({ pageSize: 20, searchQuery: query })
+      .then(({ customers: raw }) => {
+        setResults(raw.map(transformCustomer));
+        setResultsLoading(false);
+      })
+      .catch(() => setResultsLoading(false));
+  }
+
+  function handleFocus() {
+    setOpen(true);
+    if (!initialFetched.current) {
+      initialFetched.current = true;
+      doFetch("");
+    }
+  }
+
+  function handleSearchChange(e) {
+    const val = e.target.value;
+    setSearch(val);
+    setOpen(true);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => doFetch(val), 300);
+  }
 
   if (value) {
     return (
@@ -201,21 +218,22 @@ function CustomerSelector({ customers, value, onChange }) {
         type="text"
         placeholder="Search customer by name or email…"
         value={search}
-        onChange={(e) => {
-          setSearch(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
+        onChange={handleSearchChange}
+        onFocus={handleFocus}
         className="input pl-[38px]"
       />
       {open && (
         <div className="absolute top-full left-0 right-0 z-50 mt-[4px] bg-white border border-border rounded-lg shadow-lg max-h-[240px] overflow-y-auto">
-          {filtered.length === 0 ? (
+          {resultsLoading ? (
+            <div className="p-[16px] text-14 text-text-muted text-center">
+              Searching…
+            </div>
+          ) : results.length === 0 ? (
             <div className="p-[16px] text-14 text-text-muted text-center">
               No customers found
             </div>
           ) : (
-            filtered.map((customer) => (
+            results.map((customer) => (
               <button
                 key={customer.id}
                 onClick={() => {
@@ -502,8 +520,6 @@ function AttributeEditor({
 export default function CreateOrder() {
   const navigate = useNavigate();
 
-  const [customers, setCustomers] = useState([]);
-  const [customersLoading, setCustomersLoading] = useState(true);
   const [gcProducts, setGcProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
 
@@ -589,15 +605,8 @@ export default function CreateOrder() {
       .filter((o) => o.attributes.length > 0);
   }, [selectedProduct, customerOrders]);
 
-  // Load customers + gc_builder products on mount
+  // Load gc_builder products on mount
   useEffect(() => {
-    fetchAllCustomers()
-      .then((raw) => {
-        setCustomers(raw.map(transformCustomer));
-        setCustomersLoading(false);
-      })
-      .catch(() => setCustomersLoading(false));
-
     fetchGcBuilderProducts()
       .then((products) => {
         setGcProducts(products);
@@ -800,18 +809,13 @@ export default function CreateOrder() {
             </h3>
           </div>
           <div className="p-[20px]">
-            {customersLoading ? (
-              <p className="text-14 text-text-muted">Loading customers…</p>
-            ) : (
-              <CustomerSelector
-                customers={customers}
-                value={selectedCustomer}
-                onChange={(c) => {
-                  setSelectedCustomer(c);
-                  setSelectedProduct(null);
-                }}
-              />
-            )}
+            <CustomerSelector
+              value={selectedCustomer}
+              onChange={(c) => {
+                setSelectedCustomer(c);
+                setSelectedProduct(null);
+              }}
+            />
           </div>
         </div>
 
@@ -1071,7 +1075,7 @@ export default function CreateOrder() {
         )}
 
         {/* Empty state */}
-        {!selectedCustomer && !customersLoading && (
+        {!selectedCustomer && (
           <div className="card p-[48px] text-center">
             <User size={32} className="mx-auto text-text-muted mb-[12px]" />
             <p className="text-16 font-semibold text-text-primary mb-[4px]">

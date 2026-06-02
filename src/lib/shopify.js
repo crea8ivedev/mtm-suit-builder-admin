@@ -347,7 +347,27 @@ const GET_CUSTOMERS_QUERY = `
   }
 `;
 
-export async function fetchCustomersPage({ cursor = null, pageSize = 20, searchQuery = "" } = {}) {
+const GET_CUSTOMERS_COUNT_QUERY = `
+  query GetCustomersCount($query: String) {
+    customersCount(query: $query) {
+      count
+      precision
+    }
+  }
+`;
+
+export async function fetchCustomersCount(searchQuery = "") {
+  const variables = {};
+  if (searchQuery.trim()) variables.query = searchQuery.trim();
+  const data = await shopifyGraphQL(GET_CUSTOMERS_COUNT_QUERY, variables);
+  return data?.customersCount?.count ?? null;
+}
+
+export async function fetchCustomersPage({
+  cursor = null,
+  pageSize = 20,
+  searchQuery = "",
+} = {}) {
   const variables = { first: pageSize, after: cursor };
   if (searchQuery.trim()) variables.query = searchQuery.trim();
   const data = await shopifyGraphQL(GET_CUSTOMERS_QUERY, variables);
