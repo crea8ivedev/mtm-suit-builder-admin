@@ -65,7 +65,6 @@ function buildMeasurementProfiles(orders) {
       if (!measureAttrs.length) continue;
       const productName = item.title;
       if (!result[productName]) result[productName] = [];
-      if (result[productName].length >= 5) continue;
       const profileName = allAttrs.find(
         (a) => a.key === "_profile_name",
       )?.value;
@@ -260,16 +259,6 @@ export default function CustomerDetail() {
       ),
     [activeProfiles],
   );
-
-  useEffect(() => {
-    if (!orders.length || !customerId) return;
-    const data = profiles;
-    if (Object.keys(data).length === 0) return;
-    setCustomerProductsMetafield(
-      `gid://shopify/Customer/${customerId}`,
-      data,
-    ).catch(() => {});
-  }, [orders, customerId]);
 
   const totalPages = Math.max(1, Math.ceil(orders.length / ORDERS_PER_PAGE));
   const paginated = orders.slice(
@@ -569,7 +558,7 @@ export default function CustomerDetail() {
                     >
                       <div className="flex flex-col gap-[4px]">
                         <span className="font-garamond text-[24px] font-medium text-[#1a1c1b]">
-                          Technical Measurements
+                          {entry.productName}
                         </span>
                         <span className="font-hanken text-[14px] font-semibold text-[#6d6d6d]">
                           Profile: {entry.name} • Last updated: {entry.created}

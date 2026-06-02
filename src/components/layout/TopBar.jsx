@@ -60,11 +60,17 @@ export default function TopBar({ onMenuClick, onRefresh }) {
       {isOrderDetail ? (
         <div className="flex items-center gap-[32px]">
           <button
-            onClick={() => navigate("/orders")}
-            className="font-hanken flex items-center gap-[8px] text-[14px] text-black hover:text-[#424656] transition-colors"
+            onClick={() =>
+              location.state?.fromCustomer
+                ? navigate(`/customers/${location.state.fromCustomer}`)
+                : navigate("/orders")
+            }
+            className="font-hanken flex items-center gap-[8px] text-[14px] text-black hover:text-[#424656] transition-colors cursor-pointer"
           >
             <ArrowLeft size={14} />
-            Back to orders
+            {location.state?.fromCustomer
+              ? "Back to customer"
+              : "Back to orders"}
           </button>
           <div
             className="w-px h-[24px]"
@@ -75,7 +81,7 @@ export default function TopBar({ onMenuClick, onRefresh }) {
         <div className="flex items-center gap-[32px]">
           <button
             onClick={() => navigate("/customers")}
-            className="font-hanken flex items-center gap-[8px] text-[14px] text-black hover:text-[#424656] transition-colors"
+            className="font-hanken flex items-center gap-[8px] text-[14px] text-black hover:text-[#424656] transition-colors cursor-pointer"
           >
             <ArrowLeft size={14} />
             Back to customers
@@ -107,20 +113,24 @@ export default function TopBar({ onMenuClick, onRefresh }) {
 
       {/* Right side */}
       <div className="flex items-center gap-[20px]">
-        {/* Refresh */}
-        <button
-          onClick={onRefresh}
-          className="flex items-center justify-center size-[18px] text-gc-text hover:text-gc-dark transition-colors cursor-pointer"
-          title="Refresh"
-        >
-          <RefreshCw size={18} />
-        </button>
+        {/* Refresh — only on pages that provide the handler */}
+        {onRefresh && (
+          <>
+            <button
+              onClick={onRefresh}
+              className="flex items-center justify-center size-[18px] text-gc-text hover:text-gc-dark transition-colors cursor-pointer"
+              title="Refresh"
+            >
+              <RefreshCw size={18} />
+            </button>
 
-        {/* Divider */}
-        <div
-          className="w-px h-[32px]"
-          style={{ backgroundColor: "rgba(194,198,216,0.3)" }}
-        />
+            {/* Divider */}
+            <div
+              className="w-px h-[32px]"
+              style={{ backgroundColor: "rgba(194,198,216,0.3)" }}
+            />
+          </>
+        )}
 
         {/* User info */}
         <div className="flex items-center gap-[12px]">

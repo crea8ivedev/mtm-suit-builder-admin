@@ -27,8 +27,8 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const isSuperAdmin = await checkSuperAdmin(trimmedEmail);
-      if (!isSuperAdmin) {
+      const { isAdmin, name } = await checkSuperAdmin(trimmedEmail);
+      if (!isAdmin) {
         setError("This email is not authorized to access the admin panel.");
         return;
       }
@@ -38,6 +38,7 @@ export default function Login() {
       }
       localStorage.setItem("suit_admin_auth", "true");
       localStorage.setItem("suit_admin_email", trimmedEmail);
+      if (name) localStorage.setItem("suit_admin_name", name);
       navigate("/dashboard");
     } catch {
       setError("Unable to verify email. Please try again.");
@@ -59,7 +60,7 @@ export default function Login() {
           display: "grid",
           gridTemplateColumns: "54% 46%",
           minHeight: "660px",
-          boxShadow: "20px 0 60px rgba(0,0,0,0.12)",
+
           borderRadius: "4px",
         }}
       >

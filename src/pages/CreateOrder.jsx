@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   X,
   Ruler,
-  Package,
   Tag,
   FileText,
   PlusCircle,
@@ -24,15 +23,52 @@ import {
   fetchCustomerWithOrders,
   transformCustomer,
   clearOrdersCache,
+  clearCustomerDetailCache,
   getProductFields,
   createDraftOrder,
   completeDraftOrder,
+  setCustomerProductsMetafield,
   fetchVestRanges,
   fetchShirtRanges,
   fetchTrouserRanges,
   fetchJacketRanges,
+  fetchVestMeasurementFields,
+  fetchTrouserMeasurementFields,
+  fetchShirtMeasurementFields,
+  fetchJacketMeasurementFields,
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
+
+function buildProfilesFromOrders(orders) {
+  const result = {};
+  let counter = Math.floor(Date.now() / 1000);
+  for (const order of orders) {
+    const created = (order.createdAt ?? "").split("T")[0];
+    for (const { node: item } of order.lineItems?.edges ?? []) {
+      const allAttrs = item.customAttributes ?? [];
+      const measureAttrs = allAttrs.filter((a) => !a.key.startsWith("_"));
+      if (!measureAttrs.length) continue;
+      const productName = item.title;
+      if (!result[productName]) result[productName] = [];
+      const profileName = allAttrs.find(
+        (a) => a.key === "_profile_name",
+      )?.value;
+      const idx = result[productName].length + 1;
+      result[productName].push({
+        id: `prof_${counter++}`,
+        name: profileName || `Measurement ${idx}`,
+        created,
+        measurements: Object.fromEntries(
+          measureAttrs.map(({ key, value }) => [
+            key,
+            value?.endsWith('"') ? value.slice(0, -1) : value,
+          ]),
+        ),
+      });
+    }
+  }
+  return result;
+}
 
 function getRangeForKey(rangeMap, key) {
   if (!rangeMap) return null;
@@ -44,52 +80,133 @@ function getRangeForKey(rangeMap, key) {
   return null;
 }
 
-function getProductRanges(
-  title,
-  vestRanges,
-  shirtRanges,
-  trouserRanges,
-  jacketRanges,
-) {
-  if (!title) return null;
-  const t = title.toLowerCase();
-  if (t.includes("tuxedo") || t.includes("suit"))
-    return {
-      ...(jacketRanges ?? {}),
-      ...(trouserRanges ?? {}),
-      ...(vestRanges ?? {}),
-      ...(shirtRanges ?? {}),
-    };
-  if (t.includes("jacket") || t.includes("overcoat")) return jacketRanges;
-  if (t.includes("trouser")) return trouserRanges;
-  if (t.includes("vest")) return vestRanges;
-  if (t.includes("shirt")) return shirtRanges;
-  return null;
+// Remove duplicate attrs where two different keys resolve to the same range entry
+// (e.g. "t_waist" and "Waist" both map to the same trouser measurement).
+function deduplicateByRange(attrs, rangeMap) {
+  const seenRangeKeys = new Set();
+  const seenNormKeys = new Set();
+  return attrs.filter((a) => {
+    const normKey = a.key.trim().toLowerCase();
+    const entry = getRangeForKey(rangeMap, a.key);
+    if (entry) {
+      const rk = `${entry.label}|${entry.min}|${entry.max}`;
+      if (seenRangeKeys.has(rk)) return false;
+      seenRangeKeys.add(rk);
+    } else {
+      if (seenNormKeys.has(normKey)) return false;
+    }
+    seenNormKeys.add(normKey);
+    return true;
+  });
 }
 
-function categorize(customAttributes = []) {
-  const general = [],
-    measurements = [],
-    vest = [];
-  for (const attr of customAttributes) {
+// Section colors indexed by label
+const SECTION_COLORS = {
+  Jacket: {
+    border: "border-blue-500",
+    icon: "text-blue-600",
+    heading: "text-blue-700",
+    badge: "bg-blue-50 text-blue-700",
+  },
+  Trouser: {
+    border: "border-brand-600",
+    icon: "text-brand-700",
+    heading: "text-brand-700",
+    badge: "bg-brand-50 text-brand-700",
+  },
+  Vest: {
+    border: "border-amber-500",
+    icon: "text-amber-600",
+    heading: "text-amber-700",
+    badge: "bg-amber-50 text-amber-700",
+  },
+  Shirt: {
+    border: "border-green-500",
+    icon: "text-green-600",
+    heading: "text-green-700",
+    badge: "bg-green-50 text-green-700",
+  },
+  default: {
+    border: "border-brand-600",
+    icon: "text-brand-700",
+    heading: "text-brand-700",
+    badge: "bg-brand-50 text-brand-700",
+  },
+};
+
+// Groups attributes into general (detail) fields and per-section measurement fields.
+//
+// Priority order for field placement:
+//  1. Explicit section prefix ("Vest X", "Jacket X", "Trouser X", "Shirt X") → that section
+//  2. Range-map match against each section in order (Jacket → Trouser → Vest → Shirt)
+//  3. No match → general Details section
+//
+// Using prefix detection FIRST prevents key-name collisions (e.g. "Chest" exists in both
+// jacketRanges and vestRanges/shirtRanges) from wrongly assigning fields in tuxedo products.
+function groupAttributes(attributes, rangeGroups) {
+  const general = [];
+  const sections = rangeGroups.map((g) => ({
+    label: g.label,
+    ranges: g.ranges,
+    items: [],
+  }));
+  const hasGroups = sections.length > 0;
+
+  const findSec = (label) => sections.find((s) => s.label === label);
+
+  // Prefix → [section label, strip length]
+  const PREFIX_ROUTES = [
+    ["Vest ", "Vest"],
+    ["Jacket ", "Jacket"],
+    ["Trouser ", "Trouser"],
+    ["Shirt ", "Shirt"],
+  ];
+
+  for (const attr of attributes) {
     if (attr.key.startsWith("_")) continue;
-    if (attr.key.startsWith("Vest ")) {
-      vest.push({
-        key: attr.key.replace("Vest ", ""),
-        originalKey: attr.key,
-        value: attr.value,
-      });
-    } else if (attr.value && /^\d/.test(attr.value)) {
-      measurements.push({
-        key: attr.key,
-        originalKey: attr.key,
-        value: attr.value,
-      });
-    } else {
-      general.push({ key: attr.key, originalKey: attr.key, value: attr.value });
+    const kl = attr.key.toLowerCase();
+
+    // Always keep Size Type in Details (forced to "Custom" on load)
+    if (kl === "size type") {
+      general.push({ key: attr.key, originalKey: attr.key });
+      continue;
     }
+
+    // Drop standard-size fields — we only show custom measurements
+    if (hasGroups && kl.startsWith("standard")) continue;
+
+    // ── Step 1: explicit prefix match ─────────────────────────────────────────
+    let placed = false;
+    for (const [prefix, label] of PREFIX_ROUTES) {
+      if (attr.key.startsWith(prefix)) {
+        const sec = findSec(label);
+        if (sec) {
+          sec.items.push({
+            key: attr.key.slice(prefix.length), // display without prefix
+            originalKey: attr.key,
+          });
+          placed = true;
+          break;
+        }
+      }
+    }
+    if (placed) continue;
+
+    // ── Step 2: range-map match (for un-prefixed plain field names) ───────────
+    if (hasGroups) {
+      for (const sec of sections) {
+        if (getRangeForKey(sec.ranges, attr.key)) {
+          sec.items.push({ key: attr.key, originalKey: attr.key });
+          placed = true;
+          break;
+        }
+      }
+    }
+
+    if (!placed) general.push({ key: attr.key, originalKey: attr.key });
   }
-  return { general, measurements, vest };
+
+  return { general, sections };
 }
 
 // Try to extract field keys from gc_builder JSON
@@ -138,6 +255,49 @@ function parseGcBuilderFields(jsonValue) {
   }
 }
 
+// Returns true if a line-item node is custom-size (not standard)
+function isCustomSizeLineItem(node) {
+  const sizeType = (node.customAttributes ?? [])
+    .find((a) => a.key.toLowerCase() === "size type")
+    ?.value?.toLowerCase();
+  return sizeType !== "standard";
+}
+
+// Finds the most recent custom-size line item for a product.
+// Matches by product ID first; falls back to title match for admin-created orders
+// (draft orders without variantId have product: null on their line items).
+function findPastLineItem(customerOrders, selectedProductId, productTitle) {
+  const numericId = selectedProductId.split("/").pop();
+  const titleLower = (productTitle ?? "").toLowerCase();
+  for (const order of customerOrders) {
+    for (const { node } of order.lineItems?.edges ?? []) {
+      const nodeNumericId = node.product?.id?.split("/").pop();
+      const idMatch = nodeNumericId === numericId;
+      const titleMatch =
+        titleLower && (node.title ?? "").toLowerCase() === titleLower;
+      if ((idMatch || titleMatch) && isCustomSizeLineItem(node)) {
+        return node;
+      }
+    }
+  }
+  return null;
+}
+
+// Converts a line-item's customAttributes into the attributes state array.
+// Strips internal (_) and standard-size keys. Forces Size Type = "Custom".
+function attrsFromLineItem(node, emptyValues = false) {
+  return (node.customAttributes ?? [])
+    .filter(
+      (a) =>
+        !a.key.startsWith("_") && !a.key.toLowerCase().startsWith("standard"),
+    )
+    .map((a) =>
+      a.key.toLowerCase() === "size type"
+        ? { key: a.key, value: "Custom" }
+        : { key: a.key, value: emptyValues ? "" : a.value },
+    );
+}
+
 // ─── Customer Selector ──────────────────────────────────────────────────────
 function CustomerSelector({ value, onChange }) {
   const [search, setSearch] = useState("");
@@ -147,6 +307,7 @@ function CustomerSelector({ value, onChange }) {
   const ref = useRef(null);
   const debounceRef = useRef(null);
   const initialFetched = useRef(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     function handleOutside(e) {
@@ -223,47 +384,65 @@ function CustomerSelector({ value, onChange }) {
         className="input pl-[38px]"
       />
       {open && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-[4px] bg-white border border-border rounded-lg shadow-lg max-h-[240px] overflow-y-auto">
-          {resultsLoading ? (
-            <div className="p-[16px] text-14 text-text-muted text-center">
-              Searching…
+        <div className="absolute top-full left-0 right-0 z-50 mt-[4px] bg-white border border-border rounded-lg shadow-lg flex flex-col max-h-[280px]">
+          <button
+            onClick={() => {
+              setOpen(false);
+              navigate("/customers", {
+                state: { autoCreateModal: true, returnTo: "/orders/new" },
+              });
+            }}
+            className="w-full flex items-center gap-[10px] px-[14px] py-[10px] hover:bg-brand-50 text-left transition-colors border-b border-border flex-shrink-0"
+          >
+            <div className="w-[32px] h-[32px] bg-brand-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <Plus size={14} className="text-brand-600" />
             </div>
-          ) : results.length === 0 ? (
-            <div className="p-[16px] text-14 text-text-muted text-center">
-              No customers found
-            </div>
-          ) : (
-            results.map((customer) => (
-              <button
-                key={customer.id}
-                onClick={() => {
-                  onChange(customer);
-                  setOpen(false);
-                  setSearch("");
-                }}
-                className="w-full flex items-center gap-[10px] px-[14px] py-[10px] hover:bg-gray-50 text-left transition-colors border-b border-border-light last:border-b-0"
-              >
-                <div className="w-[32px] h-[32px] bg-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-12 font-bold">
-                    {customer.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-14 font-medium text-text-primary">
-                    {customer.name}
-                  </p>
-                  {customer.email && (
-                    <p className="text-12 text-text-muted truncate">
-                      {customer.email}
+            <span className="text-14 font-semibold text-brand-600">
+              New Customer
+            </span>
+          </button>
+          <div className="overflow-y-auto">
+            {resultsLoading ? (
+              <div className="p-[16px] text-14 text-text-muted text-center">
+                Searching…
+              </div>
+            ) : results.length === 0 ? (
+              <div className="p-[16px] text-14 text-text-muted text-center">
+                No customers found
+              </div>
+            ) : (
+              results.map((customer) => (
+                <button
+                  key={customer.id}
+                  onClick={() => {
+                    onChange(customer);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  className="w-full flex items-center gap-[10px] px-[14px] py-[10px] hover:bg-gray-50 text-left transition-colors border-b border-border-light last:border-b-0"
+                >
+                  <div className="w-[32px] h-[32px] bg-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-12 font-bold">
+                      {customer.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-14 font-medium text-text-primary">
+                      {customer.name}
                     </p>
-                  )}
-                </div>
-                <span className="text-12 text-text-muted flex-shrink-0">
-                  {customer.numberOfOrders} orders
-                </span>
-              </button>
-            ))
-          )}
+                    {customer.email && (
+                      <p className="text-12 text-text-muted truncate">
+                        {customer.email}
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-12 text-text-muted flex-shrink-0">
+                    {customer.numberOfOrders} orders
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -274,80 +453,60 @@ function CustomerSelector({ value, onChange }) {
 function AttributeEditor({
   attributes,
   onChange,
-  ranges = null,
+  rangeGroups = [],
   onValidChange,
 }) {
   const [touchedFields, setTouchedFields] = useState(new Set());
-  const { general, measurements, vest } = useMemo(
-    () => categorize(attributes),
-    [attributes],
+
+  // Stable key signature — prevents inputs unmounting/remounting on every keystroke
+  const keySignature = attributes.map((a) => a.key).join("\0");
+  const { general, sections } = useMemo(
+    () => groupAttributes(attributes, rangeGroups),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [keySignature, rangeGroups],
   );
 
   function updateAttr(originalKey, value) {
-    const newTouched = new Set([...touchedFields, originalKey]);
-    setTouchedFields(newTouched);
+    setTouchedFields((prev) => new Set([...prev, originalKey]));
     onChange(
       attributes.map((a) => (a.key === originalKey ? { ...a, value } : a)),
     );
   }
 
-  // Notify parent whenever validity changes
+  // Notify parent on validity changes — uses section ranges for correct per-field check
   useEffect(() => {
     if (!onValidChange) return;
-    if (!ranges) {
+    if (!sections.length) {
       onValidChange(true);
       return;
     }
-    const allM = [...measurements, ...vest];
-    const hasError = allM.some(({ key, originalKey }) => {
-      const val = attributes.find((a) => a.key === originalKey)?.value ?? "";
-      if (!val) return false;
-      const range = getRangeForKey(ranges, key);
-      if (!range) return false;
-      const n = parseFloat(val);
-      return !isNaN(n) && (n < range.min || n > range.max);
-    });
+    const hasError = sections.some((sec) =>
+      sec.items.some(({ key, originalKey }) => {
+        const val = attributes.find((a) => a.key === originalKey)?.value ?? "";
+        if (!val) return false;
+        const range = getRangeForKey(sec.ranges, key);
+        if (!range) return false;
+        const n = parseFloat(val);
+        return !isNaN(n) && (n < range.min || n > range.max);
+      }),
+    );
     onValidChange(!hasError);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attributes, ranges]);
-
-  function addField() {
-    onChange([...attributes, { key: "", value: "" }]);
-  }
-
-  function updateRawKey(idx, key) {
-    onChange(attributes.map((a, i) => (i === idx ? { ...a, key } : a)));
-  }
-
-  function updateRawValue(idx, value) {
-    onChange(attributes.map((a, i) => (i === idx ? { ...a, value } : a)));
-  }
-
-  function removeField(idx) {
-    onChange(attributes.filter((_, i) => i !== idx));
-  }
-
-  // Raw attrs that don't fit categorize (empty key or unrecognized)
-  const rawNewFields = attributes.filter(
-    (a) => !a.key || a.key.startsWith("_new_"),
-  );
+  }, [attributes, sections]);
 
   if (attributes.length === 0) {
     return (
-      <div className="card p-[20px] space-y-[12px]">
+      <div className="card p-[20px]">
         <p className="text-14 text-text-muted">
-          No fields loaded. Add fields manually below.
+          No fields loaded for this product.
         </p>
-        <button onClick={addField} className="btn-secondary gap-[8px]">
-          <Plus size={14} />
-          Add Field
-        </button>
       </div>
     );
   }
 
   return (
     <div className="space-y-[16px]">
+      {/* ── Details (Size Type etc.) ── */}
       {general.length > 0 && (
         <div className="card overflow-hidden border-l-4 border-gray-300">
           <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
@@ -377,54 +536,72 @@ function AttributeEditor({
         </div>
       )}
 
-      {measurements.length > 0 && (
-        <div className="card overflow-hidden border-l-4 border-brand-600">
-          <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
-            <Ruler size={14} className="text-brand-700" />
-            <h3 className="text-13 font-bold uppercase tracking-wider text-brand-700">
-              Measurements
-            </h3>
-            <span className="ml-auto text-11 font-semibold text-brand-700 bg-brand-50 px-[8px] py-[2px] rounded-full">
-              {measurements.length} measurements
-            </span>
-          </div>
-          <div className="p-[16px] grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[10px]">
-            {measurements.map(({ key, originalKey }) => {
-              const val =
-                attributes.find((a) => a.key === originalKey)?.value ?? "";
-              const range = getRangeForKey(ranges, key);
-              const isTouched = touchedFields.has(originalKey);
-              const n = parseFloat(val);
-              const isInvalid =
-                isTouched &&
-                range &&
-                val !== "" &&
-                !isNaN(n) &&
-                (n < range.min || n > range.max);
-              const isValid =
-                isTouched &&
-                range &&
-                val !== "" &&
-                !isNaN(n) &&
-                n >= range.min &&
-                n <= range.max;
-              return (
-                <div key={originalKey}>
-                  <label className="input-label text-11">{key}</label>
-                  <input
-                    type="text"
-                    value={val}
-                    onChange={(e) => updateAttr(originalKey, e.target.value)}
-                    className={cn(
-                      "input py-[8px] text-15 font-bold",
-                      isValid
-                        ? "border-green-500 focus:ring-green-400"
-                        : isInvalid
-                          ? "border-red-400 focus:ring-red-400"
-                          : "",
-                    )}
-                  />
-                  {range && (isTouched || val) && (
+      {/* ── Per-section measurement grids ── */}
+      {sections.map((sec) => {
+        if (!sec.items.length) return null;
+        const colors = SECTION_COLORS[sec.label] ?? SECTION_COLORS.default;
+        return (
+          <div
+            key={sec.label}
+            className={cn("card overflow-hidden border-l-4", colors.border)}
+          >
+            <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
+              <Ruler size={14} className={colors.icon} />
+              <h3
+                className={cn(
+                  "text-13 font-bold uppercase tracking-wider",
+                  colors.heading,
+                )}
+              >
+                {sec.label} Measurements
+              </h3>
+              <span
+                className={cn(
+                  "ml-auto text-11 font-semibold px-[8px] py-[2px] rounded-full",
+                  colors.badge,
+                )}
+              >
+                {sec.items.length} measurements
+              </span>
+            </div>
+            <div className="p-[16px] grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[10px]">
+              {sec.items.map(({ key, originalKey }) => {
+                const val =
+                  attributes.find((a) => a.key === originalKey)?.value ?? "";
+                const range = getRangeForKey(sec.ranges, key);
+                const isTouched = touchedFields.has(originalKey);
+                const n = parseFloat(val);
+                const isInvalid =
+                  isTouched &&
+                  range &&
+                  val !== "" &&
+                  !isNaN(n) &&
+                  (n < range.min || n > range.max);
+                const isValid =
+                  isTouched &&
+                  range &&
+                  val !== "" &&
+                  !isNaN(n) &&
+                  n >= range.min &&
+                  n <= range.max;
+                return (
+                  <div key={originalKey}>
+                    <label className="input-label text-11">
+                      {getRangeForKey(sec.ranges, key)?.label ?? key}
+                    </label>
+                    <input
+                      type="text"
+                      value={val}
+                      onChange={(e) => updateAttr(originalKey, e.target.value)}
+                      className={cn(
+                        "input py-[8px] text-15 font-bold",
+                        isValid
+                          ? "border-green-500 focus:ring-green-400"
+                          : isInvalid
+                            ? "border-red-400 focus:ring-red-400"
+                            : "",
+                      )}
+                    />
                     <p
                       className={cn(
                         "text-[10px] mt-[2px] leading-tight",
@@ -435,83 +612,15 @@ function AttributeEditor({
                             : "text-text-muted",
                       )}
                     >
-                      {range.label}
+                      {range ? `${range.min}–${range.max}` : ""}
                     </p>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
-
-      {vest.length > 0 && (
-        <div className="card overflow-hidden border-l-4 border-pending">
-          <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
-            <Package size={14} className="text-pending" />
-            <h3 className="text-13 font-bold uppercase tracking-wider text-pending">
-              Vest Measurements
-            </h3>
-            <span className="ml-auto text-11 font-semibold text-pending bg-pending-bg px-[8px] py-[2px] rounded-full">
-              {vest.length} measurements
-            </span>
-          </div>
-          <div className="p-[16px] grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[10px]">
-            {vest.map(({ key, originalKey }) => {
-              const val =
-                attributes.find((a) => a.key === originalKey)?.value ?? "";
-              const range = getRangeForKey(ranges, key);
-              const isTouched = touchedFields.has(originalKey);
-              const n = parseFloat(val);
-              const isInvalid =
-                isTouched &&
-                range &&
-                val !== "" &&
-                !isNaN(n) &&
-                (n < range.min || n > range.max);
-              const isValid =
-                isTouched &&
-                range &&
-                val !== "" &&
-                !isNaN(n) &&
-                n >= range.min &&
-                n <= range.max;
-              return (
-                <div key={originalKey}>
-                  <label className="input-label text-11">{key}</label>
-                  <input
-                    type="text"
-                    value={val}
-                    onChange={(e) => updateAttr(originalKey, e.target.value)}
-                    className={cn(
-                      "input py-[8px] text-15 font-bold",
-                      isValid
-                        ? "border-green-500 focus:ring-green-400"
-                        : isInvalid
-                          ? "border-red-400 focus:ring-red-400"
-                          : "",
-                    )}
-                  />
-                  {range && (isTouched || val) && (
-                    <p
-                      className={cn(
-                        "text-[10px] mt-[2px] leading-tight",
-                        isValid
-                          ? "text-green-600"
-                          : isInvalid
-                            ? "text-red-500"
-                            : "text-text-muted",
-                      )}
-                    >
-                      {range.label}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }
@@ -519,6 +628,7 @@ function AttributeEditor({
 // ─── Page ──────────────────────────────────────────────────────────────────
 export default function CreateOrder() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [gcProducts, setGcProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
@@ -567,32 +677,43 @@ export default function CreateOrder() {
       .catch(() => {});
   }, []);
 
-  const productRanges = useMemo(
-    () =>
-      getProductRanges(
-        selectedProduct?.title,
-        vestRanges,
-        shirtRanges,
-        trouserRanges,
-        jacketRanges,
-      ),
-    [selectedProduct, vestRanges, shirtRanges, trouserRanges, jacketRanges],
-  );
+  // Separate range groups per product section — drives labeled sections in AttributeEditor
+  const rangeGroups = useMemo(() => {
+    if (!selectedProduct) return [];
+    const t = selectedProduct.title.toLowerCase();
+    const isSuit = t.includes("tuxedo") || t.includes("suit");
+    const groups = [];
+    if (
+      (isSuit || t.includes("jacket") || t.includes("overcoat")) &&
+      jacketRanges
+    )
+      groups.push({ label: "Jacket", ranges: jacketRanges });
+    if ((isSuit || t.includes("trouser")) && trouserRanges)
+      groups.push({ label: "Trouser", ranges: trouserRanges });
+    if ((isSuit || t.includes("vest")) && vestRanges)
+      groups.push({ label: "Vest", ranges: vestRanges });
+    if ((isSuit || t.includes("shirt")) && shirtRanges)
+      groups.push({ label: "Shirt", ranges: shirtRanges });
+    return groups;
+  }, [selectedProduct, jacketRanges, trouserRanges, vestRanges, shirtRanges]);
 
-  // Past orders for selected product
+  // Past orders for selected product.
+  // Matches by product ID OR title — title fallback covers admin-created orders
+  // (draft orders without variantId have product: null on their line items).
   const pastOrdersForProduct = useMemo(() => {
     if (!selectedProduct || !customerOrders.length) return [];
+    const numericId = selectedProduct.id.split("/").pop();
+    const titleLower = selectedProduct.title.toLowerCase();
+    const matchesProduct = (node) =>
+      node.product?.id?.split("/").pop() === numericId ||
+      (node.title ?? "").toLowerCase() === titleLower;
     return customerOrders
       .filter((o) =>
-        o.lineItems?.edges?.some(
-          ({ node }) =>
-            node.title?.toLowerCase() === selectedProduct.title?.toLowerCase(),
-        ),
+        o.lineItems?.edges?.some(({ node }) => matchesProduct(node)),
       )
       .map((o) => {
-        const item = o.lineItems?.edges?.find(
-          ({ node }) =>
-            node.title?.toLowerCase() === selectedProduct.title?.toLowerCase(),
+        const item = o.lineItems?.edges?.find(({ node }) =>
+          matchesProduct(node),
         )?.node;
         return {
           orderId: o.name,
@@ -604,6 +725,14 @@ export default function CreateOrder() {
       })
       .filter((o) => o.attributes.length > 0);
   }, [selectedProduct, customerOrders]);
+
+  // Pre-select customer returned from "New Customer" flow
+  useEffect(() => {
+    if (location.state?.newCustomer) {
+      setSelectedCustomer(location.state.newCustomer);
+      window.history.replaceState({}, "");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load gc_builder products on mount
   useEffect(() => {
@@ -632,38 +761,130 @@ export default function CreateOrder() {
   }, [selectedCustomer]);
 
   function applyDefaultSizeType(attrs) {
-    return attrs.map((a) =>
-      a.key.toLowerCase() === "size type" && !a.value
-        ? { ...a, value: "Custom" }
-        : a,
-    );
+    return attrs
+      .filter((a) => !a.key.toLowerCase().startsWith("standard"))
+      .map((a) =>
+        a.key.toLowerCase() === "size type" && !a.value
+          ? { ...a, value: "Custom" }
+          : a,
+      );
   }
 
-  // Load empty measurement fields for a fresh new order entry
+  function productType(product) {
+    const t = (product?.title ?? "").toLowerCase();
+    if (t.includes("tuxedo") || t.includes("suit")) return "suit";
+    if (t.includes("trouser")) return "trouser";
+    if (t.includes("vest")) return "vest";
+    if (t.includes("shirt")) return "shirt";
+    if (t.includes("jacket") || t.includes("overcoat")) return "jacket";
+    return "unknown";
+  }
+
+  // Returns ordered canonical field list for known product types, null for unknown.
+  async function getCanonicalFieldsForType(ptype) {
+    if (ptype === "vest") return fetchVestMeasurementFields();
+    if (ptype === "trouser") return fetchTrouserMeasurementFields();
+    if (ptype === "shirt") return fetchShirtMeasurementFields();
+    if (ptype === "jacket") return fetchJacketMeasurementFields();
+    if (ptype === "suit") {
+      const [jf, tf, vf, sf] = await Promise.all([
+        fetchJacketMeasurementFields(),
+        fetchTrouserMeasurementFields(),
+        fetchVestMeasurementFields(),
+        fetchShirtMeasurementFields(),
+      ]);
+      return [...jf, ...tf, ...vf, ...sf];
+    }
+    return null;
+  }
+
+  // Pre-fills canonical fields with values from a past order's attributes.
+  // Tries direct key match first, then range-fingerprint match (handles key variants).
+  function prefillFromPastOrder(canonicalFields, pastAttrs, rangeMap) {
+    const directMap = new Map(
+      pastAttrs.map((a) => [a.key.trim().toLowerCase(), a.value]),
+    );
+    const fingerMap = new Map();
+    for (const a of pastAttrs) {
+      const e = getRangeForKey(rangeMap, a.key);
+      if (e) {
+        const fp = `${e.label}|${e.min}|${e.max}`;
+        if (!fingerMap.has(fp)) fingerMap.set(fp, a.value);
+      }
+    }
+    return canonicalFields.map((f) => {
+      let value = directMap.get(f.key.toLowerCase()) ?? "";
+      if (!value) {
+        const e = getRangeForKey(rangeMap, f.key);
+        if (e) value = fingerMap.get(`${e.label}|${e.min}|${e.max}`) ?? "";
+      }
+      return { key: f.key, value };
+    });
+  }
+
+  async function getFieldsForProduct(product) {
+    const ptype = productType(product);
+    // Known types: always use canonical metaobject structure — never infer from past orders
+    const canonical = await getCanonicalFieldsForType(ptype);
+    if (canonical) return canonical.map((f) => ({ key: f.key, value: "" }));
+    // Unknown type: fall back to past-order key discovery → gc_builder
+    const serverFields = await getProductFields(product.id);
+    if (serverFields.length > 0)
+      return serverFields.map((key) => ({ key, value: "" }));
+    const gcFields = parseGcBuilderFields(product.metafield?.value);
+    return (gcFields ?? []).map((a) => ({ ...a, value: "" }));
+  }
+
+  // Load empty measurement fields for a fresh new order entry.
+  // Uses field NAMES from a past order (same keys as real Shopify data) but clears all values.
   async function handleNewOrder() {
     setSelectedTemplate(null);
     if (!selectedProduct) return;
+
+    const pastNode = findPastLineItem(
+      customerOrders,
+      selectedProduct.id,
+      selectedProduct.title,
+    );
+    const combinedRanges = {
+      ...vestRanges,
+      ...trouserRanges,
+      ...jacketRanges,
+      ...shirtRanges,
+    };
+    const ptype = productType(selectedProduct);
+
+    if (pastNode?.customAttributes?.length > 0 && ptype !== "unknown") {
+      // Known type: canonical fields, empty values
+      setFieldsLoading(true);
+      try {
+        const canonical = await getCanonicalFieldsForType(ptype);
+        setAttributes(
+          applyDefaultSizeType(
+            canonical.map((f) => ({ key: f.key, value: "" })),
+          ),
+        );
+      } catch {
+        setAttributes([]);
+      } finally {
+        setFieldsLoading(false);
+      }
+      return;
+    }
+
+    if (pastNode?.customAttributes?.length > 0) {
+      setAttributes(
+        deduplicateByRange(attrsFromLineItem(pastNode, true), combinedRanges),
+      );
+      return;
+    }
+
     setFieldsLoading(true);
     try {
-      const serverFields = await getProductFields(selectedProduct.id);
-      let attrs;
-      if (serverFields.length > 0) {
-        attrs = serverFields.map((key) => ({
-          key,
-          value: key.toLowerCase() === "size type" ? "Custom" : "",
-        }));
-      } else {
-        const gcFields = parseGcBuilderFields(selectedProduct.metafield?.value);
-        attrs = (gcFields ?? []).map((a) =>
-          a.key.toLowerCase() === "size type"
-            ? { ...a, value: "Custom" }
-            : { ...a, value: "" },
-        );
-      }
-      setAttributes(attrs);
+      const fields = await getFieldsForProduct(selectedProduct);
+      setAttributes(applyDefaultSizeType(fields));
     } catch {
-      const gcFields = parseGcBuilderFields(selectedProduct.metafield?.value);
-      setAttributes(applyDefaultSizeType(gcFields ?? []));
+      setAttributes([]);
     } finally {
       setFieldsLoading(false);
     }
@@ -682,60 +903,55 @@ export default function CreateOrder() {
       selectedProduct.variants?.edges?.[0]?.node?.price || "0.00";
     setPrice(variantPrice);
 
-    // Build a value map from customer's latest order for this product (for pre-filling)
-    const matchingOrder = customerOrders.find((order) =>
-      order.lineItems?.edges?.some(
-        ({ node }) =>
-          node.title?.toLowerCase() === selectedProduct.title?.toLowerCase(),
-      ),
-    );
-    const pastItem = matchingOrder?.lineItems?.edges?.find(
-      ({ node }) =>
-        node.title?.toLowerCase() === selectedProduct.title?.toLowerCase(),
-    )?.node;
-    const valueMap = Object.fromEntries(
-      (pastItem?.customAttributes ?? [])
-        .filter((a) => !a.key.startsWith("_"))
-        .map((a) => [a.key, a.value]),
+    // Find the most recent custom-size line item for this product by product ID
+    // (same traversal CustomerDetail uses in buildMeasurementProfiles)
+    const pastNode = findPastLineItem(
+      customerOrders,
+      selectedProduct.id,
+      selectedProduct.title,
     );
 
+    const combinedRanges = {
+      ...vestRanges,
+      ...trouserRanges,
+      ...jacketRanges,
+      ...shirtRanges,
+    };
+    const ptype = productType(selectedProduct);
+
+    if (pastNode?.customAttributes?.length > 0 && ptype !== "unknown") {
+      // Known type + past order: use canonical field structure, pre-fill values from past order
+      setFieldsLoading(true);
+      const pastAttrs = attrsFromLineItem(pastNode, false);
+      getCanonicalFieldsForType(ptype)
+        .then((canonical) => {
+          const filled = prefillFromPastOrder(
+            canonical,
+            pastAttrs,
+            combinedRanges,
+          );
+          setAttributes(applyDefaultSizeType(filled));
+        })
+        .catch(() =>
+          setAttributes(deduplicateByRange(pastAttrs, combinedRanges)),
+        )
+        .finally(() => setFieldsLoading(false));
+      return;
+    }
+
+    if (pastNode?.customAttributes?.length > 0) {
+      // Unknown type: use past order attrs directly
+      setAttributes(
+        deduplicateByRange(attrsFromLineItem(pastNode, false), combinedRanges),
+      );
+      return;
+    }
+
+    // ── No past order → fetch canonical field list with empty values ──
     setFieldsLoading(true);
-
-    getProductFields(selectedProduct.id)
-      .then((serverFields) => {
-        if (serverFields.length > 0) {
-          setAttributes(
-            applyDefaultSizeType(
-              serverFields.map((key) => ({ key, value: valueMap[key] ?? "" })),
-            ),
-          );
-        } else if (pastItem?.customAttributes?.length > 0) {
-          setAttributes(
-            applyDefaultSizeType(
-              pastItem.customAttributes.filter((a) => !a.key.startsWith("_")),
-            ),
-          );
-        } else {
-          const gcFields = parseGcBuilderFields(
-            selectedProduct.metafield?.value,
-          );
-          setAttributes(applyDefaultSizeType(gcFields ?? []));
-        }
-      })
-      .catch(() => {
-        if (pastItem?.customAttributes?.length > 0) {
-          setAttributes(
-            applyDefaultSizeType(
-              pastItem.customAttributes.filter((a) => !a.key.startsWith("_")),
-            ),
-          );
-        } else {
-          const gcFields = parseGcBuilderFields(
-            selectedProduct.metafield?.value,
-          );
-          setAttributes(applyDefaultSizeType(gcFields ?? []));
-        }
-      })
+    getFieldsForProduct(selectedProduct)
+      .then((fields) => setAttributes(applyDefaultSizeType(fields)))
+      .catch(() => setAttributes([]))
       .finally(() => setFieldsLoading(false));
   }, [selectedProduct, customerOrders]);
 
@@ -749,6 +965,8 @@ export default function CreateOrder() {
         lineItems: [
           {
             title: selectedProduct.title,
+            variantId:
+              selectedProduct.variants?.edges?.[0]?.node?.id ?? undefined,
             quantity: 1,
             originalUnitPrice: String(price || "0.00"),
             customAttributes: attributes
@@ -761,7 +979,39 @@ export default function CreateOrder() {
       });
       const order = await completeDraftOrder(draft.id, true);
       const numericId = order.id.split("/").pop();
+
+      // Save ALL measurements (past orders + this new one) to profiles.gc_measurements.
+      // We build from customerOrders already in state — no separate metafield fetch needed,
+      // so there is no silent-catch hiding a failed read that would wipe prior entries.
+      const measureAttrs = attributes.filter(
+        (a) => a.key && !a.key.startsWith("_"),
+      );
+      if (measureAttrs.length > 0) {
+        try {
+          const allProfiles = buildProfilesFromOrders(customerOrders);
+          const productName = selectedProduct.title;
+          const existingList = allProfiles[productName] ?? [];
+          const today = new Date().toISOString().split("T")[0];
+          const newProfile = {
+            id: `prof_${Date.now()}`,
+            name: `Measurement ${existingList.length + 1}`,
+            created: today,
+            measurements: Object.fromEntries(
+              measureAttrs.map(({ key, value }) => [key, String(value)]),
+            ),
+          };
+          const fullProfiles = {
+            ...allProfiles,
+            [productName]: [...existingList, newProfile],
+          };
+          await setCustomerProductsMetafield(selectedCustomer.id, fullProfiles);
+        } catch (err) {
+          console.error("Failed to save measurement profile:", err);
+        }
+      }
+
       clearOrdersCache();
+      clearCustomerDetailCache(selectedCustomer.id);
       navigate(`/orders/${numericId}`);
     } catch (err) {
       setSubmitError(err.message);
@@ -778,7 +1028,7 @@ export default function CreateOrder() {
       <div className="mb-[20px]">
         <Link
           to="/orders"
-          className="inline-flex items-center gap-[6px] text-13 text-text-muted hover:text-text-primary transition-colors"
+          className="inline-flex items-center gap-[6px] text-13 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
         >
           <ArrowLeft size={14} />
           Back to Orders
@@ -941,9 +1191,41 @@ export default function CreateOrder() {
                 {pastOrdersForProduct.map((o) => (
                   <button
                     key={o.orderId}
-                    onClick={() => {
+                    onClick={async () => {
                       setSelectedTemplate(o.orderId);
-                      setAttributes(o.attributes);
+                      const ptype = productType(selectedProduct);
+                      const combinedRanges = {
+                        ...vestRanges,
+                        ...trouserRanges,
+                        ...jacketRanges,
+                        ...shirtRanges,
+                      };
+                      if (ptype !== "unknown") {
+                        setFieldsLoading(true);
+                        try {
+                          const canonical =
+                            await getCanonicalFieldsForType(ptype);
+                          setAttributes(
+                            applyDefaultSizeType(
+                              prefillFromPastOrder(
+                                canonical,
+                                o.attributes,
+                                combinedRanges,
+                              ),
+                            ),
+                          );
+                        } catch {
+                          setAttributes(
+                            deduplicateByRange(o.attributes, combinedRanges),
+                          );
+                        } finally {
+                          setFieldsLoading(false);
+                        }
+                      } else {
+                        setAttributes(
+                          deduplicateByRange(o.attributes, combinedRanges),
+                        );
+                      }
                     }}
                     className={cn(
                       "flex items-center gap-[7px] px-[14px] py-[8px] rounded-lg border-2 text-13 font-medium transition-all",
@@ -1004,7 +1286,7 @@ export default function CreateOrder() {
               <AttributeEditor
                 attributes={attributes}
                 onChange={setAttributes}
-                ranges={productRanges}
+                rangeGroups={rangeGroups}
                 onValidChange={setMeasurementsValid}
               />
             )}

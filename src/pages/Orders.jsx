@@ -104,7 +104,7 @@ export default function Orders() {
               ? "Fetching from Shopify…"
               : error
                 ? "Could not load orders"
-                : `Real-time overview of ${stats.total} active order${stats.total !== 1 ? "s" : ""}.`}
+                : `Real-time overview of ${stats.total} active logistics stream${stats.total !== 1 ? "s" : ""}.`}
           </p>
         </div>
 

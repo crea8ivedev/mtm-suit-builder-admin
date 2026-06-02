@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -13,6 +13,7 @@ import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
 import CreateCustomerModal from "../components/ui/CreateCustomerModal";
 import { useCustomers } from "../hooks/useCustomers";
+import { transformCustomer } from "../lib/shopify";
 
 const AVATAR_STYLES = [
   {
@@ -51,15 +52,25 @@ export default function Customers() {
     retry,
   } = useCustomers();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const topSearch = searchParams.get("search") || "";
 
   const [inlineSearch, setInlineSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const returnTo = location.state?.returnTo ?? null;
 
   const activeSearch = topSearch || inlineSearch;
   const isFirstLoad = useRef(true);
+
+  // Auto-open modal when navigated from "New Customer" in order flow
+  useEffect(() => {
+    if (location.state?.autoCreateModal) {
+      setModalOpen(true);
+      window.history.replaceState({}, "");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initial load + debounced search on change
   useEffect(() => {
@@ -80,6 +91,12 @@ export default function Customers() {
 
   function handleCreated(customer) {
     setModalOpen(false);
+    if (returnTo) {
+      navigate(returnTo, {
+        state: { newCustomer: transformCustomer(customer) },
+      });
+      return;
+    }
     setToast({ name: `${customer.firstName} ${customer.lastName}`.trim() });
     load(activeSearch);
   }
@@ -114,7 +131,7 @@ export default function Customers() {
 
         <button
           onClick={() => setModalOpen(true)}
-          className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase tracking-wide transition-colors"
+          className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase tracking-wide transition-colors cursor-pointer"
         >
           <Plus size={14} />
           CREATE CUSTOMER

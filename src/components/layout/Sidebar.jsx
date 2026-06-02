@@ -24,7 +24,6 @@ const NAV_ITEMS = [
     label: "Style Adjustments",
     path: "/kuttailor",
     icon: Shirt,
-    disabled: true,
   },
 ];
 
@@ -66,7 +65,7 @@ export default function Sidebar({ isOpen, onClose }) {
             <p className="font-garamond text-white text-[24px] font-bold uppercase tracking-[2px] leading-tight">
               GAGE COURT
             </p>
-            <p className="font-garamond text-white text-[10px] font-bold uppercase tracking-[2px] leading-tight text-center">
+            <p className="font-garamond text-[#FFFFFFCC] text-[10px] font-bold uppercase tracking-[2px] leading-tight text-center">
               clothiers
             </p>
           </div>

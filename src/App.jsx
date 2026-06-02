@@ -6,7 +6,7 @@ import OrderDetail from "./pages/OrderDetail";
 import CreateOrder from "./pages/CreateOrder";
 import Customers from "./pages/Customers";
 import CustomerDetail from "./pages/CustomerDetail";
-import Kuttailor from "./pages/Kuttailor";
+import StyleAdjustments from "./pages/StyleAdjustments";
 
 function PrivateRoute({ children }) {
   const isAuth = localStorage.getItem("suit_admin_auth") === "true";
@@ -70,7 +70,7 @@ export default function App() {
           path="/kuttailor"
           element={
             <PrivateRoute>
-              <Kuttailor />
+              <StyleAdjustments />
             </PrivateRoute>
           }
         />
