@@ -223,6 +223,7 @@ const GET_PRODUCTS_QUERY = `
         node {
           id
           title
+          status
           variants(first: 1) {
             edges {
               node {
@@ -253,7 +254,11 @@ export async function fetchGcBuilderProducts() {
       after: cursor,
     });
     const { edges, pageInfo } = data.products;
-    all.push(...edges.map((e) => e.node));
+    all.push(
+      ...edges
+        .map((e) => e.node)
+        .filter((p) => p.status === "ACTIVE" || p.status === "ARCHIVED"),
+    );
     hasNextPage = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
   }
@@ -701,9 +706,16 @@ const CREATE_CUSTOMER_MUTATION = `
   }
 `;
 
-export async function createCustomer({ firstName, lastName, email, phone }) {
+export async function createCustomer({
+  firstName,
+  lastName,
+  email,
+  phone,
+  country,
+}) {
   const input = { firstName, lastName, email };
   if (phone) input.phone = phone;
+  if (country) input.addresses = [{ country }];
   const data = await shopifyGraphQL(CREATE_CUSTOMER_MUTATION, { input });
   const { customer, userErrors } = data.customerCreate;
   if (userErrors?.length) {

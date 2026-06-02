@@ -903,6 +903,12 @@ export default function CreateOrder() {
       selectedProduct.variants?.edges?.[0]?.node?.price || "0.00";
     setPrice(variantPrice);
 
+    // No gc_builder value → skip measurement fields entirely
+    if (!selectedProduct.metafield?.value) {
+      setAttributes([]);
+      return;
+    }
+
     // Find the most recent custom-size line item for this product by product ID
     // (same traversal CustomerDetail uses in buildMeasurementProfiles)
     const pastNode = findPastLineItem(
@@ -944,6 +950,12 @@ export default function CreateOrder() {
       setAttributes(
         deduplicateByRange(attrsFromLineItem(pastNode, false), combinedRanges),
       );
+      return;
+    }
+
+    // ── No gc_builder value → no measurement fields ──
+    if (!selectedProduct.metafield?.value) {
+      setAttributes([]);
       return;
     }
 
@@ -1277,19 +1289,20 @@ export default function CreateOrder() {
               </div>
             </div>
 
-            {/* Attribute form */}
-            {fieldsLoading ? (
-              <div className="card p-[24px]">
-                <LoadingState message="Loading product fields…" />
-              </div>
-            ) : (
-              <AttributeEditor
-                attributes={attributes}
-                onChange={setAttributes}
-                rangeGroups={rangeGroups}
-                onValidChange={setMeasurementsValid}
-              />
-            )}
+            {/* Attribute form — only for products with custom.gc_builder value */}
+            {selectedProduct?.metafield?.value &&
+              (fieldsLoading ? (
+                <div className="card p-[24px]">
+                  <LoadingState message="Loading product fields…" />
+                </div>
+              ) : (
+                <AttributeEditor
+                  attributes={attributes}
+                  onChange={setAttributes}
+                  rangeGroups={rangeGroups}
+                  onValidChange={setMeasurementsValid}
+                />
+              ))}
 
             {/* Note */}
             <div className="card p-[20px]">
