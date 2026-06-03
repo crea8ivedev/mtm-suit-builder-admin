@@ -64,14 +64,22 @@ function SectionHeading({ num, title }) {
         {title}
       </span>
       <div
-        className="w-[250px] h-px"
+        className="flex-1 h-px"
         style={{ backgroundColor: "rgba(207,196,197,0.3)" }}
       />
     </div>
   );
 }
 
-function GCDropdown({ items, value, onChange, placeholder, disabled, dropUp }) {
+function GCDropdown({
+  items,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  dropUp,
+  error,
+}) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef(null);
@@ -104,7 +112,10 @@ function GCDropdown({ items, value, onChange, placeholder, disabled, dropUp }) {
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((o) => !o)}
-        className="font-hanken w-full flex items-center justify-between h-[38px] px-[14px] bg-white border border-[#d1c7bd] rounded-[8px] text-[14px] outline-none hover:border-[#a45d41] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        className={cn(
+          "font-hanken w-full flex items-center justify-between h-[38px] px-[14px] bg-white rounded-[8px] text-[14px] outline-none hover:border-[#a45d41] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+          error ? "border border-red-400" : "border border-[#d1c7bd]",
+        )}
       >
         <span className={selected ? "text-[#1a1c1b]" : "text-[#6b7280]"}>
           {selected ? selected.label : placeholder}
@@ -302,6 +313,7 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
     setStateIso("");
     setPhoneIso(iso);
     setForm((f) => ({ ...f, country: c?.name ?? "", province: "", city: "" }));
+    setErrors((er) => ({ ...er, country: null, province: null, city: null }));
     setApiError(null);
   }
 
@@ -309,11 +321,13 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
     const s = State.getStateByCodeAndCountry(iso, countryIso);
     setStateIso(iso);
     setForm((f) => ({ ...f, province: s?.name ?? "", city: "" }));
+    setErrors((er) => ({ ...er, province: null, city: null }));
     setApiError(null);
   }
 
   function handleCityChange(val) {
     setForm((f) => ({ ...f, city: val }));
+    setErrors((er) => ({ ...er, city: null }));
     setApiError(null);
   }
 
@@ -323,6 +337,18 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
     if (!form.lastName.trim()) errs.lastName = "Required";
     if (!form.email.trim()) errs.email = "Required";
     else if (!EMAIL_RE.test(form.email.trim())) errs.email = "Invalid email";
+    if (!countryIso) errs.country = "Required";
+    if (!form.address.trim()) errs.address = "Required";
+    const hasStates = countryIso
+      ? State.getStatesOfCountry(countryIso).length > 0
+      : false;
+    if (hasStates && !stateIso) errs.province = "Required";
+    const hasCities =
+      countryIso && stateIso
+        ? City.getCitiesOfState(countryIso, stateIso).length > 0
+        : false;
+    if (hasCities && !form.city.trim()) errs.city = "Required";
+    if (!form.zip.trim()) errs.zip = "Required";
     return errs;
   }
 
@@ -346,6 +372,11 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
             : form.phone.trim()
           : undefined,
         country: form.country?.trim() || undefined,
+        address1: form.address.trim() || undefined,
+        address2: form.apt.trim() || undefined,
+        city: form.city.trim() || undefined,
+        province: form.province.trim() || undefined,
+        zip: form.zip.trim() || undefined,
       });
       onCreated(customer);
     } catch (err) {
@@ -357,7 +388,7 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-[16px] sm:p-[24px]">
       {/* Backdrop */}
       <div
         className="absolute inset-0"
@@ -370,10 +401,11 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
 
       {/* Modal */}
       <div
-        className="relative w-[672px] rounded-[12px] overflow-hidden flex flex-col"
+        className="relative w-full sm:w-[672px] rounded-[12px] overflow-hidden flex flex-col max-h-full"
         style={{
           backgroundColor: "#fcf9f4",
           boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.25)",
+          maxHeight: "min(90vh, 800px)",
         }}
       >
         {/* Watermark top-right corner */}
@@ -390,7 +422,7 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
 
         {/* Header */}
         <div
-          className="flex items-start justify-between pb-[21px] pt-[30px] px-[40px] relative z-20"
+          className="flex items-start justify-between pb-[18px] pt-[22px] sm:pt-[30px] sm:pb-[21px] px-[20px] sm:px-[40px] relative z-20 flex-shrink-0"
           style={{ borderBottom: "1px solid rgba(207,196,197,0.3)" }}
         >
           <div className="flex flex-col gap-[8px]">
@@ -410,12 +442,12 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
           </button>
         </div>
 
-        {/* Form body */}
-        <div className="px-[40px] py-[32px] flex flex-col gap-[48px]">
+        {/* Form body — scrolls when content overflows (e.g. validation errors) */}
+        <div className="px-[20px] sm:px-[40px] py-[24px] sm:py-[32px] flex flex-col gap-[32px] sm:gap-[48px] overflow-y-auto flex-1">
           {/* Section 01 — Identity */}
           <div className="flex flex-col gap-[24px]">
             <SectionHeading num="01" title="Identity" />
-            <div className="grid grid-cols-2 gap-x-[24px] gap-y-[32px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-[24px] gap-y-[20px] sm:gap-y-[32px]">
               {/* First Name */}
               <div>
                 <FieldLabel>First Name</FieldLabel>
@@ -465,7 +497,12 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
               </div>
               {/* Phone */}
               <div>
-                <FieldLabel>Phone Number</FieldLabel>
+                <FieldLabel>
+                  Phone Number{" "}
+                  <span className="normal-case text-[#bbb] font-normal tracking-normal">
+                    (Optional)
+                  </span>
+                </FieldLabel>
                 <PhoneField
                   phoneIso={phoneIso}
                   onPhoneIsoChange={setPhoneIso}
@@ -481,41 +518,58 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
             <SectionHeading num="02" title="Residence" />
             <div className="flex flex-col gap-[32px]">
               {/* Country */}
-              <div className="grid grid-cols-2 gap-x-[24px]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-[24px]">
                 <div>
                   <FieldLabel>Country</FieldLabel>
                   <GCDropdown
                     value={countryIso}
                     onChange={handleCountryChange}
                     placeholder="Select country"
+                    error={errors.country}
                     items={Country.getAllCountries().map((c) => ({
                       value: c.isoCode,
                       label: c.name,
                     }))}
                   />
+                  {errors.country && (
+                    <p className="font-hanken mt-[4px] text-[12px] text-red-500">
+                      {errors.country}
+                    </p>
+                  )}
                 </div>
               </div>
               {/* Address */}
-              <div className="grid grid-cols-2 gap-x-[24px]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-[24px] gap-y-[20px] sm:gap-y-0">
                 <div>
                   <FieldLabel>Address</FieldLabel>
                   <GCInput
                     placeholder="Building name or number"
                     value={form.address}
                     onChange={set("address")}
+                    error={errors.address}
                   />
+                  {errors.address && (
+                    <p className="font-hanken mt-[4px] text-[12px] text-red-500">
+                      {errors.address}
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <FieldLabel>Apt/Suite</FieldLabel>
+                  <FieldLabel>
+                    Apt/Suite{" "}
+                    <span className="normal-case text-[#bbb] font-normal tracking-normal">
+                      (Optional)
+                    </span>
+                  </FieldLabel>
                   <GCInput
-                    placeholder="Optional"
+                    placeholder="Unit, floor, suite…"
                     value={form.apt}
                     onChange={set("apt")}
                   />
                 </div>
               </div>
               {/* City / State / Zip */}
-              <div className="grid grid-cols-3 gap-x-[24px]">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-[24px] gap-y-[20px] sm:gap-y-0">
                 <div>
                   <FieldLabel>State</FieldLabel>
                   <GCDropdown
@@ -523,6 +577,7 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                     onChange={handleStateChange}
                     disabled={!countryIso}
                     dropUp
+                    error={errors.province}
                     placeholder={
                       !countryIso
                         ? "Select country first"
@@ -535,6 +590,11 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                       label: s.name,
                     }))}
                   />
+                  {errors.province && (
+                    <p className="font-hanken mt-[4px] text-[12px] text-red-500">
+                      {errors.province}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <FieldLabel>City</FieldLabel>
@@ -543,6 +603,7 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                     onChange={handleCityChange}
                     disabled={!stateIso}
                     dropUp
+                    error={errors.city}
                     placeholder={
                       !stateIso
                         ? "Select state first"
@@ -554,6 +615,11 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                       (c) => ({ value: c.name, label: c.name }),
                     )}
                   />
+                  {errors.city && (
+                    <p className="font-hanken mt-[4px] text-[12px] text-red-500">
+                      {errors.city}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <FieldLabel>Zip/Postal Code</FieldLabel>
@@ -561,7 +627,13 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                     placeholder="Postcode"
                     value={form.zip}
                     onChange={set("zip")}
+                    error={errors.zip}
                   />
+                  {errors.zip && (
+                    <p className="font-hanken mt-[4px] text-[12px] text-red-500">
+                      {errors.zip}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -576,9 +648,9 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
         </div>
 
         {/* Footer */}
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="flex-shrink-0">
           <div
-            className="flex items-center justify-end gap-[20px] px-[40px] pb-[20px] pt-[21px]"
+            className="flex items-center justify-end gap-[12px] sm:gap-[20px] px-[20px] sm:px-[40px] pb-[20px] pt-[16px] sm:pt-[21px]"
             style={{
               backgroundColor: "#f6f3ee",
               borderTop: "1px solid rgba(207,196,197,0.3)",
@@ -588,14 +660,14 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="font-hanken text-[14px] font-medium text-black uppercase px-[20px] py-[16px] hover:opacity-70 transition-opacity disabled:opacity-40"
+              className="font-hanken text-[13px] sm:text-[14px] font-medium text-black uppercase px-[14px] sm:px-[20px] py-[12px] sm:py-[16px] hover:opacity-70 transition-opacity disabled:opacity-40"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="font-hanken flex items-center gap-[8px] h-[40px] sm:h-[44px] px-[14px] sm:px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[13px] sm:text-[14px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <Loader size={13} className="animate-spin" />

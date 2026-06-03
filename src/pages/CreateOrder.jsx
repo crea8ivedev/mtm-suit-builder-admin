@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
-  ArrowLeft,
   X,
   Ruler,
   Tag,
@@ -9,8 +8,7 @@ import {
   PlusCircle,
   AlertCircle,
   ChevronRight,
-  User,
-  ShoppingBag,
+  Search,
   Plus,
   Clock,
   CheckCircle2,
@@ -298,6 +296,113 @@ function attrsFromLineItem(node, emptyValues = false) {
     );
 }
 
+// ─── Step Indicator ─────────────────────────────────────────────────────────
+function StepIndicator({ currentStep }) {
+  const steps = [
+    { num: "01", label: "SELECT CUSTOMER" },
+    { num: "02", label: "SELECT PRODUCT" },
+    { num: "03", label: "MEASUREMENTS & DETAILS" },
+  ];
+  return (
+    <div
+      className="flex flex-wrap items-center gap-[24px] sm:gap-[48px] pb-[25px]"
+      style={{ borderBottom: "1px solid rgba(207,196,197,0.3)" }}
+    >
+      {steps.map((step, idx) => {
+        const active = idx + 1 <= currentStep;
+        return (
+          <div
+            key={step.num}
+            className={cn(
+              "flex items-center gap-[12px]",
+              !active && "opacity-30",
+            )}
+          >
+            {active ? (
+              <div
+                className="flex items-center justify-center rounded-full size-[32px] flex-shrink-0"
+                style={{ backgroundColor: "#a45d41" }}
+              >
+                <span className="font-hanken text-[14px] font-medium text-white tracking-[0.6px]">
+                  {step.num}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center rounded-full size-[32px] border border-black flex-shrink-0">
+                <span className="font-hanken text-[14px] font-medium text-[#1c1c19] tracking-[0.6px]">
+                  {step.num}
+                </span>
+              </div>
+            )}
+            <span
+              className={cn(
+                "font-hanken text-[13px] sm:text-[14px] tracking-[1.2px] uppercase whitespace-nowrap",
+                active
+                  ? "font-bold text-[#a45d41]"
+                  : "font-medium text-[#1c1c19]",
+              )}
+            >
+              {step.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Customer Selector helpers ───────────────────────────────────────────────
+const AVATAR_PALETTE = [
+  { bg: "rgba(42,10,10,0.05)", border: "rgba(42,10,10,0.1)", text: "#2a0a0a" },
+  {
+    bg: "rgba(146,73,50,0.05)",
+    border: "rgba(146,73,50,0.1)",
+    text: "#924932",
+  },
+  {
+    bg: "rgba(119,90,25,0.05)",
+    border: "rgba(119,90,25,0.1)",
+    text: "#775a19",
+  },
+  {
+    bg: "rgba(164,93,65,0.05)",
+    border: "rgba(164,93,65,0.1)",
+    text: "#a45d41",
+  },
+];
+
+function getInitials(name) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2)
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function avatarColor(idx) {
+  return AVATAR_PALETTE[idx % AVATAR_PALETTE.length];
+}
+
+function OrdersBadge({ count }) {
+  if (count == null)
+    return (
+      <span className="font-hanken text-[12px] tracking-[0.9px] text-[#7e7576]">
+        No history
+      </span>
+    );
+  const many = count >= 2;
+  const bg = many ? "rgba(119,90,25,0.1)" : "rgba(207,196,197,0.2)";
+  const col = many ? "#775a19" : "#4c4546";
+  const label = count === 1 ? "1 ORDER" : `${count} ORDERS`;
+  return (
+    <span
+      className="font-hanken text-[12px] font-medium tracking-[1.2px] uppercase px-[8px] py-[6px] rounded-[5px]"
+      style={{ background: bg, color: col }}
+    >
+      {label}
+    </span>
+  );
+}
+
 // ─── Customer Selector ──────────────────────────────────────────────────────
 function CustomerSelector({ value, onChange }) {
   const [search, setSearch] = useState("");
@@ -344,30 +449,45 @@ function CustomerSelector({ value, onChange }) {
   }
 
   if (value) {
+    const color = avatarColor(0);
     return (
-      <div className="flex items-center gap-[12px] p-[14px] border border-border rounded-lg bg-white">
-        <div className="w-[40px] h-[40px] bg-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-16 font-bold">
-            {value.name.charAt(0).toUpperCase()}
+      <div
+        className="flex items-center gap-[16px] px-[16px] py-[16px] bg-white rounded-[8px]"
+        style={{ border: "1px solid #d1c7bd" }}
+      >
+        <div
+          className="w-[48px] h-[48px] rounded-full flex items-center justify-center flex-shrink-0"
+          style={{
+            backgroundColor: color.bg,
+            border: `1px solid ${color.border}`,
+          }}
+        >
+          <span
+            className="font-garamond text-[18px]"
+            style={{ color: color.text }}
+          >
+            {getInitials(value.name)}
           </span>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-text-primary text-15">
+          <p className="font-hanken text-[16px] font-semibold text-black leading-tight">
             {value.name}
           </p>
           {value.email && (
-            <p className="text-12 text-text-muted">{value.email}</p>
+            <p className="font-hanken text-[10px] font-semibold text-[#4c4546] tracking-[0.9px] lowercase mt-[2px]">
+              {value.email}
+            </p>
           )}
         </div>
-        <span className="text-12 text-text-muted mr-[8px]">
-          {value.numberOfOrders} orders
-        </span>
+        <div className="flex-shrink-0 mr-[8px]">
+          <OrdersBadge count={value.numberOfOrders} />
+        </div>
         <button
           onClick={() => onChange(null)}
-          className="btn-icon"
+          className="text-[#1a1c1b] hover:text-[#a45d41] transition-colors cursor-pointer p-[6px] rounded-[6px] hover:bg-[rgba(164,93,65,0.08)]"
           title="Change customer"
         >
-          <X size={15} />
+          <X size={14} />
         </button>
       </div>
     );
@@ -375,16 +495,80 @@ function CustomerSelector({ value, onChange }) {
 
   return (
     <div ref={ref} className="relative">
-      <input
-        type="text"
-        placeholder="Search customer by name or email…"
-        value={search}
-        onChange={handleSearchChange}
-        onFocus={handleFocus}
-        className="input pl-[38px]"
-      />
+      <div
+        className="flex items-center h-[60px] bg-white rounded-[8px] px-[17px] gap-[10px] overflow-hidden"
+        style={{ border: "1px solid #d1c7bd" }}
+      >
+        <Search size={16} className="text-[#6b7280] flex-shrink-0" />
+        <input
+          type="text"
+          placeholder="Search customer by name or email...."
+          value={search}
+          onChange={handleSearchChange}
+          onFocus={handleFocus}
+          className="flex-1 font-hanken text-[14px] text-[#1a1c1b] placeholder:text-[#6b7280] outline-none bg-transparent"
+        />
+      </div>
       {open && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-[4px] bg-white border border-border rounded-lg shadow-lg flex flex-col max-h-[280px]">
+        <div
+          className="absolute top-full left-0 right-0 z-50 mt-[4px] bg-white rounded-[8px] shadow-xl flex flex-col overflow-hidden"
+          style={{ border: "1px solid #d1c7bd", maxHeight: "458px" }}
+        >
+          <div className="overflow-y-auto flex-1 px-px pt-[9px]">
+            {resultsLoading ? (
+              <div className="font-hanken p-[16px] text-[14px] text-[#6b7280] text-center">
+                Searching…
+              </div>
+            ) : results.length === 0 ? (
+              <div className="font-hanken p-[16px] text-[14px] text-[#6b7280] text-center">
+                No customers found
+              </div>
+            ) : (
+              results.map((customer, idx) => {
+                const color = avatarColor(idx);
+                return (
+                  <button
+                    key={customer.id}
+                    onClick={() => {
+                      onChange(customer);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                    className="w-full flex items-center justify-between px-[16px] pt-[16px] pb-[17px] text-left transition-colors cursor-pointer hover:bg-[#f4f1ed]"
+                    style={{ borderBottom: "1px solid rgba(207,196,197,0.1)" }}
+                  >
+                    <div className="flex items-center gap-[16px]">
+                      <div
+                        className="w-[48px] h-[48px] rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{
+                          backgroundColor: color.bg,
+                          border: `1px solid ${color.border}`,
+                        }}
+                      >
+                        <span
+                          className="font-garamond text-[18px]"
+                          style={{ color: color.text }}
+                        >
+                          {getInitials(customer.name)}
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-start">
+                        <span className="font-hanken text-[16px] font-semibold text-black leading-tight">
+                          {customer.name}
+                        </span>
+                        {customer.email && (
+                          <span className="font-hanken text-[10px] font-semibold text-[#4c4546] tracking-[0.9px] lowercase">
+                            {customer.email}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <OrdersBadge count={customer.numberOfOrders} />
+                  </button>
+                );
+              })
+            )}
+          </div>
           <button
             onClick={() => {
               setOpen(false);
@@ -392,57 +576,14 @@ function CustomerSelector({ value, onChange }) {
                 state: { autoCreateModal: true, returnTo: "/orders/new" },
               });
             }}
-            className="w-full flex items-center gap-[10px] px-[14px] py-[10px] hover:bg-brand-50 text-left transition-colors border-b border-border flex-shrink-0"
+            className="w-full flex items-center justify-center gap-[8px] h-[44px] flex-shrink-0 cursor-pointer transition-opacity hover:opacity-90 rounded-bl-[8px] rounded-br-[8px]"
+            style={{ backgroundColor: "#a45d41" }}
           >
-            <div className="w-[32px] h-[32px] bg-brand-100 rounded-full flex items-center justify-center flex-shrink-0">
-              <Plus size={14} className="text-brand-600" />
-            </div>
-            <span className="text-14 font-semibold text-brand-600">
+            <Plus size={11} color="white" />
+            <span className="font-hanken text-[14px] font-semibold text-white uppercase tracking-[0.5px]">
               New Customer
             </span>
           </button>
-          <div className="overflow-y-auto">
-            {resultsLoading ? (
-              <div className="p-[16px] text-14 text-text-muted text-center">
-                Searching…
-              </div>
-            ) : results.length === 0 ? (
-              <div className="p-[16px] text-14 text-text-muted text-center">
-                No customers found
-              </div>
-            ) : (
-              results.map((customer) => (
-                <button
-                  key={customer.id}
-                  onClick={() => {
-                    onChange(customer);
-                    setOpen(false);
-                    setSearch("");
-                  }}
-                  className="w-full flex items-center gap-[10px] px-[14px] py-[10px] hover:bg-gray-50 text-left transition-colors border-b border-border-light last:border-b-0"
-                >
-                  <div className="w-[32px] h-[32px] bg-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-12 font-bold">
-                      {customer.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-14 font-medium text-text-primary">
-                      {customer.name}
-                    </p>
-                    {customer.email && (
-                      <p className="text-12 text-text-muted truncate">
-                        {customer.email}
-                      </p>
-                    )}
-                  </div>
-                  <span className="text-12 text-text-muted flex-shrink-0">
-                    {customer.numberOfOrders} orders
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
         </div>
       )}
     </div>
@@ -496,8 +637,11 @@ function AttributeEditor({
 
   if (attributes.length === 0) {
     return (
-      <div className="card p-[20px]">
-        <p className="text-14 text-text-muted">
+      <div
+        className="bg-white rounded-[12px] px-[31px] py-[24px]"
+        style={{ border: "1px solid #c5c6cd" }}
+      >
+        <p className="font-hanken text-[14px] text-[#6b7280]">
           No fields loaded for this product.
         </p>
       </div>
@@ -505,30 +649,44 @@ function AttributeEditor({
   }
 
   return (
-    <div className="space-y-[16px]">
+    <div
+      className="bg-white rounded-[12px] p-[31px] flex flex-col gap-[48px]"
+      style={{ border: "1px solid #c5c6cd" }}
+    >
       {/* ── Details (Size Type etc.) ── */}
       {general.length > 0 && (
-        <div className="card overflow-hidden border-l-4 border-gray-300">
-          <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
-            <Tag size={14} className="text-text-muted" />
-            <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">
-              Details
-            </h3>
-            <span className="ml-auto text-11 text-text-muted">
+        <div className="flex flex-col gap-[16px]">
+          <div
+            className="flex items-center justify-between pb-[9px]"
+            style={{ borderBottom: "1px solid rgba(146,73,50,0.2)" }}
+          >
+            <div className="flex items-center gap-[13px]">
+              <div
+                className="w-[3px] h-[20px] rounded-sm"
+                style={{ backgroundColor: "#a45d41" }}
+              />
+              <h3 className="font-garamond text-[28px] font-semibold text-[#a45d41]">
+                Details
+              </h3>
+            </div>
+            <span className="font-hanken text-[10px] font-bold text-[rgba(28,28,25,0.5)] tracking-[1px] uppercase">
               {general.length} fields
             </span>
           </div>
-          <div className="p-[20px] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[14px]">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[32px] gap-y-[24px]">
             {general.map(({ key, originalKey }) => (
-              <div key={originalKey}>
-                <label className="input-label">{key}</label>
+              <div key={originalKey} className="relative h-[74px]">
+                <label className="absolute top-0 font-hanken text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase">
+                  {key}
+                </label>
                 <input
                   type="text"
                   value={
                     attributes.find((a) => a.key === originalKey)?.value || ""
                   }
                   onChange={(e) => updateAttr(originalKey, e.target.value)}
-                  className="input"
+                  className="absolute top-[20px] left-0 right-0 h-[40px] bg-white rounded-[8px] px-[13px] font-garamond text-[18px] text-[#1c1c19] outline-none transition-colors"
+                  style={{ border: "1px solid rgba(207,196,197,0.8)" }}
                 />
               </div>
             ))}
@@ -539,32 +697,26 @@ function AttributeEditor({
       {/* ── Per-section measurement grids ── */}
       {sections.map((sec) => {
         if (!sec.items.length) return null;
-        const colors = SECTION_COLORS[sec.label] ?? SECTION_COLORS.default;
         return (
-          <div
-            key={sec.label}
-            className={cn("card overflow-hidden border-l-4", colors.border)}
-          >
-            <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
-              <Ruler size={14} className={colors.icon} />
-              <h3
-                className={cn(
-                  "text-13 font-bold uppercase tracking-wider",
-                  colors.heading,
-                )}
-              >
-                {sec.label} Measurements
-              </h3>
-              <span
-                className={cn(
-                  "ml-auto text-11 font-semibold px-[8px] py-[2px] rounded-full",
-                  colors.badge,
-                )}
-              >
+          <div key={sec.label} className="flex flex-col gap-[16px]">
+            <div
+              className="flex items-center justify-between pb-[9px]"
+              style={{ borderBottom: "1px solid rgba(146,73,50,0.2)" }}
+            >
+              <div className="flex items-center gap-[13px]">
+                <div
+                  className="w-[3px] h-[20px] rounded-sm"
+                  style={{ backgroundColor: "#a45d41" }}
+                />
+                <h3 className="font-garamond text-[28px] font-semibold text-[#a45d41]">
+                  {sec.label} Measurements
+                </h3>
+              </div>
+              <span className="font-hanken text-[10px] font-bold text-[rgba(28,28,25,0.5)] tracking-[1px] uppercase">
                 {sec.items.length} measurements
               </span>
             </div>
-            <div className="p-[16px] grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[10px]">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[32px] gap-y-[24px]">
               {sec.items.map(({ key, originalKey }) => {
                 const val =
                   attributes.find((a) => a.key === originalKey)?.value ?? "";
@@ -585,8 +737,8 @@ function AttributeEditor({
                   n >= range.min &&
                   n <= range.max;
                 return (
-                  <div key={originalKey}>
-                    <label className="input-label text-11">
+                  <div key={originalKey} className="relative h-[74px]">
+                    <label className="absolute top-0 font-hanken text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase">
                       {getRangeForKey(sec.ranges, key)?.label ?? key}
                     </label>
                     <input
@@ -594,25 +746,32 @@ function AttributeEditor({
                       value={val}
                       onChange={(e) => updateAttr(originalKey, e.target.value)}
                       className={cn(
-                        "input py-[8px] text-15 font-bold",
+                        "absolute top-[20px] left-0 right-0 h-[40px] bg-white rounded-[8px] px-[13px] font-garamond text-[18px] outline-none transition-colors",
                         isValid
-                          ? "border-green-500 focus:ring-green-400"
+                          ? "text-green-700"
                           : isInvalid
-                            ? "border-red-400 focus:ring-red-400"
-                            : "",
+                            ? "text-red-500"
+                            : "text-[#1c1c19]",
                       )}
+                      style={{
+                        border: isValid
+                          ? "1px solid #22c55e"
+                          : isInvalid
+                            ? "1px solid #f87171"
+                            : "1px solid rgba(207,196,197,0.8)",
+                      }}
                     />
                     <p
                       className={cn(
-                        "text-[10px] mt-[2px] leading-tight",
+                        "absolute top-[67px] left-[4px] font-hanken text-[10px] font-medium",
                         isValid
                           ? "text-green-600"
                           : isInvalid
                             ? "text-red-500"
-                            : "text-text-muted",
+                            : "text-[rgba(28,28,25,0.4)]",
                       )}
                     >
-                      {range ? `${range.min}–${range.max}` : ""}
+                      {range ? `Range: ${range.min}–${range.max}` : ""}
                     </p>
                   </div>
                 );
@@ -967,6 +1126,15 @@ export default function CreateOrder() {
       .finally(() => setFieldsLoading(false));
   }, [selectedProduct, customerOrders]);
 
+  // Auto-select most recent past order as active template when product changes
+  useEffect(() => {
+    if (pastOrdersForProduct.length > 0) {
+      setSelectedTemplate(pastOrdersForProduct[0].orderId);
+    } else {
+      setSelectedTemplate(null);
+    }
+  }, [pastOrdersForProduct]);
+
   async function handleSubmit() {
     if (!selectedCustomer || !selectedProduct) return;
     setSubmitting(true);
@@ -1031,171 +1199,185 @@ export default function CreateOrder() {
     }
   }
 
+  const hasMissingMeasurements = useMemo(() => {
+    if (!attributes.length) return false;
+    const { sections } = groupAttributes(attributes, rangeGroups);
+    if (!sections.length) return false;
+    return sections.some((sec) =>
+      sec.items.some(({ originalKey }) => {
+        const val = attributes.find((a) => a.key === originalKey)?.value ?? "";
+        return !val.trim();
+      }),
+    );
+  }, [attributes, rangeGroups]);
+
   const canSubmit =
-    !!selectedCustomer && !!selectedProduct && !submitting && measurementsValid;
+    !!selectedCustomer &&
+    !!selectedProduct &&
+    !submitting &&
+    measurementsValid &&
+    !hasMissingMeasurements;
+
+  const currentStep = selectedProduct ? 3 : selectedCustomer ? 2 : 1;
 
   return (
-    <DashboardLayout>
-      {/* Back */}
-      <div className="mb-[20px]">
-        <Link
-          to="/orders"
-          className="inline-flex items-center gap-[6px] text-13 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-        >
-          <ArrowLeft size={14} />
-          Back to Orders
-        </Link>
-      </div>
+    <DashboardLayout bgColor="#f4f1ed">
+      {/* Watermark — anchored to bottom-right corner, rotated 12deg around that point */}
+      <img
+        src="/watermark-tailor.png"
+        alt=""
+        className="fixed pointer-events-none select-none"
+        style={{
+          bottom: -110,
+          right: 0,
+          width: 360,
+          height: 360,
+          opacity: 0.06,
+          transform: "rotate(12deg)",
+          transformOrigin: "bottom right",
+          zIndex: 1,
+        }}
+      />
 
-      {/* Page header */}
-      <div className="section-header mb-[24px]">
-        <div>
-          <h2 className="text-24 font-bold text-text-primary">
+      {/* All page content at z-2 — above the watermark */}
+      <div
+        className="relative flex flex-col gap-[40px] pb-[80px]"
+        style={{ zIndex: 2 }}
+      >
+        {/* ── Page header ── */}
+        <div className="flex flex-col gap-[4px]">
+          <h1 className="font-garamond text-[28px] sm:text-[40px] font-bold text-[#3c3c3c] leading-tight">
             Create New Order
-          </h2>
-          <p className="text-14 text-text-muted mt-[3px]">
+          </h1>
+          <p className="font-hanken text-[14px] text-black">
             Select customer, pick a product, fill measurements and create
           </p>
         </div>
-      </div>
 
-      <div className="space-y-[20px]">
-        {/* ── Step 1: Customer ── */}
-        <div className="card">
-          <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
-            <div className="w-[20px] h-[20px] rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-11 font-bold">1</span>
-            </div>
-            <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">
-              Select Customer
-            </h3>
-          </div>
-          <div className="p-[20px]">
-            <CustomerSelector
-              value={selectedCustomer}
-              onChange={(c) => {
-                setSelectedCustomer(c);
-                setSelectedProduct(null);
-              }}
-            />
-          </div>
-        </div>
+        {/* ── Step flow indicator ── */}
+        <StepIndicator currentStep={currentStep} />
 
-        {/* ── Step 2: Product ── */}
+        {/* ── Step 1: Customer search / selected ── */}
+        <CustomerSelector
+          value={selectedCustomer}
+          onChange={(c) => {
+            setSelectedCustomer(c);
+            setSelectedProduct(null);
+          }}
+        />
+
+        {/* ── Step 2: Product grid ── */}
         {selectedCustomer && (
-          <div className="card">
-            <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
-              <div className="w-[20px] h-[20px] rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-11 font-bold">2</span>
-              </div>
-              <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">
+          <div className="flex flex-col gap-[23px]">
+            <div className="flex flex-wrap items-center justify-between gap-[8px]">
+              <span className="font-garamond text-[28px] font-semibold text-[#a45d41]">
                 Select Product
-              </h3>
-              {!productsLoading && (
-                <span className="ml-auto text-12 text-text-muted">
-                  {gcProducts.length} products
-                </span>
-              )}
+              </span>
             </div>
-            <div className="p-[20px]">
-              {productsLoading ? (
-                <p className="text-14 text-text-muted">Loading products…</p>
-              ) : gcProducts.length === 0 ? (
-                <p className="text-14 text-text-muted">
-                  No gc_builder products found in store.
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[12px]">
-                  {gcProducts.map((product) => {
-                    const isSelected = selectedProduct?.id === product.id;
-                    const variantPrice =
-                      product.variants?.edges?.[0]?.node?.price;
-                    const pastCount = customerOrders.filter((o) =>
-                      o.lineItems?.edges?.some(
-                        ({ node }) =>
-                          node.title?.toLowerCase() ===
-                          product.title?.toLowerCase(),
-                      ),
-                    ).length;
-                    return (
-                      <button
-                        key={product.id}
-                        onClick={() =>
-                          setSelectedProduct(isSelected ? null : product)
-                        }
-                        className={cn(
-                          "flex flex-col items-start gap-[6px] p-[14px] rounded-lg border-2 text-left transition-all",
-                          isSelected
-                            ? "border-brand-600 bg-brand-50"
-                            : "border-border bg-white hover:border-brand-300 hover:bg-gray-50",
-                        )}
-                      >
-                        <div className="flex items-center gap-[8px] w-full">
-                          <ShoppingBag
-                            size={14}
-                            className={
-                              isSelected ? "text-brand-600" : "text-text-muted"
-                            }
-                          />
-                          <span
-                            className={cn(
-                              "text-14 font-semibold flex-1",
-                              isSelected
-                                ? "text-brand-700"
-                                : "text-text-primary",
-                            )}
-                          >
-                            {product.title}
+
+            {productsLoading ? (
+              <p className="font-hanken text-[14px] text-[#6b7280]">
+                Loading products…
+              </p>
+            ) : gcProducts.length === 0 ? (
+              <p className="font-hanken text-[14px] text-[#6b7280]">
+                No gc_builder products found in store.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-[19px]">
+                {gcProducts.map((product) => {
+                  const isSelected = selectedProduct?.id === product.id;
+                  const variantPrice =
+                    product.variants?.edges?.[0]?.node?.price;
+                  const pastCount = customerOrders.filter((o) =>
+                    o.lineItems?.edges?.some(
+                      ({ node }) =>
+                        node.title?.toLowerCase() ===
+                        product.title?.toLowerCase(),
+                    ),
+                  ).length;
+                  return (
+                    <button
+                      key={product.id}
+                      onClick={() =>
+                        setSelectedProduct(isSelected ? null : product)
+                      }
+                      className="flex flex-col items-start gap-[30px] p-[22px] rounded-[8px] text-left transition-all cursor-pointer bg-white w-[270px] flex-shrink-0"
+                      style={{
+                        border: isSelected
+                          ? "2px solid #1c1c19"
+                          : "1px solid rgba(207,196,197,0.3)",
+                      }}
+                    >
+                      <div className="flex items-center justify-between w-full gap-[8px]">
+                        <span className="font-hanken text-[12px] font-bold tracking-[0.6px] uppercase text-[#1c1c19] leading-tight">
+                          {product.title}
+                        </span>
+                        {isSelected && (
+                          <span className="font-hanken text-[10px] font-bold px-[8px] py-[2px] rounded-full flex-shrink-0 text-white bg-black">
+                            Selected
                           </span>
-                          {isSelected && (
-                            <span className="text-[10px] font-bold bg-brand-600 text-white px-[6px] py-[2px] rounded-full">
-                              Selected
-                            </span>
-                          )}
-                        </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-[12px] w-full">
                         {variantPrice && (
-                          <span className="text-12 text-text-muted ml-[22px]">
+                          <span className="font-hanken text-[11px] font-semibold text-[rgba(76,69,70,0.6)]">
                             From {variantPrice}
                           </span>
                         )}
                         {pastCount > 0 && (
-                          <span className="text-11 text-brand-700 bg-brand-50 border border-brand-200 px-[7px] py-[2px] rounded-full ml-[22px]">
+                          <span
+                            className="font-hanken text-[10px] font-semibold px-[12px] py-[4px] rounded-full self-start tracking-[0.9px]"
+                            style={{
+                              backgroundColor: "#f0ede8",
+                              color: "#4c4546",
+                            }}
+                          >
                             {pastCount} past order{pastCount !== 1 ? "s" : ""}
                           </span>
                         )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
-        {/* ── Step 2.5: Past order template ── */}
+        {/* ── Past order template ── */}
         {selectedCustomer &&
           selectedProduct &&
           pastOrdersForProduct.length > 0 && (
-            <div className="card">
-              <div className="flex items-center gap-[8px] px-[20px] py-[13px] border-b border-border bg-gray-50">
-                <Clock size={14} className="text-text-muted" />
-                <h3 className="text-13 font-bold uppercase tracking-wider text-text-muted">
+            <div className="flex flex-col gap-[16px]">
+              <div
+                className="flex flex-wrap items-center gap-[8px] pb-[17px]"
+                style={{ borderBottom: "1px solid rgba(207,196,197,0.3)" }}
+              >
+                <Clock size={14} style={{ color: "#6b7280" }} />
+                <span className="font-garamond text-[20px] font-medium text-[#1a1c1b]">
                   Use Past Order as Template
-                </h3>
-                <span className="ml-auto text-12 text-text-muted">
+                </span>
+                <span className="font-hanken text-[12px] text-[#6b7280] ml-auto">
                   {pastOrdersForProduct.length} past order
                   {pastOrdersForProduct.length !== 1 ? "s" : ""}
                 </span>
               </div>
-              <div className="p-[16px] flex flex-wrap gap-[10px]">
+              <div className="flex flex-wrap gap-[10px]">
                 <button
                   onClick={handleNewOrder}
                   className={cn(
-                    "flex items-center gap-[7px] px-[14px] py-[8px] rounded-lg border-2 text-13 font-medium transition-all",
+                    "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
                     !selectedTemplate
-                      ? "border-brand-600 bg-brand-50 text-brand-700"
-                      : "border-border bg-white text-text-muted hover:border-brand-300",
+                      ? "text-white"
+                      : "text-[#6b7280] bg-white hover:bg-[rgba(164,93,65,0.04)]",
                   )}
+                  style={{
+                    border: !selectedTemplate
+                      ? "1px solid #a45d41"
+                      : "1px solid #d1c7bd",
+                    backgroundColor: !selectedTemplate ? "#a45d41" : undefined,
+                  }}
                 >
                   <Plus size={13} />
                   New
@@ -1240,17 +1422,27 @@ export default function CreateOrder() {
                       }
                     }}
                     className={cn(
-                      "flex items-center gap-[7px] px-[14px] py-[8px] rounded-lg border-2 text-13 font-medium transition-all",
+                      "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
                       selectedTemplate === o.orderId
-                        ? "border-brand-600 bg-brand-50 text-brand-700"
-                        : "border-border bg-white text-text-secondary hover:border-brand-300 hover:bg-gray-50",
+                        ? "text-[#a45d41]"
+                        : "text-[#44474c] bg-white hover:bg-[rgba(164,93,65,0.04)]",
                     )}
+                    style={{
+                      border:
+                        selectedTemplate === o.orderId
+                          ? "1px solid #a45d41"
+                          : "1px solid #d1c7bd",
+                      backgroundColor:
+                        selectedTemplate === o.orderId
+                          ? "rgba(164,93,65,0.06)"
+                          : undefined,
+                    }}
                   >
                     {selectedTemplate === o.orderId && (
-                      <CheckCircle2 size={13} />
+                      <CheckCircle2 size={13} style={{ color: "#a45d41" }} />
                     )}
                     {o.orderId}
-                    <span className="text-11 text-text-muted">{o.date}</span>
+                    <span className="text-[11px] text-[#9ca3af]">{o.date}</span>
                   </button>
                 ))}
               </div>
@@ -1260,126 +1452,196 @@ export default function CreateOrder() {
         {/* ── Step 3: Measurements + Details ── */}
         {selectedCustomer && selectedProduct && (
           <>
-            <div className="flex items-center gap-[8px]">
-              <div className="flex-1 h-[1px] bg-border" />
-              <div className="flex items-center gap-[8px] px-[12px]">
-                <div className="w-[20px] h-[20px] rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-11 font-bold">3</span>
-                </div>
-                <span className="text-12 font-bold uppercase tracking-wider text-text-muted">
-                  Measurements &amp; Details
-                </span>
-              </div>
-              <div className="flex-1 h-[1px] bg-border" />
+            {/* Section divider */}
+            <div
+              className="flex flex-wrap items-center gap-[8px] pb-[17px]"
+              style={{ borderBottom: "1px solid rgba(207,196,197,0.3)" }}
+            >
+              <Ruler size={16} style={{ color: "#a45d41" }} />
+              <span className="font-garamond text-[24px] font-medium text-[#1a1c1b]">
+                Measurements &amp; Details
+              </span>
             </div>
 
             {/* Price */}
-            <div className="card p-[20px]">
-              <div className="max-w-[280px]">
-                <label className="input-label">Price (store currency)</label>
-                <input
-                  type="number"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  className="input"
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                />
+            <div
+              className="bg-white rounded-[12px] p-[31px]"
+              style={{ border: "1px solid #d1c7bd" }}
+            >
+              <h2 className="font-garamond text-[28px] font-semibold text-[#a45d41] mb-[20px]">
+                Price (store currency)
+              </h2>
+              <div
+                className="w-full"
+                style={{ borderTop: "1px solid rgba(207,196,197,0.3)" }}
+              >
+                <div className="max-w-[200px] mt-[20px]">
+                  <label className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide block mb-[7px]">
+                    Price (store currency)
+                  </label>
+                  <div
+                    className="bg-white rounded-[4px] h-[48px] flex items-center px-[11px] overflow-hidden"
+                    style={{ border: "1px solid #ddd6cf" }}
+                  >
+                    <input
+                      type="number"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      className="font-garamond flex-1 text-[20px] text-[#1c1c19] outline-none bg-transparent"
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Attribute form — only for products with custom.gc_builder value */}
-            {selectedProduct?.metafield?.value &&
-              (fieldsLoading ? (
-                <div className="card p-[24px]">
-                  <LoadingState message="Loading product fields…" />
-                </div>
-              ) : (
-                <AttributeEditor
-                  attributes={attributes}
-                  onChange={setAttributes}
-                  rangeGroups={rangeGroups}
-                  onValidChange={setMeasurementsValid}
-                />
-              ))}
+            {/* Attribute form */}
+            {fieldsLoading ? (
+              <div
+                className="bg-white rounded-[12px] p-[31px]"
+                style={{ border: "1px solid #c5c6cd" }}
+              >
+                <LoadingState message="Loading product fields…" />
+              </div>
+            ) : attributes.length === 0 ? (
+              <div
+                className="bg-white rounded-[12px] px-[31px] py-[24px]"
+                style={{ border: "1px solid #c5c6cd" }}
+              >
+                <p className="font-hanken text-[14px] text-[#6b7280]">
+                  No fields loaded for this product.
+                </p>
+              </div>
+            ) : (
+              <AttributeEditor
+                attributes={attributes}
+                onChange={setAttributes}
+                rangeGroups={rangeGroups}
+                onValidChange={setMeasurementsValid}
+              />
+            )}
 
             {/* Note */}
-            <div className="card p-[20px]">
-              <div className="flex items-center gap-[8px] mb-[12px]">
-                <FileText size={14} className="text-text-muted" />
-                <h3 className="text-13 font-semibold text-text-primary">
+            <div
+              className="bg-white rounded-[12px] p-[31px]"
+              style={{ border: "1px solid #d1c7bd" }}
+            >
+              <div className="flex items-center gap-[8px] mb-[20px]">
+                <FileText size={16} style={{ color: "#a45d41" }} />
+                <h2 className="font-garamond text-[28px] font-semibold text-[#a45d41]">
                   Order Note
-                </h3>
+                </h2>
               </div>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={3}
-                placeholder="Add a note for this order…"
-                className="input resize-none"
-              />
+              <div style={{ borderTop: "1px solid rgba(207,196,197,0.3)" }}>
+                <label className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide block mt-[16px] mb-[8px]">
+                  Internal Notes &amp; Special Instructions
+                </label>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={4}
+                  placeholder="Add a note for this order..."
+                  className="font-hanken w-full px-[14px] py-[12px] rounded-[8px] text-[14px] text-[#1a1c1b] placeholder:text-[#6b7280] outline-none resize-none transition-colors"
+                  style={{ border: "1px solid #d1c7bd" }}
+                />
+              </div>
             </div>
 
-            {/* Measurement validation warning */}
-            {!measurementsValid && (
-              <div className="flex items-start gap-[10px] px-[16px] py-[12px] bg-amber-50 border border-amber-200 rounded-lg">
+            {/* Missing measurements warning */}
+            {hasMissingMeasurements && (
+              <div
+                className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px]"
+                style={{
+                  backgroundColor: "#fef2f2",
+                  border: "1px solid #fecaca",
+                }}
+              >
                 <AlertCircle
                   size={16}
-                  className="text-amber-600 flex-shrink-0 mt-[1px]"
+                  className="text-red-500 flex-shrink-0 mt-[1px]"
                 />
-                <p className="text-13 text-amber-700">
+                <p className="font-hanken text-[13px] text-red-700">
+                  Please fill in all measurement fields before creating the
+                  order.
+                </p>
+              </div>
+            )}
+
+            {/* Out-of-range warning */}
+            {!measurementsValid && (
+              <div
+                className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px]"
+                style={{
+                  backgroundColor: "#fffbeb",
+                  border: "1px solid #fde68a",
+                }}
+              >
+                <AlertCircle
+                  size={16}
+                  className="text-amber-500 flex-shrink-0 mt-[1px]"
+                />
+                <p className="font-hanken text-[13px] text-amber-700">
                   Some measurements are outside the valid range. Fix the red
                   fields before creating the order.
                 </p>
               </div>
             )}
 
-            {/* Error */}
+            {/* Submit error */}
             {submitError && (
-              <div className="flex items-start gap-[10px] px-[16px] py-[12px] bg-red-50 border border-red-200 rounded-lg">
+              <div
+                className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px]"
+                style={{
+                  backgroundColor: "#fef2f2",
+                  border: "1px solid #fecaca",
+                }}
+              >
                 <AlertCircle
                   size={16}
-                  className="text-red-600 flex-shrink-0 mt-[1px]"
+                  className="text-red-500 flex-shrink-0 mt-[1px]"
                 />
                 <div>
-                  <p className="text-13 font-semibold text-red-700">
+                  <p className="font-hanken text-[13px] font-semibold text-red-700">
                     Failed to create order
                   </p>
-                  <p className="text-12 text-red-600 mt-[2px]">{submitError}</p>
+                  <p className="font-hanken text-[12px] text-red-600 mt-[2px]">
+                    {submitError}
+                  </p>
                 </div>
               </div>
             )}
 
             {/* Actions */}
-            <div className="flex items-center justify-end gap-[10px] pb-[8px]">
-              <Link to="/orders" className="btn-secondary">
+            <div className="flex flex-wrap items-center justify-end gap-[12px] pb-[8px]">
+              <Link
+                to="/orders"
+                className="font-hanken text-[14px] font-medium text-black uppercase px-[20px] py-[11px] hover:opacity-70 transition-opacity"
+              >
                 Cancel
               </Link>
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                className="btn-primary gap-[8px] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="font-hanken flex items-center gap-[8px] h-[44px] px-[20px] rounded-[8px] text-white text-[14px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                style={{ backgroundColor: canSubmit ? "#a45d41" : "#a45d41" }}
               >
-                <PlusCircle size={15} />
-                {submitting ? "Creating Order…" : "Create Order"}
-                {!submitting && <ChevronRight size={14} />}
+                {submitting ? (
+                  <>
+                    <PlusCircle size={14} className="animate-pulse" />
+                    Creating Order…
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle size={14} />
+                    Create Order
+                    <ChevronRight size={14} />
+                  </>
+                )}
               </button>
             </div>
           </>
-        )}
-
-        {/* Empty state */}
-        {!selectedCustomer && (
-          <div className="card p-[48px] text-center">
-            <User size={32} className="mx-auto text-text-muted mb-[12px]" />
-            <p className="text-16 font-semibold text-text-primary mb-[4px]">
-              Select a customer to start
-            </p>
-            <p className="text-14 text-text-muted">
-              Choose a customer to begin creating their order
-            </p>
-          </div>
         )}
       </div>
     </DashboardLayout>

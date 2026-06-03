@@ -113,11 +113,11 @@ export default function Customers() {
         </div>
       )}
 
-      <div className="flex items-end justify-between mb-[32px]">
+      <div className="flex flex-wrap items-end justify-between gap-[16px] mb-[32px]">
         <div className="flex flex-col gap-[8px]">
           <h2 className="gc-page-title">Customers</h2>
           <div className="flex items-center gap-[8px]">
-            <span className="font-hanken text-[14px] font-normal text-black">
+            <span className="font-hanken text-[12px] sm:text-[14px] font-normal text-black">
               {loading
                 ? "FETCHING FROM SHOPIFY…"
                 : error
@@ -131,7 +131,7 @@ export default function Customers() {
 
         <button
           onClick={() => setModalOpen(true)}
-          className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase tracking-wide transition-colors cursor-pointer"
+          className="font-hanken flex items-center gap-[8px] h-[40px] sm:h-[44px] px-[14px] sm:px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[13px] sm:text-[14px] font-semibold uppercase tracking-wide transition-colors cursor-pointer flex-shrink-0"
         >
           <Plus size={14} />
           CREATE CUSTOMER
@@ -164,111 +164,113 @@ export default function Customers() {
           {error && <ErrorState message={error} onRetry={retry} />}
 
           {!loading && !error && (
-            <table className="w-full">
-              <thead>
-                <tr className="gc-table-header-row rounded-tl-[12px] rounded-tr-[12px]">
-                  {[
-                    "CUSTOMER",
-                    "EMAIL",
-                    "PHONE",
-                    "ORDERS",
-                    "TOTAL SPENT",
-                    "REGISTERED",
-                  ].map((h) => (
-                    <th key={h} className="gc-th py-[28px]">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {customers.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="font-hanken text-center py-[64px] text-[14px] text-gc-text"
-                    >
-                      No customers match your search.
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="gc-table-header-row rounded-tl-[12px] rounded-tr-[12px]">
+                    {[
+                      "CUSTOMER",
+                      "EMAIL",
+                      "PHONE",
+                      "ORDERS",
+                      "TOTAL SPENT",
+                      "REGISTERED",
+                    ].map((h) => (
+                      <th key={h} className="gc-th py-[28px]">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ) : (
-                  customers.map((c, i) => {
-                    const style = AVATAR_STYLES[i % AVATAR_STYLES.length];
-                    const initials = getInitials(c.name);
-                    return (
-                      <tr
-                        key={c.id}
-                        onClick={() => navigate(`/customers/${c.numericId}`)}
-                        className="cursor-pointer hover:bg-[rgba(164,93,65,0.04)] transition-colors"
-                        style={
-                          i > 0
-                            ? { borderTop: "1px solid rgba(197,198,205,0.2)" }
-                            : {}
-                        }
+                </thead>
+                <tbody>
+                  {customers.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="font-hanken text-center py-[64px] text-[14px] text-gc-text"
                       >
-                        <td className="pl-[24px] py-[20px] pr-[16px]">
-                          <div className="flex items-center gap-[16px]">
-                            <div
-                              className="w-[40px] h-[40px] flex-shrink-0 flex items-center justify-center rounded-[3px]"
+                        No customers match your search.
+                      </td>
+                    </tr>
+                  ) : (
+                    customers.map((c, i) => {
+                      const style = AVATAR_STYLES[i % AVATAR_STYLES.length];
+                      const initials = getInitials(c.name);
+                      return (
+                        <tr
+                          key={c.id}
+                          onClick={() => navigate(`/customers/${c.numericId}`)}
+                          className="cursor-pointer hover:bg-[rgba(164,93,65,0.04)] transition-colors"
+                          style={
+                            i > 0
+                              ? { borderTop: "1px solid rgba(197,198,205,0.2)" }
+                              : {}
+                          }
+                        >
+                          <td className="pl-[24px] py-[20px] pr-[16px]">
+                            <div className="flex items-center gap-[16px]">
+                              <div
+                                className="w-[40px] h-[40px] flex-shrink-0 flex items-center justify-center rounded-[3px]"
+                                style={{
+                                  backgroundColor: style.bg,
+                                  border: `1px solid ${style.border}`,
+                                }}
+                              >
+                                <span
+                                  className="font-garamond text-[16px] font-normal text-center"
+                                  style={{ color: style.color }}
+                                >
+                                  {initials}
+                                </span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="font-hanken text-[14px] font-bold text-black leading-tight">
+                                  {c.name}
+                                </span>
+                                <span
+                                  className="font-hanken text-[10px] italic leading-[15px]"
+                                  style={{ color: "rgba(66,70,86,0.7)" }}
+                                >
+                                  ID: GC-{c.numericId?.slice(-4) || "—"}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="font-hanken text-[14px] text-black px-[24px] py-[20px] pl-[48px]">
+                            {c.email || "—"}
+                          </td>
+
+                          <td className="font-hanken text-[14px] font-medium text-black px-[24px] py-[20px] whitespace-nowrap">
+                            {c.phone || "—"}
+                          </td>
+
+                          <td className="px-[24px] py-[20px]">
+                            <span
+                              className="font-hanken inline-flex items-center px-[12px] py-[4px] rounded-[3px] text-[10px] font-semibold text-gc-primary-dark"
                               style={{
-                                backgroundColor: style.bg,
-                                border: `1px solid ${style.border}`,
+                                backgroundColor: "rgba(146,73,50,0.1)",
+                                border: "1px solid #924932",
                               }}
                             >
-                              <span
-                                className="font-garamond text-[16px] font-normal text-center"
-                                style={{ color: style.color }}
-                              >
-                                {initials}
-                              </span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="font-hanken text-[14px] font-bold text-black leading-tight">
-                                {c.name}
-                              </span>
-                              <span
-                                className="font-hanken text-[10px] italic leading-[15px]"
-                                style={{ color: "rgba(66,70,86,0.7)" }}
-                              >
-                                ID: GC-{c.numericId?.slice(-4) || "—"}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
+                              {String(c.numberOfOrders).padStart(2, "0")}
+                            </span>
+                          </td>
 
-                        <td className="font-hanken text-[14px] text-black px-[24px] py-[20px] pl-[48px]">
-                          {c.email || "—"}
-                        </td>
+                          <td className="font-hanken text-[16px] font-semibold text-black px-[24px] py-[20px] whitespace-nowrap">
+                            {c.totalSpent}
+                          </td>
 
-                        <td className="font-hanken text-[14px] font-medium text-black px-[24px] py-[20px] whitespace-nowrap">
-                          {c.phone || "—"}
-                        </td>
-
-                        <td className="px-[24px] py-[20px]">
-                          <span
-                            className="font-hanken inline-flex items-center px-[12px] py-[4px] rounded-[3px] text-[10px] font-semibold text-gc-primary-dark"
-                            style={{
-                              backgroundColor: "rgba(146,73,50,0.1)",
-                              border: "1px solid #924932",
-                            }}
-                          >
-                            {String(c.numberOfOrders).padStart(2, "0")}
-                          </span>
-                        </td>
-
-                        <td className="font-hanken text-[16px] font-semibold text-black px-[24px] py-[20px] whitespace-nowrap">
-                          {c.totalSpent}
-                        </td>
-
-                        <td className="font-hanken text-[16px] text-gc-text px-[24px] py-[20px] whitespace-nowrap">
-                          {c.registrationDate}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                          <td className="font-hanken text-[16px] text-gc-text px-[24px] py-[20px] whitespace-nowrap">
+                            {c.registrationDate}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 

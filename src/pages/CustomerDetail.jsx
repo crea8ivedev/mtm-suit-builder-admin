@@ -289,25 +289,25 @@ export default function CustomerDetail() {
         <div className="flex flex-col gap-[40px]">
           {/* ── Section 1: Customer Profile Header ── */}
           <div
-            className="bg-white rounded-[12px] p-[33px] flex flex-col gap-[24px]"
+            className="bg-white rounded-[12px] p-[20px] sm:p-[33px] flex flex-col gap-[20px] sm:gap-[24px]"
             style={{ border: "1px solid rgba(207,196,197,0.3)" }}
           >
             <div className="flex items-start justify-between">
               <div className="flex flex-col gap-[7px]">
-                <span className="font-hanken text-[12px] font-semibold uppercase tracking-[1.8px] text-gc-primary">
+                <span className="font-hanken text-[11px] sm:text-[12px] font-semibold uppercase tracking-[1.8px] text-gc-primary">
                   PREMIUM REGISTRY
                 </span>
-                <h1 className="font-garamond text-[40px] font-bold text-[#3c3c3c] leading-tight">
+                <h1 className="font-garamond text-[28px] sm:text-[40px] font-bold text-[#3c3c3c] leading-tight">
                   {customer.name}
                 </h1>
-                <div className="flex items-center gap-[24px] pt-[9px]">
+                <div className="flex flex-wrap items-center gap-[12px] sm:gap-[24px] pt-[9px]">
                   {customer.email && (
                     <div className="flex items-center gap-[8px]">
                       <Mail
                         size={13}
                         className="text-[#4c4546] flex-shrink-0"
                       />
-                      <span className="font-hanken text-[14px] text-[#4c4546]">
+                      <span className="font-hanken text-[13px] sm:text-[14px] text-[#4c4546] break-all">
                         {customer.email}
                       </span>
                     </div>
@@ -318,7 +318,7 @@ export default function CustomerDetail() {
                         size={10}
                         className="text-[#4c4546] flex-shrink-0"
                       />
-                      <span className="font-hanken text-[14px] text-[#4c4546]">
+                      <span className="font-hanken text-[13px] sm:text-[14px] text-[#4c4546]">
                         {customer.phone}
                       </span>
                     </div>
@@ -329,7 +329,7 @@ export default function CustomerDetail() {
 
             {/* Stats row */}
             <div
-              className="grid grid-cols-3 gap-[32px] pt-[25px]"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-[20px] sm:gap-[32px] pt-[20px] sm:pt-[25px]"
               style={{ borderTop: "1px solid rgba(207,196,197,0.4)" }}
             >
               {[
@@ -341,7 +341,7 @@ export default function CustomerDetail() {
                   <span className="font-hanken text-[10px] font-medium uppercase text-[#7e7576]">
                     {label}
                   </span>
-                  <span className="font-garamond text-[28px] font-medium text-black leading-tight">
+                  <span className="font-garamond text-[22px] sm:text-[28px] font-medium text-black leading-tight">
                     {value}
                   </span>
                 </div>
@@ -353,10 +353,10 @@ export default function CustomerDetail() {
           <div className="flex flex-col gap-[24px]">
             {/* Section heading */}
             <div
-              className="flex items-center gap-[12px] pb-[17px]"
+              className="flex flex-wrap items-center gap-[12px] pb-[17px]"
               style={{ borderBottom: "1px solid rgba(0,0,0,0.1)" }}
             >
-              <span className="font-garamond text-[24px] font-medium text-[#1a1c1b]">
+              <span className="font-garamond text-[20px] sm:text-[24px] font-medium text-[#1a1c1b]">
                 Recent Orders
               </span>
               <span className="font-hanken text-[14px] font-semibold uppercase text-gc-primary">
@@ -553,18 +553,18 @@ export default function CustomerDetail() {
                   <div key={entry.id} className="flex flex-col gap-[24px]">
                     {/* Section header row */}
                     <div
-                      className="flex items-end justify-between pb-[17px]"
+                      className="flex flex-wrap items-start sm:items-end justify-between gap-[12px] pb-[17px]"
                       style={{ borderBottom: "1px solid rgba(0,0,0,0.1)" }}
                     >
                       <div className="flex flex-col gap-[4px]">
-                        <span className="font-garamond text-[24px] font-medium text-[#1a1c1b]">
+                        <span className="font-garamond text-[20px] sm:text-[24px] font-medium text-[#1a1c1b]">
                           {entry.productName}
                         </span>
-                        <span className="font-hanken text-[14px] font-semibold text-[#6d6d6d]">
+                        <span className="font-hanken text-[12px] sm:text-[14px] font-semibold text-[#6d6d6d]">
                           Profile: {entry.name} • Last updated: {entry.created}
                         </span>
                       </div>
-                      <div className="flex items-center gap-[8px]">
+                      <div className="flex flex-wrap items-center gap-[8px]">
                         {profileError && (
                           <span className="font-hanken text-[12px] text-red-500">
                             {profileError}
@@ -575,7 +575,7 @@ export default function CustomerDetail() {
                             <button
                               onClick={() => handleProfileSave(entry)}
                               disabled={isSaving}
-                              className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors disabled:opacity-50"
+                              className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <Save size={13} />
                               {isSaving ? "Saving…" : "SAVE LEDGER"}
@@ -583,7 +583,7 @@ export default function CustomerDetail() {
                             <button
                               onClick={handleProfileCancel}
                               disabled={isSaving}
-                              className="gc-btn text-[13px] gap-[5px]"
+                              className="gc-btn text-[13px] gap-[5px] cursor-pointer disabled:cursor-not-allowed"
                             >
                               <X size={12} />
                               Cancel
@@ -594,7 +594,7 @@ export default function CustomerDetail() {
                             <button
                               onClick={() => handleProfileEditStart(entry)}
                               disabled={!!editingProfileId}
-                              className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors disabled:opacity-40"
+                              className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Pencil size={13} />
                               EDIT LEDGER

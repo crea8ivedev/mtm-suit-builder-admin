@@ -178,7 +178,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
             type="button"
             onClick={() => !isProcessing && setDropdownOpen((o) => !o)}
             disabled={isProcessing}
-            className="font-hanken w-full flex items-center justify-between gap-[8px] px-[17px] py-[9px] rounded-[8px] text-[14px] font-semibold tracking-[0.7px] text-[#1a1c1b] bg-white disabled:opacity-60 disabled:cursor-not-allowed"
+            className="font-hanken w-full flex items-center justify-between gap-[8px] px-[17px] py-[9px] rounded-[8px] text-[14px] font-semibold tracking-[0.7px] text-[#1a1c1b] bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             style={{ border: "1px solid #d1c7bd" }}
           >
             <span>{selectedLabel}</span>
@@ -200,7 +200,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
                       setSelectedId("");
                       setDropdownOpen(false);
                     }}
-                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-[#424656] hover:bg-[#f4f1ed] flex items-center justify-between"
+                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-[#424656] hover:bg-[#f4f1ed] flex items-center justify-between cursor-pointer"
                   >
                     — Choose supplier —
                     {!selectedId && (
@@ -216,7 +216,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
                         setSelectedId(s.id);
                         setDropdownOpen(false);
                       }}
-                      className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-[#1a1c1b] hover:bg-[#f4f1ed] flex items-center justify-between"
+                      className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-[#1a1c1b] hover:bg-[#f4f1ed] flex items-center justify-between cursor-pointer"
                     >
                       {s.name}
                       {selectedId === s.id && (
@@ -235,7 +235,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
           <button
             onClick={() => retry(selectedId)}
             disabled={!selectedId || isProcessing}
-            className="flex items-center justify-center w-[35px] rounded-[8px] text-[#1a1c1b] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center w-[35px] rounded-[8px] text-[#1a1c1b] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ border: "1px solid #000" }}
           >
             <RotateCw
@@ -247,7 +247,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
           <button
             onClick={() => submit(selectedId)}
             disabled={!selectedId || isProcessing || isSubmitted}
-            className="flex items-center justify-center w-[35px] rounded-[8px] text-[#1a1c1b] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center w-[35px] rounded-[8px] text-[#1a1c1b] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ border: "1px solid #000" }}
           >
             <RefreshCw
@@ -315,7 +315,7 @@ export default function OrderDetail() {
           {/* ── Error alert banner ── */}
           {(isFailed || supplierError) && (
             <div
-              className="flex items-center justify-between pl-[28px] pr-[24px] py-[24px] rounded-[4px]"
+              className="flex flex-wrap items-start justify-between gap-[16px] pl-[20px] sm:pl-[28px] pr-[16px] sm:pr-[24px] py-[20px] sm:py-[24px] rounded-[4px]"
               style={{
                 backgroundColor: "#ffdad6",
                 borderLeft: "4px solid #ba1a1a",
@@ -356,42 +356,42 @@ export default function OrderDetail() {
 
           {/* ── Order header card ── */}
           <div
-            className="bg-white rounded-[12px] p-[33px]"
+            className="bg-white rounded-[12px] p-[20px] sm:p-[33px]"
             style={{
               border: "1px solid #c5c6cd",
               boxShadow: "0px 1px 1px rgba(0,0,0,0.05)",
             }}
           >
-            <div className="flex items-center justify-between gap-[16px]">
-              <div className="flex items-center gap-[24px]">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-[16px]">
+              <div className="flex flex-wrap items-start gap-[16px] sm:gap-[24px]">
                 {/* Order # + status + date */}
                 <div className="flex flex-col gap-[8px]">
-                  <h1 className="font-garamond text-[36px] font-normal text-black leading-[40px]">
+                  <h1 className="font-garamond text-[28px] sm:text-[36px] font-normal text-black leading-[1.1]">
                     {order.name}
                   </h1>
-                  <div className="flex items-center gap-[12px]">
+                  <div className="flex flex-wrap items-center gap-[8px] sm:gap-[12px]">
                     <PaymentBadge
                       status={mapPaymentBadge(order.displayFinancialStatus)}
                     />
-                    <span className="font-hanken text-[14px] text-[#44474c]">
+                    <span className="font-hanken text-[13px] sm:text-[14px] text-[#44474c]">
                       Placed on {formatDate(order.createdAt)}
                     </span>
                   </div>
                 </div>
 
-                {/* Vertical divider */}
+                {/* Vertical divider — hidden on mobile */}
                 <div
-                  className="w-px h-[48px] flex-shrink-0"
+                  className="hidden sm:block w-px h-[48px] flex-shrink-0"
                   style={{ backgroundColor: "#c5c6cd" }}
                 />
 
                 {/* Stats */}
-                <div className="flex gap-[48px] items-start">
+                <div className="flex gap-[24px] sm:gap-[48px] items-start">
                   <div className="flex flex-col gap-[3px]">
                     <span className="font-hanken text-[10px] tracking-[1px] uppercase text-[#44474c]">
                       TOTAL AMOUNT
                     </span>
-                    <span className="font-garamond text-[24px] text-[#1a1c1b] leading-[32px]">
+                    <span className="font-garamond text-[20px] sm:text-[24px] text-[#1a1c1b] leading-[32px]">
                       {formatCurrency(order.totalPriceSet)}
                     </span>
                   </div>
@@ -399,7 +399,7 @@ export default function OrderDetail() {
                     <span className="font-hanken text-[10px] tracking-[1px] uppercase text-[#44474c]">
                       ITEMS
                     </span>
-                    <span className="font-garamond text-[24px] text-[#1a1c1b] leading-[32px]">
+                    <span className="font-garamond text-[20px] sm:text-[24px] text-[#1a1c1b] leading-[32px]">
                       {lineItems.length}{" "}
                       {lineItems.length === 1 ? "Item" : "Items"}
                     </span>
@@ -412,7 +412,7 @@ export default function OrderDetail() {
                 href={shopifyAdminUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-hanken inline-flex items-center gap-[8px] px-[25px] py-[13px] rounded-[8px] text-[12px] font-bold uppercase text-black border border-black hover:bg-gray-50 transition-colors"
+                className="font-hanken inline-flex items-center gap-[8px] px-[16px] sm:px-[25px] py-[10px] sm:py-[13px] rounded-[8px] text-[12px] font-bold uppercase text-black border border-black hover:bg-gray-50 transition-colors self-start sm:self-auto flex-shrink-0"
               >
                 <ExternalLink size={13} />
                 OPEN IN SHOPIFY
@@ -421,9 +421,9 @@ export default function OrderDetail() {
           </div>
 
           {/* ── Two-column layout ── */}
-          <div className="flex gap-[30px] items-start">
+          <div className="flex flex-col lg:flex-row gap-[20px] lg:gap-[30px] items-start">
             {/* Left column */}
-            <div className="flex flex-col gap-[20px] w-[326px] flex-shrink-0">
+            <div className="flex flex-col gap-[20px] w-full lg:w-[326px] lg:flex-shrink-0">
               {/* Customer card */}
               {order.customer && (
                 <GCCard>

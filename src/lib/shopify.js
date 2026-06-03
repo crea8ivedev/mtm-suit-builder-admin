@@ -1175,11 +1175,24 @@ export async function shopifyGqlQuery(query, variables = {}) {
   return shopifyGraphQL(query, variables);
 }
 
-// ─── Style Options (gc_style_option metaobjects) ──────────────────────────
+// ─── Style Options (multi-garment metaobjects) ────────────────────────────────
 
-const GET_STYLE_OPTIONS_QUERY = `
-  query GetStyleOptions($first: Int!, $after: String) {
-    metaobjects(type: "gc_style_option", first: $first, after: $after) {
+const STYLE_OPTION_TYPES = [
+  "gc_jacket_style_option",
+  "gc_trouser_style_option",
+];
+
+function garmentFromType(type) {
+  return type
+    .replace(/^gc_/, "")
+    .replace(/_style_option$/, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const STYLE_OPTIONS_QUERY = `
+  query GetStyleOptions($type: String!, $first: Int!, $after: String) {
+    metaobjects(type: $type, first: $first, after: $after) {
       pageInfo { hasNextPage endCursor }
       edges {
         node {
@@ -1205,18 +1218,14 @@ let _styleOptionsCache = null;
 let _styleOptionsCacheAt = 0;
 const STYLE_OPTIONS_CACHE_TTL = 5 * 60 * 1000; // 5 min
 
-export async function fetchStyleOptions() {
-  if (
-    _styleOptionsCache &&
-    Date.now() - _styleOptionsCacheAt < STYLE_OPTIONS_CACHE_TTL
-  ) {
-    return _styleOptionsCache;
-  }
-  const all = [];
+async function fetchStyleOptionsForType(type) {
+  const garment = garmentFromType(type);
+  const results = [];
   let hasNextPage = true;
   let cursor = null;
   while (hasNextPage) {
-    const data = await shopifyGraphQL(GET_STYLE_OPTIONS_QUERY, {
+    const data = await shopifyGraphQL(STYLE_OPTIONS_QUERY, {
+      type,
       first: 250,
       after: cursor,
     });
@@ -1225,20 +1234,37 @@ export async function fetchStyleOptions() {
       const fm = Object.fromEntries(
         node.fields.map((f) => [f.key, f.value ?? ""]),
       );
-      all.push({
+      results.push({
         id: node.id,
         handle: node.handle,
         label: fm.label || node.handle,
         category: fm.category || "",
-        garment: fm.garment || "",
+        garment,
         displayLabel: fm.display_label || fm.category || "",
         upcharge: parseFloat(fm.upcharge || 0),
         visible: fm.visible !== "false",
+        isDefault: fm.is_default === "true",
+        sortOrder: parseInt(fm.sort_order || "0", 10),
+        imageUrl: fm.image || null,
       });
     }
     hasNextPage = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
   }
+  return results;
+}
+
+export async function fetchStyleOptions() {
+  if (
+    _styleOptionsCache &&
+    Date.now() - _styleOptionsCacheAt < STYLE_OPTIONS_CACHE_TTL
+  ) {
+    return _styleOptionsCache;
+  }
+  const results = await Promise.all(
+    STYLE_OPTION_TYPES.map(fetchStyleOptionsForType),
+  );
+  const all = results.flat();
   _styleOptionsCache = all;
   _styleOptionsCacheAt = Date.now();
   return all;

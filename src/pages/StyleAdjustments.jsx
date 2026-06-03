@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Search, Filter, ChevronRight, Save, ChevronDown } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import {
   fetchStyleOptions,
@@ -6,6 +8,82 @@ import {
   clearStyleOptionsCache,
 } from "../lib/shopify";
 import LoadingState from "../components/ui/LoadingState";
+
+// ─── Garment Dropdown ──────────────────────────────────────────────────────
+function GarmentDropdown({ garments, selected, onSelect, loading }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative w-full">
+      {/* Trigger — styled exactly like Figma filter input */}
+      <button
+        type="button"
+        onClick={() => !loading && garments.length > 0 && setOpen((v) => !v)}
+        className="flex items-center w-full h-[40px] rounded-[8px] pl-[13px] pr-[9px] py-[7px] bg-white cursor-pointer"
+        style={{ border: "1px solid #dac1ba" }}
+      >
+        <Filter
+          size={12}
+          className="flex-shrink-0 mr-[8px]"
+          style={{ color: "#9b9b9b" }}
+        />
+        <span
+          className="flex-1 text-left text-[14px] font-hanken truncate"
+          style={{ color: selected ? "#1c1c19" : "#9b9b9b" }}
+        >
+          {loading ? "Loading…" : selected || "Filter garments..."}
+        </span>
+        <ChevronDown
+          size={12}
+          className="flex-shrink-0 transition-transform"
+          style={{
+            color: "#9b9b9b",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+          }}
+        />
+      </button>
+
+      {/* Dropdown list */}
+      {open && (
+        <div
+          className="absolute top-full left-0 right-0 z-50 mt-[4px] bg-white rounded-[8px] overflow-hidden"
+          style={{
+            border: "1px solid #dac1ba",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+          }}
+        >
+          {garments.map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => {
+                onSelect(g);
+                setOpen(false);
+              }}
+              className="w-full text-left px-[13px] py-[10px] font-hanken text-[14px] transition-colors cursor-pointer"
+              style={{
+                color: selected === g ? "#a45d41" : "#1c1c19",
+                backgroundColor: selected === g ? "#fdf5f0" : "transparent",
+                fontWeight: selected === g ? 600 : 400,
+              }}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Toggle ────────────────────────────────────────────────────────────────
 function Toggle({ on, onChange }) {
@@ -16,18 +94,21 @@ function Toggle({ on, onChange }) {
         e.stopPropagation();
         onChange(!on);
       }}
-      className="relative flex-shrink-0 focus:outline-none"
-      style={{ width: 48, height: 26 }}
+      className="relative flex-shrink-0 focus:outline-none cursor-pointer"
+      style={{ width: 40, height: 20, borderRadius: 12 }}
+      aria-checked={on}
+      role="switch"
     >
       <span
-        className="absolute inset-0 rounded-full transition-colors"
-        style={{ backgroundColor: on ? "#8b7355" : "#d1cbc5" }}
+        className="absolute inset-0 rounded-[12px] transition-colors"
+        style={{ backgroundColor: on ? "#7c3820" : "#dac1ba" }}
       />
       <span
-        className="absolute top-[3px] w-[20px] h-[20px] bg-white rounded-full shadow-sm transition-transform"
+        className="absolute top-[2px] w-[16px] h-[16px] bg-white rounded-full transition-transform"
         style={{
-          left: 3,
-          transform: on ? "translateX(22px)" : "translateX(0)",
+          left: 2,
+          transform: on ? "translateX(20px)" : "translateX(0)",
+          boxShadow: "0px 1px 2px rgba(0,0,0,0.05)",
         }}
       />
     </button>
@@ -38,52 +119,89 @@ function Toggle({ on, onChange }) {
 function OptionCard({ option, visible, onChange }) {
   return (
     <div
-      className="flex items-center gap-[12px] rounded-[8px] p-[12px] transition-opacity"
-      style={{
-        background: "#ffffff",
-        border: "1px solid #e4ddd7",
-        opacity: visible ? 1 : 0.55,
-      }}
+      className="bg-white flex items-center h-[64px] rounded-[8px] px-[11px] py-[12px] cursor-pointer transition-opacity"
+      style={{ border: "1px solid #dac1ba" }}
+      onClick={onChange}
     >
+      {/* Image thumbnail */}
       <div
-        className="flex-shrink-0 rounded-[6px]"
+        className="flex-shrink-0 rounded-[8px] overflow-hidden flex items-center justify-center relative"
         style={{
-          width: 52,
-          height: 52,
-          background: "#ede8e3",
-          border: "1px solid #ddd6ce",
+          width: 40,
+          height: 40,
+          border: "1px solid #dac1ba",
+          background: "#fff",
         }}
-      />
-      <div className="flex-1 min-w-0">
-        <p
-          className="text-[13px] font-semibold truncate"
-          style={{ color: "#1a1c1b" }}
-        >
-          {option.label}
-        </p>
-        <p
-          className="text-[10px] font-mono mt-[2px]"
-          style={{ color: "#a89f99" }}
-        >
-          {option.handle}
-        </p>
+      >
+        {option.imageUrl ? (
+          <img
+            src={option.imageUrl}
+            alt={option.label}
+            className="object-cover pointer-events-none"
+            style={{ width: 30, height: 30 }}
+          />
+        ) : (
+          <div className="w-[30px] h-[30px] bg-[#f0ebe6] rounded-sm" />
+        )}
       </div>
-      <Toggle on={visible} onChange={onChange} />
+
+      {/* Name */}
+      <div className="flex-1 min-w-0 ml-[16px]">
+        <span className="font-hanken font-medium text-[16px] text-black leading-[24px] block truncate">
+          {option.label}
+        </span>
+      </div>
+
+      {/* ON/OFF + Toggle */}
+      <div
+        className="flex items-center gap-[16px] pl-[17px] ml-[8px] flex-shrink-0"
+        style={{ borderLeft: "1px solid rgba(218,193,186,0.4)" }}
+      >
+        <span
+          className="font-hanken font-semibold text-[12px] tracking-[0.6px] w-[24px] text-right"
+          style={{ color: "#7c3820" }}
+        >
+          {visible ? "ON" : "OFF"}
+        </span>
+        <Toggle on={visible} onChange={onChange} />
+      </div>
     </div>
   );
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 export default function StyleAdjustments() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [overrides, setOverrides] = useState(new Map()); // id → boolean
+  const [overrides, setOverrides] = useState(new Map());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
-  const [selectedGarment, setSelectedGarment] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [filterText, setFilterText] = useState("");
+  const [optionFilter, setOptionFilter] = useState("");
+  const mainRef = useRef(null);
+
+  const selectedGarment = searchParams.get("garment") || null;
+  const selectedCategory = searchParams.get("category") || null;
+
+  function setSelectedGarment(val) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (val) next.set("garment", val);
+      else next.delete("garment");
+      next.delete("category");
+      return next;
+    });
+  }
+
+  function setSelectedCategory(val) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (val) next.set("category", val);
+      else next.delete("category");
+      return next;
+    });
+  }
 
   useEffect(() => {
     fetchStyleOptions()
@@ -93,31 +211,47 @@ export default function StyleAdjustments() {
           const garments = [
             ...new Set(data.map((o) => o.garment).filter(Boolean)),
           ].sort();
-          const first = garments[0];
-          setSelectedGarment(first);
+          const urlGarment = searchParams.get("garment");
+          const first =
+            urlGarment && garments.includes(urlGarment)
+              ? urlGarment
+              : (garments.find((g) => g.toLowerCase() === "jacket") ??
+                garments[0]);
+          const urlCategory = searchParams.get("category");
           const cats = [
             ...new Set(
               data.filter((o) => o.garment === first).map((o) => o.category),
             ),
           ];
-          setSelectedCategory(cats[0] ?? null);
+          const firstCat =
+            urlCategory && cats.includes(urlCategory)
+              ? urlCategory
+              : (cats[0] ?? null);
+          setSearchParams(
+            (prev) => {
+              const next = new URLSearchParams(prev);
+              if (first) next.set("garment", first);
+              else next.delete("garment");
+              if (firstCat) next.set("category", firstCat);
+              else next.delete("category");
+              return next;
+            },
+            { replace: true },
+          );
         }
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Unique garments from data
   const garments = useMemo(
     () => [...new Set(options.map((o) => o.garment).filter(Boolean))].sort(),
     [options],
   );
 
-  // Helper: effective visible state
   const getVisible = (opt) =>
     overrides.has(opt.id) ? overrides.get(opt.id) : opt.visible;
 
-  // Categories for selected garment (with live counts)
   const categoriesForGarment = useMemo(() => {
     if (!selectedGarment) return [];
     const map = new Map();
@@ -126,6 +260,7 @@ export default function StyleAdjustments() {
       if (!map.has(opt.category))
         map.set(opt.category, {
           displayLabel: opt.displayLabel,
+          sortOrder: opt.sortOrder,
           total: 0,
           visible: 0,
         });
@@ -135,11 +270,10 @@ export default function StyleAdjustments() {
     }
     return [...map.entries()]
       .map(([slug, info]) => ({ slug, ...info }))
-      .sort((a, b) => a.displayLabel.localeCompare(b.displayLabel));
+      .sort((a, b) => a.sortOrder - b.sortOrder);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options, selectedGarment, overrides]);
 
-  // Options for selected category
   const categoryOptions = useMemo(
     () =>
       options.filter(
@@ -148,15 +282,14 @@ export default function StyleAdjustments() {
     [options, selectedGarment, selectedCategory],
   );
 
-  // Filtered by search
   const filteredOptions = useMemo(() => {
-    const q = filterText.trim().toLowerCase();
+    const q = optionFilter.trim().toLowerCase();
     if (!q) return categoryOptions;
     return categoryOptions.filter(
       (o) =>
         o.label.toLowerCase().includes(q) || o.handle.toLowerCase().includes(q),
     );
-  }, [categoryOptions, filterText]);
+  }, [categoryOptions, optionFilter]);
 
   const categoryInfo = categoriesForGarment.find(
     (c) => c.slug === selectedCategory,
@@ -165,7 +298,6 @@ export default function StyleAdjustments() {
   const totalHidden = options.filter((o) => !getVisible(o)).length;
   const pendingCount = overrides.size;
 
-  // ── Toggle handler ──────────────────────────────────────────────────────
   function toggleOption(opt) {
     setOverrides((prev) => {
       const next = new Map(prev);
@@ -198,7 +330,6 @@ export default function StyleAdjustments() {
     });
   }
 
-  // ── Save ────────────────────────────────────────────────────────────────
   async function handleSave() {
     if (!pendingCount) return;
     setSaving(true);
@@ -224,111 +355,129 @@ export default function StyleAdjustments() {
   }
 
   function selectGarment(g) {
-    setSelectedGarment(g);
-    setFilterText("");
+    setOptionFilter("");
     const cats = [
       ...new Set(options.filter((o) => o.garment === g).map((o) => o.category)),
     ];
-    setSelectedCategory(cats[0] ?? null);
+    const firstCat = cats[0] ?? null;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (g) next.set("garment", g);
+      else next.delete("garment");
+      if (firstCat) next.set("category", firstCat);
+      else next.delete("category");
+      return next;
+    });
   }
 
   return (
-    <DashboardLayout>
-      {/* Override page bg to warm cream */}
+    <DashboardLayout bgColor="#f4f1ed">
+      {/* Break out of page-content padding to make aside flush */}
       <div
-        className="absolute inset-0 -z-10 lg:left-[260px] top-[64px]"
-        style={{ backgroundColor: "#f2ede7" }}
-      />
-
-      <div
-        className="flex gap-[28px] items-start pb-[72px]"
-        style={{ minHeight: "calc(100vh - 160px)" }}
+        className="-mx-[20px] md:-mx-[28px] -mt-[20px] md:-mt-[28px] flex overflow-hidden"
+        style={{ height: "calc(100vh - 64px)" }}
       >
-        {/* ── Left inner sidebar ─────────────────────────────────────────── */}
-        <div className="w-[210px] flex-shrink-0 sticky top-[20px]">
-          {/* Garment section */}
-          <p
-            className="text-[10px] font-bold uppercase tracking-[1.6px] mb-[10px]"
-            style={{ color: "#8b7355" }}
-          >
-            Garment
-          </p>
-          <div className="flex flex-wrap gap-[6px] mb-[22px]">
-            {garments.map((g) => (
-              <button
-                key={g}
-                onClick={() => selectGarment(g)}
-                className="px-[10px] py-[5px] rounded-[6px] text-[11px] font-bold uppercase tracking-[0.8px] transition-colors"
-                style={
-                  selectedGarment === g
-                    ? { backgroundColor: "#1a1c1b", color: "#ffffff" }
-                    : { backgroundColor: "#e8e2db", color: "#6b5c4e" }
-                }
-              >
-                {g}
-              </button>
-            ))}
+        {/* ── Left aside ──────────────────────────────────────────────────── */}
+        <aside
+          className="flex-shrink-0 flex flex-col sticky top-[64px]"
+          style={{
+            width: 280,
+            height: "calc(100vh - 64px)",
+            background: "#f7f3ee",
+            borderRight: "1px solid #dac1ba",
+          }}
+        >
+          {/* Garment filter — click to open garment dropdown */}
+          <div className="px-[8px] pt-[16px] pb-[8px] flex-shrink-0 relative">
+            <GarmentDropdown
+              garments={garments}
+              selected={selectedGarment}
+              onSelect={selectGarment}
+              loading={loading}
+            />
           </div>
 
-          {/* Categories section */}
-          <p
-            className="text-[10px] font-bold uppercase tracking-[1.6px] mb-[10px]"
-            style={{ color: "#8b7355" }}
-          >
-            Categories
-          </p>
-          {loading ? (
-            <p className="text-[12px]" style={{ color: "#9a8f89" }}>
-              Loading…
-            </p>
-          ) : (
-            <div
-              className="flex flex-col gap-[2px]"
-              style={{ maxHeight: "calc(100vh - 280px)", overflowY: "auto" }}
-            >
-              {categoriesForGarment.map((cat) => {
-                const active = selectedCategory === cat.slug;
-                return (
-                  <button
-                    key={cat.slug}
-                    onClick={() => {
-                      setSelectedCategory(cat.slug);
-                      setFilterText("");
-                    }}
-                    className="flex items-center justify-between w-full px-[10px] py-[8px] rounded-[6px] text-left transition-colors"
-                    style={
-                      active
-                        ? { backgroundColor: "#1a1c1b", color: "#ffffff" }
-                        : { color: "#3a3228" }
-                    }
-                  >
-                    <span className="text-[13px] font-medium truncate mr-[6px]">
-                      {cat.displayLabel}
-                    </span>
-                    <span
-                      className="text-[10px] font-bold px-[6px] py-[1px] rounded-full flex-shrink-0"
+          {/* Category list */}
+          <div className="flex-1 overflow-y-auto pb-[16px] scroll-hidden">
+            {loading ? (
+              <p className="px-[16px] text-[12px]" style={{ color: "#9a8f89" }}>
+                Loading…
+              </p>
+            ) : (
+              <div className="flex flex-col gap-px px-[8px]">
+                {categoriesForGarment.map((cat) => {
+                  const active = selectedCategory === cat.slug;
+                  return (
+                    <button
+                      key={cat.slug}
+                      onClick={() => {
+                        setSelectedCategory(cat.slug);
+                        setOptionFilter("");
+                      }}
+                      className="flex items-center justify-between w-full text-left transition-colors cursor-pointer"
                       style={
                         active
                           ? {
-                              backgroundColor: "rgba(255,255,255,0.18)",
-                              color: "#fff",
+                              background: "#fff",
+                              borderTop: "1px solid #dac1ba",
+                              borderBottom: "1px solid #dac1ba",
+                              borderLeft: "4px solid #a45d41",
+                              paddingLeft: 20,
+                              paddingRight: 16,
+                              paddingTop: 13,
+                              paddingBottom: 13,
                             }
-                          : cat.visible < cat.total
-                            ? { backgroundColor: "#fde68a", color: "#92400e" }
-                            : { backgroundColor: "#e8e2db", color: "#6b5c4e" }
+                          : {
+                              paddingLeft: 16,
+                              paddingRight: 16,
+                              paddingTop: 12,
+                              paddingBottom: 12,
+                            }
                       }
                     >
-                      {cat.visible}/{cat.total}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                      <span
+                        className="font-hanken font-semibold text-[12px] leading-[16px] truncate mr-[8px]"
+                        style={{ color: active ? "#1c1c19" : "#a45d41" }}
+                      >
+                        {cat.displayLabel}
+                      </span>
+                      <div className="flex items-center gap-[8px] flex-shrink-0">
+                        {active && (
+                          <div
+                            className="rounded-[12px] flex-shrink-0"
+                            style={{
+                              width: 6,
+                              height: 6,
+                              background: "#a45d41",
+                            }}
+                          />
+                        )}
+                        <div
+                          className="flex items-center justify-center font-hanken font-medium text-[12px]"
+                          style={{
+                            background: "#f1ede8",
+                            color: "#a45d41",
+                            borderRadius: active ? 2 : "0px 2px 2px 2px",
+                            width: 40,
+                            height: 20,
+                          }}
+                        >
+                          {cat.visible}/{cat.total}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </aside>
 
-        {/* ── Main content ───────────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0">
+        {/* ── Main content ─────────────────────────────────────────────────── */}
+        <div
+          ref={mainRef}
+          className="flex-1 min-w-0 flex flex-col overflow-y-auto pb-[80px] scroll-hidden"
+        >
           {loading && (
             <div className="flex justify-center pt-[80px]">
               <LoadingState message="Loading style options…" />
@@ -336,7 +485,7 @@ export default function StyleAdjustments() {
           )}
 
           {error && (
-            <div className="p-[20px] text-[14px]" style={{ color: "#dc2626" }}>
+            <div className="p-[40px] text-[14px]" style={{ color: "#dc2626" }}>
               {error}
             </div>
           )}
@@ -344,93 +493,114 @@ export default function StyleAdjustments() {
           {!loading && !error && selectedCategory && (
             <>
               {/* Header */}
-              <div className="mb-[20px]">
-                <p
-                  className="text-[11px] font-semibold uppercase tracking-[1.2px] mb-[4px]"
-                  style={{ color: "#a89f99" }}
-                >
-                  {selectedGarment} › {categoryInfo?.displayLabel}
-                </p>
+              <div className="px-[40px] pt-[40px] pb-[24px]">
+                {/* Breadcrumb */}
+                <div className="flex items-center gap-[4px] mb-[8px]">
+                  <span
+                    className="font-hanken font-medium text-[11px] leading-[14px]"
+                    style={{ color: "#a45d41" }}
+                  >
+                    {selectedGarment}
+                  </span>
+                  <ChevronRight size={10} style={{ color: "#a45d41" }} />
+                  <span
+                    className="font-hanken font-medium text-[11px] leading-[14px]"
+                    style={{ color: "#1c1c19" }}
+                  >
+                    {categoryInfo?.displayLabel}
+                  </span>
+                </div>
+                {/* Title */}
                 <h1
-                  className="text-[30px] font-bold"
-                  style={{ color: "#1a1c1b" }}
+                  className="font-garamond font-bold text-[40px] leading-tight"
+                  style={{ color: "#3c3c3c" }}
                 >
                   {categoryInfo?.displayLabel}
                 </h1>
                 <p
-                  className="text-[13px] mt-[4px]"
-                  style={{ color: "#a89f99" }}
+                  className="font-hanken font-semibold text-[14px] leading-[16px] mt-[2px]"
+                  style={{ color: "#a45d41" }}
                 >
-                  {categoryOptions.length} options total · {catVisible} visible
-                  to staff
+                  Total: {categoryOptions.length} options | Visible:{" "}
+                  {catVisible}
                 </p>
               </div>
 
-              {/* Filter + Show/Hide All */}
-              <div className="flex items-center gap-[10px] mb-[20px]">
-                <input
-                  type="text"
-                  placeholder="Filter options in this category…"
-                  value={filterText}
-                  onChange={(e) => setFilterText(e.target.value)}
-                  className="flex-1 h-[42px] px-[14px] rounded-[8px] text-[13px] focus:outline-none focus:ring-2"
+              {/* Sticky filter bar */}
+              <div
+                className="sticky top-[64px] z-10 flex items-center justify-between px-[24px] py-[20px]"
+                style={{
+                  background: "rgba(253,249,244,0.9)",
+                  backdropFilter: "blur(2px)",
+                }}
+              >
+                <div
+                  className="flex items-center gap-[14px] h-[48px] rounded-[8px] overflow-hidden flex-1 max-w-[608px] pl-[21px] pr-[19px]"
                   style={{
-                    border: "1px solid #ddd6ce",
-                    background: "#ffffff",
-                    color: "#1a1c1b",
-                    "--tw-ring-color": "rgba(139,115,85,0.25)",
-                  }}
-                />
-                <button
-                  onClick={showAll}
-                  className="h-[42px] px-[16px] rounded-[8px] text-[13px] font-semibold transition-colors"
-                  style={{
-                    border: "1px solid #ddd6ce",
-                    background: "#ffffff",
-                    color: "#3a3228",
+                    background: "rgba(255,255,255,0.5)",
+                    border: "1px solid #d1c7bd",
                   }}
                 >
-                  SHOW ALL
-                </button>
-                <button
-                  onClick={hideAll}
-                  className="h-[42px] px-[16px] rounded-[8px] text-[13px] font-semibold transition-colors"
-                  style={{
-                    border: "1px solid #ddd6ce",
-                    background: "#ffffff",
-                    color: "#3a3228",
-                  }}
-                >
-                  HIDE ALL
-                </button>
-              </div>
-
-              {/* Option grid */}
-              {filteredOptions.length === 0 ? (
-                <p
-                  className="text-[13px] py-[32px] text-center"
-                  style={{ color: "#a89f99" }}
-                >
-                  No options match your filter.
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[10px]">
-                  {filteredOptions.map((opt) => (
-                    <OptionCard
-                      key={opt.handle}
-                      option={opt}
-                      visible={getVisible(opt)}
-                      onChange={() => toggleOption(opt)}
-                    />
-                  ))}
+                  <Search
+                    size={17}
+                    className="flex-shrink-0"
+                    style={{ color: "#6b7280" }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Filter options in this category..."
+                    value={optionFilter}
+                    onChange={(e) => setOptionFilter(e.target.value)}
+                    className="flex-1 text-[14px] font-hanken font-medium outline-none bg-transparent"
+                    style={{ color: "#1c1c19" }}
+                  />
                 </div>
-              )}
+                <div className="flex items-center gap-[4px] ml-[16px]">
+                  <button
+                    onClick={showAll}
+                    className="font-hanken font-semibold text-[14px] text-white uppercase h-[44px] px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90"
+                    style={{ background: "#a45d41" }}
+                  >
+                    Show All
+                  </button>
+                  <button
+                    onClick={hideAll}
+                    className="font-hanken font-semibold text-[14px] text-white uppercase h-[44px] px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90"
+                    style={{ background: "#a45d41" }}
+                  >
+                    Hide All
+                  </button>
+                </div>
+              </div>
+
+              {/* Options grid — 2 columns */}
+              <div className="px-[24px] pt-[20px]">
+                {filteredOptions.length === 0 ? (
+                  <p
+                    className="font-hanken text-[13px] py-[40px] text-center"
+                    style={{ color: "#9a8f89" }}
+                  >
+                    No options match your filter.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-[13px]">
+                    {filteredOptions.map((opt) => (
+                      <OptionCard
+                        key={opt.handle}
+                        option={opt}
+                        visible={getVisible(opt)}
+                        onChange={() => toggleOption(opt)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </>
           )}
 
           {!loading && !error && !selectedCategory && (
             <div
-              className="flex items-center justify-center py-[100px] text-[14px]"
+              className="flex items-center justify-center py-[100px] font-hanken text-[14px]"
               style={{ color: "#a89f99" }}
             >
               Select a category to view its options
@@ -439,44 +609,68 @@ export default function StyleAdjustments() {
         </div>
       </div>
 
-      {/* ── Fixed bottom bar ─────────────────────────────────────────────── */}
+      {/* ── Fixed footer ─────────────────────────────────────────────────────── */}
       <div
-        className="fixed bottom-0 right-0 lg:left-[260px] left-0 h-[56px] flex items-center justify-between px-[32px] z-40"
-        style={{ backgroundColor: "#1a1c1b" }}
+        className="fixed bottom-0 right-0 lg:left-[260px] left-0 flex items-center justify-between px-[40px] z-40"
+        style={{
+          background: "#fff",
+          borderTop: "1px solid #dac1ba",
+          paddingTop: 17,
+          paddingBottom: 16,
+        }}
       >
-        <div className="flex items-center gap-[10px]">
-          <span
-            className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-white text-[11px] font-bold"
-            style={{ backgroundColor: totalHidden > 0 ? "#8b7355" : "#3a3c3b" }}
+        {/* Hidden count */}
+        <div className="flex items-center gap-[8px]">
+          <div
+            className="flex items-center justify-center font-hanken font-medium text-[12px] rounded-full flex-shrink-0"
+            style={{
+              width: 26,
+              height: 26,
+              background: "#f1ede8",
+              color: "#a45d41",
+            }}
           >
-            {totalHidden}
-          </span>
-          <span className="text-[13px]" style={{ color: "#c8c0b8" }}>
+            {String(totalHidden).padStart(2, "0")}
+          </div>
+          <span
+            className="font-hanken font-semibold text-[16px]"
+            style={{ color: "#a45d41" }}
+          >
             options hidden across the catalog.
           </span>
         </div>
 
-        <div className="flex items-center gap-[14px]">
+        {/* Unsaved changes + save */}
+        <div className="flex items-center gap-[10px]">
           {saveError && (
-            <span className="text-[12px]" style={{ color: "#f87171" }}>
+            <span
+              className="font-hanken text-[12px]"
+              style={{ color: "#dc2626" }}
+            >
               {saveError}
             </span>
           )}
           {pendingCount > 0 && !saving && (
-            <span className="text-[12px]" style={{ color: "#8b7355" }}>
+            <span
+              className="font-hanken font-medium text-[12px] text-center leading-[16px]"
+              style={{ color: "#a45d41" }}
+            >
               {pendingCount} unsaved change{pendingCount !== 1 ? "s" : ""}
             </span>
           )}
           <button
             onClick={handleSave}
             disabled={saving || pendingCount === 0}
-            className="h-[36px] px-[22px] rounded-[6px] text-[13px] font-bold uppercase tracking-[0.6px] transition-all disabled:cursor-not-allowed"
+            className="flex items-center gap-[8px] font-hanken font-semibold text-[12px] text-white text-center tracking-[0.6px] uppercase rounded-[8px] cursor-pointer transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              backgroundColor: pendingCount > 0 ? "#f2ede7" : "#2e302f",
-              color: pendingCount > 0 ? "#1a1c1b" : "#5a5c5b",
+              background: "#a45d41",
+              height: 42,
+              width: 175,
+              justifyContent: "center",
             }}
           >
-            {saving ? "Saving…" : "Save Changes"}
+            <Save size={18} />
+            Save Changes
           </button>
         </div>
       </div>

@@ -42,14 +42,32 @@ function ItemsBadge({ count }) {
 
 export default function Orders() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get("search") || "";
+  const supplierFilter = searchParams.get("filter") || null;
+  const currentPage = parseInt(searchParams.get("page") || "1", 10);
   const { orders, stats, loading, error, progress, retry } = useOrders();
 
-  const [supplierFilter, setSupplierFilter] = useState(null);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
   const filterRef = useRef(null);
+
+  function setSupplierFilter(val) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (val) next.set("filter", val);
+      else next.delete("filter");
+      next.set("page", "1");
+      return next;
+    });
+  }
+
+  function setCurrentPage(page) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("page", String(page));
+      return next;
+    });
+  }
 
   useEffect(() => {
     function handler(e) {
@@ -96,7 +114,7 @@ export default function Orders() {
   return (
     <DashboardLayout onRefresh={retry}>
       {/* ── Page Header ── */}
-      <div className="flex items-start justify-between mb-[30px]">
+      <div className="flex flex-wrap items-start justify-between gap-[16px] mb-[30px]">
         <div>
           <h2 className="gc-page-title">Order Management</h2>
           <p className="gc-page-subtitle">
@@ -108,7 +126,7 @@ export default function Orders() {
           </p>
         </div>
 
-        <div className="flex items-center gap-[10px] mt-[6px]">
+        <div className="flex flex-wrap items-center gap-[10px]">
           {/* Filter dropdown */}
           <div className="relative" ref={filterRef}>
             <button
@@ -281,7 +299,7 @@ export default function Orders() {
                 </p>
                 <div className="flex items-center gap-[4px]">
                   <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
                     className="gc-pagination-btn"
                   >
@@ -336,7 +354,7 @@ export default function Orders() {
 
                   <button
                     onClick={() =>
-                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                      setCurrentPage(Math.min(totalPages, currentPage + 1))
                     }
                     disabled={currentPage === totalPages}
                     className="gc-pagination-btn"
