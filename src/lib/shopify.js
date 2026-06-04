@@ -1182,6 +1182,10 @@ const STYLE_OPTION_TYPES = [
   "gc_trouser_style_option",
 ];
 
+export const GARMENT_TO_STYLE_TYPE = Object.fromEntries(
+  STYLE_OPTION_TYPES.map((type) => [garmentFromType(type), type]),
+);
+
 function garmentFromType(type) {
   return type
     .replace(/^gc_/, "")
@@ -1287,6 +1291,56 @@ export async function updateStyleOptionVisible(id, visible) {
   const { userErrors } = data.metaobjectUpdate;
   if (userErrors?.length) throw new Error(userErrors[0].message);
   return data.metaobjectUpdate.metaobject;
+}
+
+const GET_METAOBJECT_FIELD_DEFS = `
+  query GetMetaobjectDef($type: String!) {
+    metaobjectDefinitionByType(type: $type) {
+      fieldDefinitions {
+        key
+        name
+        required
+        type { name }
+      }
+    }
+  }
+`;
+
+const _fieldDefsCache = new Map();
+
+export async function fetchStyleOptionFieldDefs(garmentType) {
+  if (_fieldDefsCache.has(garmentType)) return _fieldDefsCache.get(garmentType);
+  const data = await shopifyGraphQL(GET_METAOBJECT_FIELD_DEFS, {
+    type: garmentType,
+  });
+  const defs = data?.metaobjectDefinitionByType?.fieldDefinitions ?? [];
+  _fieldDefsCache.set(garmentType, defs);
+  return defs;
+}
+
+const CREATE_METAOBJECT_MUTATION = `
+  mutation MetaobjectCreate($metaobject: MetaobjectCreateInput!) {
+    metaobjectCreate(metaobject: $metaobject) {
+      metaobject { id handle fields { key value } }
+      userErrors { field message }
+    }
+  }
+`;
+
+export async function createStyleOption(garmentType, fields) {
+  const fieldInputs = Object.entries(fields)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([key, value]) => ({ key, value: String(value) }));
+  const data = await shopifyGraphQL(CREATE_METAOBJECT_MUTATION, {
+    metaobject: {
+      type: garmentType,
+      fields: fieldInputs,
+      capabilities: { publishable: { status: "ACTIVE" } },
+    },
+  });
+  const { metaobject, userErrors } = data.metaobjectCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return metaobject;
 }
 
 export async function syncStyleOptionImageUrls(options) {

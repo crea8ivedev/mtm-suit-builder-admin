@@ -1,27 +1,82 @@
 /* ─── GC Typography helpers ───────────────────── */
 /* Used instead of inline style={{ fontFamily: '...' }} */
-.font-garamond { font-family: var(--font-garamond); }
-.font-hanken   { font-family: var(--font-hanken); }
+.font-garamond {
+  font-family: var(--font-garamond);
+}
+
+.font-hanken {
+  font-family: var(--font-hanken);
+}
 
 /* GC text colour helpers */
-.text-gc-dark    { color: var(--color-gc-dark); }
-.text-gc-heading { color: var(--color-gc-heading); }
-.text-gc-text    { color: var(--color-gc-text); }
-.text-gc-muted   { color: var(--color-gc-muted); }
-.text-gc-primary { color: var(--color-gc-primary); }
-.text-gc-id      { color: var(--color-gc-primary-dark); }
-.text-gc-num     { color: var(--color-gc-primary-num); }
-.text-gc-label   { color: var(--color-gc-primary-label); }
+.text-gc-dark {
+  color: var(--color-gc-dark);
+}
+
+.text-gc-heading {
+  color: var(--color-gc-heading);
+}
+
+.text-gc-text {
+  color: var(--color-gc-text);
+}
+
+.text-gc-muted {
+  color: var(--color-gc-muted);
+}
+
+.text-gc-primary {
+  color: var(--color-gc-primary);
+}
+
+.text-gc-id {
+  color: var(--color-gc-primary-dark);
+}
+
+.text-gc-num {
+  color: var(--color-gc-primary-num);
+}
+
+.text-gc-label {
+  color: var(--color-gc-primary-label);
+}
 
 /* GC background helpers */
-.bg-gc-bg      { background-color: var(--color-gc-bg); }
-.bg-gc-surface { background-color: var(--color-gc-surface); }
-.bg-gc-primary { background-color: var(--color-gc-primary); }
+.bg-gc-bg {
+  background-color: var(--color-gc-bg);
+}
+
+.bg-gc-surface {
+  background-color: var(--color-gc-surface);
+}
+
+.bg-gc-primary {
+  background-color: var(--color-gc-primary);
+}
 
 /* Scrollable with hidden scrollbar */
 .scroll-hidden {
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+/* Category sidebar scrollbar styling */
+.category-sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.category-sidebar-scroll::-webkit-scrollbar-track {
+  background: #f0ebe6;
+}
+
+.category-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #c4a99e;
+  border-radius: 6px;
+  min-height: 40px;
+}
+
+.category-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #a45d41;
 }
 
 .scroll-hidden::-webkit-scrollbar {
