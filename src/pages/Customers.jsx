@@ -102,7 +102,7 @@ export default function Customers() {
   }
 
   return (
-    <DashboardLayout onRefresh={retry}>
+    <DashboardLayout onRefresh={retry} isRefreshing={loading}>
       {toast && (
         <div className="flex items-center gap-[10px] mb-[16px] px-[16px] py-[12px] bg-green-50 border border-green-200 rounded-[8px]">
           <CheckCircle size={16} className="text-green-600 flex-shrink-0" />

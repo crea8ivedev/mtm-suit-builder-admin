@@ -1245,7 +1245,11 @@ async function fetchStyleOptionsForType(type) {
         visible: fm.visible !== "false",
         isDefault: fm.is_default === "true",
         sortOrder: parseInt(fm.sort_order || "0", 10),
-        imageUrl: fm.image || null,
+        kutetailerCode: fm.kutetailer_code || null,
+        imageUrlStored: fm.image_url || null,
+        imageUrl: fm.kutetailer_code
+          ? `https://aws-static-webp.kutetailor.com/comm/process/craft/${fm.kutetailer_code}.jpeg`
+          : null,
       });
     }
     hasNextPage = pageInfo.hasNextPage;
@@ -1283,4 +1287,31 @@ export async function updateStyleOptionVisible(id, visible) {
   const { userErrors } = data.metaobjectUpdate;
   if (userErrors?.length) throw new Error(userErrors[0].message);
   return data.metaobjectUpdate.metaobject;
+}
+
+export async function syncStyleOptionImageUrls(options) {
+  // only sync options that have kutetailer_code but image_url not yet saved
+  const toSync = options.filter((o) => o.kutetailerCode && !o.imageUrlStored);
+  if (!toSync.length) return 0;
+  const results = await Promise.allSettled(
+    toSync.map((o) =>
+      shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
+        id: o.id,
+        metaobject: {
+          fields: [
+            {
+              key: "image_url",
+              value: `https://aws-static-webp.kutetailor.com/comm/process/craft/${o.kutetailerCode}.jpeg`,
+            },
+          ],
+        },
+      }),
+    ),
+  );
+  const failed = results.filter(
+    (r) =>
+      r.status === "rejected" || r.value?.metaobjectUpdate?.userErrors?.length,
+  );
+  if (failed.length) throw new Error(`${failed.length} update(s) failed`);
+  return toSync.length;
 }

@@ -62,7 +62,7 @@ export default function Dashboard() {
   }, [orders, search]);
 
   return (
-    <DashboardLayout onRefresh={retry}>
+    <DashboardLayout onRefresh={retry} isRefreshing={loading}>
       {/* ── Page Header ── */}
       <div className="mb-[24px] sm:mb-[30px]">
         <h2 className="gc-page-title">Dashboard</h2>

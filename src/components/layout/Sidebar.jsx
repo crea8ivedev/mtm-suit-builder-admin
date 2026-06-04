@@ -130,7 +130,7 @@ export default function Sidebar({ isOpen, onClose }) {
         >
           <button
             onClick={handleLogout}
-            className="flex items-center gap-[4px] hover:opacity-80 transition-opacity"
+            className="flex items-center gap-[4px] hover:opacity-80 transition-opacity cursor-pointer"
           >
             <LogOut size={14} className="text-white" />
             <span className="font-hanken text-white text-[14px] font-medium whitespace-nowrap">

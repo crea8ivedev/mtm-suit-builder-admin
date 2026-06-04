@@ -6,6 +6,7 @@ import {
   fetchStyleOptions,
   updateStyleOptionVisible,
   clearStyleOptionsCache,
+  syncStyleOptionImageUrls,
 } from "../lib/shopify";
 import LoadingState from "../components/ui/LoadingState";
 
@@ -119,9 +120,8 @@ function Toggle({ on, onChange }) {
 function OptionCard({ option, visible, onChange }) {
   return (
     <div
-      className="bg-white flex items-center h-[64px] rounded-[8px] px-[11px] py-[12px] cursor-pointer transition-opacity"
+      className="bg-white flex items-center h-[64px] rounded-[8px] px-[11px] py-[12px]"
       style={{ border: "1px solid #dac1ba" }}
-      onClick={onChange}
     >
       {/* Image thumbnail */}
       <div
@@ -179,6 +179,7 @@ export default function StyleAdjustments() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [optionFilter, setOptionFilter] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const mainRef = useRef(null);
 
   const selectedGarment = searchParams.get("garment") || null;
@@ -243,6 +244,15 @@ export default function StyleAdjustments() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // auto-sync CDN image URLs to Shopify 3s after options load
+  useEffect(() => {
+    if (!options.length) return;
+    const timer = setTimeout(() => {
+      syncStyleOptionImageUrls(options).catch(() => {});
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [options]);
 
   const garments = useMemo(
     () => [...new Set(options.map((o) => o.garment).filter(Boolean))].sort(),
@@ -374,12 +384,23 @@ export default function StyleAdjustments() {
     <DashboardLayout bgColor="#f4f1ed">
       {/* Break out of page-content padding to make aside flush */}
       <div
-        className="-mx-[20px] md:-mx-[28px] -mt-[20px] md:-mt-[28px] flex overflow-hidden"
+        className="-mx-[20px] md:-mx-[28px] -mt-[20px] md:-mt-[28px] flex overflow-hidden relative"
         style={{ height: "calc(100vh - 64px)" }}
       >
+        {/* ── Mobile sidebar overlay backdrop ─────────────────────────────── */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 md:hidden"
+            style={{ background: "rgba(0,0,0,0.3)" }}
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* ── Left aside ──────────────────────────────────────────────────── */}
         <aside
-          className="flex-shrink-0 flex flex-col sticky top-[64px]"
+          className={`flex-shrink-0 flex flex-col transition-transform duration-300
+            fixed z-40 top-[64px] md:relative md:z-auto md:top-auto md:translate-x-0
+            ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
           style={{
             width: 280,
             height: "calc(100vh - 64px)",
@@ -413,6 +434,7 @@ export default function StyleAdjustments() {
                       onClick={() => {
                         setSelectedCategory(cat.slug);
                         setOptionFilter("");
+                        setSidebarOpen(false);
                       }}
                       className="flex items-center justify-between w-full text-left transition-colors cursor-pointer"
                       style={
@@ -476,7 +498,7 @@ export default function StyleAdjustments() {
         {/* ── Main content ─────────────────────────────────────────────────── */}
         <div
           ref={mainRef}
-          className="flex-1 min-w-0 flex flex-col overflow-y-auto pb-[80px] scroll-hidden"
+          className="flex-1 min-w-0 flex flex-col overflow-y-auto pb-[100px] scroll-hidden"
         >
           {loading && (
             <div className="flex justify-center pt-[80px]">
@@ -485,7 +507,10 @@ export default function StyleAdjustments() {
           )}
 
           {error && (
-            <div className="p-[40px] text-[14px]" style={{ color: "#dc2626" }}>
+            <div
+              className="p-[20px] md:p-[40px] text-[14px]"
+              style={{ color: "#dc2626" }}
+            >
               {error}
             </div>
           )}
@@ -493,32 +518,48 @@ export default function StyleAdjustments() {
           {!loading && !error && selectedCategory && (
             <>
               {/* Header */}
-              <div className="px-[40px] pt-[40px] pb-[24px]">
-                {/* Breadcrumb */}
-                <div className="flex items-center gap-[4px] mb-[8px]">
-                  <span
-                    className="font-hanken font-medium text-[11px] leading-[14px]"
-                    style={{ color: "#a45d41" }}
+              <div className="px-[16px] md:px-[40px] pt-[16px] md:pt-[40px] pb-[16px] md:pb-[24px]">
+                {/* Mobile: sidebar toggle + breadcrumb row */}
+                <div className="flex items-center gap-[8px] mb-[8px]">
+                  <button
+                    type="button"
+                    onClick={() => setSidebarOpen(true)}
+                    className="md:hidden flex-shrink-0 flex items-center justify-center rounded-[6px] cursor-pointer"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      background: "#f1ede8",
+                      border: "1px solid #dac1ba",
+                    }}
+                    aria-label="Open categories"
                   >
-                    {selectedGarment}
-                  </span>
-                  <ChevronRight size={10} style={{ color: "#a45d41" }} />
-                  <span
-                    className="font-hanken font-medium text-[11px] leading-[14px]"
-                    style={{ color: "#1c1c19" }}
-                  >
-                    {categoryInfo?.displayLabel}
-                  </span>
+                    <Filter size={14} style={{ color: "#a45d41" }} />
+                  </button>
+                  <div className="flex items-center gap-[4px]">
+                    <span
+                      className="font-hanken font-medium text-[11px] leading-[14px]"
+                      style={{ color: "#a45d41" }}
+                    >
+                      {selectedGarment}
+                    </span>
+                    <ChevronRight size={10} style={{ color: "#a45d41" }} />
+                    <span
+                      className="font-hanken font-medium text-[11px] leading-[14px]"
+                      style={{ color: "#1c1c19" }}
+                    >
+                      {categoryInfo?.displayLabel}
+                    </span>
+                  </div>
                 </div>
                 {/* Title */}
                 <h1
-                  className="font-garamond font-bold text-[40px] leading-tight"
+                  className="font-garamond font-bold text-[28px] md:text-[40px] leading-tight"
                   style={{ color: "#3c3c3c" }}
                 >
                   {categoryInfo?.displayLabel}
                 </h1>
                 <p
-                  className="font-hanken font-semibold text-[14px] leading-[16px] mt-[2px]"
+                  className="font-hanken font-semibold text-[13px] md:text-[14px] leading-[16px] mt-[2px]"
                   style={{ color: "#a45d41" }}
                 >
                   Total: {categoryOptions.length} options | Visible:{" "}
@@ -528,44 +569,44 @@ export default function StyleAdjustments() {
 
               {/* Sticky filter bar */}
               <div
-                className="sticky top-[64px] z-10 flex items-center justify-between px-[24px] py-[20px]"
+                className="sticky top-0 z-10 px-[16px] md:px-[24px] py-[12px] md:py-[20px] flex flex-col sm:flex-row sm:items-center gap-[8px] sm:gap-0"
                 style={{
                   background: "rgba(253,249,244,0.9)",
                   backdropFilter: "blur(2px)",
                 }}
               >
                 <div
-                  className="flex items-center gap-[14px] h-[48px] rounded-[8px] overflow-hidden flex-1 max-w-[608px] pl-[21px] pr-[19px]"
+                  className="flex items-center gap-[14px] h-[44px] md:h-[48px] rounded-[8px] overflow-hidden flex-1 sm:max-w-[608px] pl-[14px] md:pl-[21px] pr-[12px] md:pr-[19px]"
                   style={{
                     background: "rgba(255,255,255,0.5)",
                     border: "1px solid #d1c7bd",
                   }}
                 >
                   <Search
-                    size={17}
+                    size={16}
                     className="flex-shrink-0"
                     style={{ color: "#6b7280" }}
                   />
                   <input
                     type="text"
-                    placeholder="Filter options in this category..."
+                    placeholder="Filter options..."
                     value={optionFilter}
                     onChange={(e) => setOptionFilter(e.target.value)}
                     className="flex-1 text-[14px] font-hanken font-medium outline-none bg-transparent"
                     style={{ color: "#1c1c19" }}
                   />
                 </div>
-                <div className="flex items-center gap-[4px] ml-[16px]">
+                <div className="flex items-center gap-[4px] sm:ml-[12px]">
                   <button
                     onClick={showAll}
-                    className="font-hanken font-semibold text-[14px] text-white uppercase h-[44px] px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90"
+                    className="font-hanken font-semibold text-[13px] md:text-[14px] text-white uppercase h-[40px] md:h-[44px] px-[12px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-1 sm:flex-none"
                     style={{ background: "#a45d41" }}
                   >
                     Show All
                   </button>
                   <button
                     onClick={hideAll}
-                    className="font-hanken font-semibold text-[14px] text-white uppercase h-[44px] px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90"
+                    className="font-hanken font-semibold text-[13px] md:text-[14px] text-white uppercase h-[40px] md:h-[44px] px-[12px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-1 sm:flex-none"
                     style={{ background: "#a45d41" }}
                   >
                     Hide All
@@ -573,8 +614,8 @@ export default function StyleAdjustments() {
                 </div>
               </div>
 
-              {/* Options grid — 2 columns */}
-              <div className="px-[24px] pt-[20px]">
+              {/* Options grid — 1 col mobile, 2 col sm+ */}
+              <div className="px-[16px] md:px-[24px] pt-[16px] md:pt-[20px]">
                 {filteredOptions.length === 0 ? (
                   <p
                     className="font-hanken text-[13px] py-[40px] text-center"
@@ -583,7 +624,7 @@ export default function StyleAdjustments() {
                     No options match your filter.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-[13px]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px] md:gap-[13px]">
                     {filteredOptions.map((opt) => (
                       <OptionCard
                         key={opt.handle}
@@ -599,11 +640,23 @@ export default function StyleAdjustments() {
           )}
 
           {!loading && !error && !selectedCategory && (
-            <div
-              className="flex items-center justify-center py-[100px] font-hanken text-[14px]"
-              style={{ color: "#a89f99" }}
-            >
-              Select a category to view its options
+            <div className="flex flex-col items-center justify-center py-[60px] md:py-[100px] gap-[16px]">
+              {/* Mobile: show sidebar toggle when no category selected */}
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden flex items-center gap-[8px] font-hanken font-semibold text-[14px] text-white uppercase h-[44px] px-[20px] rounded-[8px] cursor-pointer"
+                style={{ background: "#a45d41" }}
+              >
+                <Filter size={14} />
+                Browse Categories
+              </button>
+              <p
+                className="font-hanken text-[14px]"
+                style={{ color: "#a89f99" }}
+              >
+                Select a category to view its options
+              </p>
             </div>
           )}
         </div>
@@ -611,67 +664,68 @@ export default function StyleAdjustments() {
 
       {/* ── Fixed footer ─────────────────────────────────────────────────────── */}
       <div
-        className="fixed bottom-0 right-0 lg:left-[260px] left-0 flex items-center justify-between px-[40px] z-40"
+        className="fixed bottom-0 right-0 lg:left-[260px] left-0 z-40"
         style={{
           background: "#fff",
           borderTop: "1px solid #dac1ba",
-          paddingTop: 17,
-          paddingBottom: 16,
         }}
       >
-        {/* Hidden count */}
-        <div className="flex items-center gap-[8px]">
-          <div
-            className="flex items-center justify-center font-hanken font-medium text-[12px] rounded-full flex-shrink-0"
-            style={{
-              width: 26,
-              height: 26,
-              background: "#f1ede8",
-              color: "#a45d41",
-            }}
-          >
-            {String(totalHidden).padStart(2, "0")}
-          </div>
-          <span
-            className="font-hanken font-semibold text-[16px]"
-            style={{ color: "#a45d41" }}
-          >
-            options hidden across the catalog.
-          </span>
-        </div>
-
-        {/* Unsaved changes + save */}
-        <div className="flex items-center gap-[10px]">
-          {saveError && (
-            <span
-              className="font-hanken text-[12px]"
-              style={{ color: "#dc2626" }}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-[8px] sm:gap-[10px] px-[16px] md:px-[40px] py-[12px] md:py-[16px]">
+          {/* Hidden count */}
+          <div className="flex items-center gap-[8px]">
+            <div
+              className="flex items-center justify-center font-hanken font-medium text-[12px] rounded-full flex-shrink-0"
+              style={{
+                width: 26,
+                height: 26,
+                background: "#f1ede8",
+                color: "#a45d41",
+              }}
             >
-              {saveError}
-            </span>
-          )}
-          {pendingCount > 0 && !saving && (
+              {String(totalHidden).padStart(2, "0")}
+            </div>
             <span
-              className="font-hanken font-medium text-[12px] text-center leading-[16px]"
+              className="font-hanken font-semibold text-[13px] md:text-[16px]"
               style={{ color: "#a45d41" }}
             >
-              {pendingCount} unsaved change{pendingCount !== 1 ? "s" : ""}
+              options hidden across the catalog.
             </span>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={saving || pendingCount === 0}
-            className="flex items-center gap-[8px] font-hanken font-semibold text-[12px] text-white text-center tracking-[0.6px] uppercase rounded-[8px] cursor-pointer transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              background: "#a45d41",
-              height: 42,
-              width: 175,
-              justifyContent: "center",
-            }}
-          >
-            <Save size={18} />
-            Save Changes
-          </button>
+          </div>
+
+          {/* Unsaved changes + save */}
+          <div className="flex items-center gap-[10px] sm:justify-end">
+            {saveError && (
+              <span
+                className="font-hanken text-[12px]"
+                style={{ color: "#dc2626" }}
+              >
+                {saveError}
+              </span>
+            )}
+            {pendingCount > 0 && !saving && (
+              <span
+                className="font-hanken font-medium text-[12px] text-center leading-[16px]"
+                style={{ color: "#a45d41" }}
+              >
+                {pendingCount} unsaved change{pendingCount !== 1 ? "s" : ""}
+              </span>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={saving || pendingCount === 0}
+              className="flex items-center gap-[8px] font-hanken font-semibold text-[12px] text-white text-center tracking-[0.6px] uppercase rounded-[8px] cursor-pointer transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: "#a45d41",
+                height: 42,
+                minWidth: 140,
+                width: 175,
+                justifyContent: "center",
+              }}
+            >
+              <Save size={18} />
+              Save Changes
+            </button>
+          </div>
         </div>
       </div>
     </DashboardLayout>

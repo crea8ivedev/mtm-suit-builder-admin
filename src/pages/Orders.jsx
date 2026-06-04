@@ -112,7 +112,7 @@ export default function Orders() {
   const handleExportCSV = () => generateCSV(filtered);
 
   return (
-    <DashboardLayout onRefresh={retry}>
+    <DashboardLayout onRefresh={retry} isRefreshing={loading}>
       {/* ── Page Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-[16px] mb-[30px]">
         <div>

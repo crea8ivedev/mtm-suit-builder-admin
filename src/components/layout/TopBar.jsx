@@ -7,7 +7,7 @@ import {
 } from "react-router-dom";
 import { useAdminUser } from "../../hooks/useAdminUser";
 
-export default function TopBar({ onMenuClick, onRefresh }) {
+export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
   const {
     name: adminName,
     email: adminEmail,
@@ -124,10 +124,14 @@ export default function TopBar({ onMenuClick, onRefresh }) {
           <>
             <button
               onClick={onRefresh}
-              className="flex items-center justify-center size-[18px] text-gc-text hover:text-gc-dark transition-colors cursor-pointer"
+              disabled={isRefreshing}
+              className="flex items-center justify-center size-[18px] text-gc-text hover:text-gc-dark transition-colors cursor-pointer disabled:cursor-not-allowed"
               title="Refresh"
             >
-              <RefreshCw size={18} />
+              <RefreshCw
+                size={18}
+                className={isRefreshing ? "animate-spin" : ""}
+              />
             </button>
 
             {/* Divider */}
