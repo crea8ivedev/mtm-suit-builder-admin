@@ -15,7 +15,6 @@ import { useOrders } from "../hooks/useOrders";
 import { cn } from "../utils/cn";
 import { generateCSV } from "../utils/exportUtils";
 
-const ITEMS_PER_PAGE = 20;
 const SUPPLIER_OPTIONS = ["Pending", "Verified"];
 
 const SP_CLASS = {
@@ -49,7 +48,10 @@ export default function Orders() {
   const { orders, stats, loading, error, progress, retry } = useOrders();
 
   const [filterOpen, setFilterOpen] = useState(false);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [entriesOpen, setEntriesOpen] = useState(false);
   const filterRef = useRef(null);
+  const entriesRef = useRef(null);
 
   function setSupplierFilter(val) {
     setSearchParams((prev) => {
@@ -74,6 +76,9 @@ export default function Orders() {
       if (filterRef.current && !filterRef.current.contains(e.target)) {
         setFilterOpen(false);
       }
+      if (entriesRef.current && !entriesRef.current.contains(e.target)) {
+        setEntriesOpen(false);
+      }
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -96,10 +101,10 @@ export default function Orders() {
     });
   }, [orders, search, supplierFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
   const paginated = filtered.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage,
   );
 
   const visiblePages = useMemo(() => {
@@ -126,7 +131,7 @@ export default function Orders() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-[10px]">
+        <div className="flex flex-wrap items-center gap-[10px] w-full sm:w-auto justify-end sm:justify-start">
           {/* Filter dropdown */}
           <div className="relative" ref={filterRef}>
             <button
@@ -146,7 +151,7 @@ export default function Orders() {
             </button>
 
             {filterOpen && (
-              <div className="absolute right-0 top-[calc(100%+6px)] w-[180px] bg-white border border-gc-border rounded-[10px] shadow-lg z-50 overflow-hidden py-[6px]">
+              <div className="absolute right-0 top-[calc(100%+6px)] w-[180px] bg-white border border-gc-border rounded-[10px] shadow-lg z-[100] overflow-hidden py-[6px]">
                 <p className="font-hanken px-[14px] pt-[6px] pb-[8px] text-[11px] font-semibold uppercase tracking-wider text-gc-text">
                   Supplier Status
                 </p>
@@ -285,83 +290,133 @@ export default function Orders() {
             </div>
 
             {/* Pagination */}
-            {filtered.length > ITEMS_PER_PAGE && (
+            {filtered.length > 0 && (
               <div className="gc-divider flex items-center justify-between px-[24px] py-[16px] flex-wrap gap-[12px]">
-                <p className="gc-pagination-count">
-                  Showing{" "}
-                  <strong>{(currentPage - 1) * ITEMS_PER_PAGE + 1}</strong>
-                  {" – "}
-                  <strong>
-                    {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)}
-                  </strong>
-                  {" of "}
-                  <strong>{filtered.length}</strong> orders
-                </p>
-                <div className="flex items-center gap-[4px]">
-                  <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="gc-pagination-btn"
-                  >
-                    <ChevronLeft size={15} />
-                  </button>
-
-                  {visiblePages[0] > 1 && (
-                    <>
-                      <button
-                        onClick={() => setCurrentPage(1)}
-                        className="gc-pagination-btn"
-                      >
-                        1
-                      </button>
-                      {visiblePages[0] > 2 && (
-                        <span className="w-[36px] text-center text-gc-text">
-                          …
-                        </span>
-                      )}
-                    </>
-                  )}
-
-                  {visiblePages.map((page) => (
+                {/* Left: Entries per page */}
+                <div className="flex items-center gap-[8px]" ref={entriesRef}>
+                  <span className="font-hanken text-[13px] text-gc-text">
+                    Entries
+                  </span>
+                  <div className="relative">
                     <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={cn(
-                        "gc-pagination-btn",
-                        currentPage === page && "active",
-                      )}
+                      onClick={() => setEntriesOpen((v) => !v)}
+                      className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none"
+                      style={{
+                        border: "1px solid #dac1ba",
+                        background: "#fff",
+                      }}
                     >
-                      {page}
+                      {itemsPerPage}
+                      <ChevronRight
+                        size={13}
+                        className={`text-gc-text transition-transform ${entriesOpen ? "-rotate-90" : "rotate-90"}`}
+                      />
                     </button>
-                  ))}
-
-                  {visiblePages[visiblePages.length - 1] < totalPages && (
-                    <>
-                      {visiblePages[visiblePages.length - 1] <
-                        totalPages - 1 && (
-                        <span className="w-[36px] text-center text-gc-text">
-                          …
-                        </span>
-                      )}
-                      <button
-                        onClick={() => setCurrentPage(totalPages)}
-                        className="gc-pagination-btn"
+                    {entriesOpen && (
+                      <div
+                        className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md"
+                        style={{
+                          border: "1px solid #dac1ba",
+                          background: "#fff",
+                          minWidth: "100%",
+                        }}
                       >
-                        {totalPages}
-                      </button>
-                    </>
-                  )}
-
-                  <button
-                    onClick={() =>
-                      setCurrentPage(Math.min(totalPages, currentPage + 1))
-                    }
-                    disabled={currentPage === totalPages}
-                    className="gc-pagination-btn"
-                  >
-                    <ChevronRight size={15} />
-                  </button>
+                        {[10, 20, 40, 100].map((n) => (
+                          <button
+                            key={n}
+                            onClick={() => {
+                              setItemsPerPage(n);
+                              setCurrentPage(1);
+                              setEntriesOpen(false);
+                            }}
+                            className="w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors"
+                            style={{
+                              color: n === itemsPerPage ? "#a45d41" : "#3c3c3c",
+                              background:
+                                n === itemsPerPage
+                                  ? "rgba(164,93,65,0.06)"
+                                  : "transparent",
+                              fontWeight: n === itemsPerPage ? 600 : 400,
+                            }}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Right: Page navigation */}
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-[4px]">
+                    <button
+                      onClick={() =>
+                        setCurrentPage(Math.max(1, currentPage - 1))
+                      }
+                      disabled={currentPage === 1}
+                      className="gc-pagination-btn"
+                    >
+                      <ChevronLeft size={15} />
+                    </button>
+
+                    {visiblePages[0] > 1 && (
+                      <>
+                        <button
+                          onClick={() => setCurrentPage(1)}
+                          className="gc-pagination-btn"
+                        >
+                          1
+                        </button>
+                        {visiblePages[0] > 2 && (
+                          <span className="w-[28px] text-center text-gc-text text-[13px]">
+                            …
+                          </span>
+                        )}
+                      </>
+                    )}
+
+                    {visiblePages.map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={cn(
+                          "gc-pagination-btn",
+                          currentPage === page && "active",
+                        )}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    {visiblePages[visiblePages.length - 1] < totalPages && (
+                      <>
+                        {visiblePages[visiblePages.length - 1] <
+                          totalPages - 1 && (
+                          <span className="w-[28px] text-center text-gc-text text-[13px]">
+                            …
+                          </span>
+                        )}
+                        <button
+                          onClick={() => setCurrentPage(totalPages)}
+                          className="gc-pagination-btn"
+                        >
+                          {totalPages}
+                        </button>
+                      </>
+                    )}
+
+                    <button
+                      onClick={() =>
+                        setCurrentPage(Math.min(totalPages, currentPage + 1))
+                      }
+                      disabled={currentPage === totalPages}
+                      className="gc-pagination-btn"
+                    >
+                      <ChevronRight size={15} />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>

@@ -49,27 +49,19 @@ export default function Login() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-[24px]"
+      className="min-h-screen flex items-center justify-center p-[16px] sm:p-[24px]"
       style={{ backgroundColor: "#f4f1ed" }}
     >
-      {/* Two-column centered card */}
+      {/* Card — single column on mobile, two columns on md+ */}
       <div
-        className="relative w-full overflow-hidden"
-        style={{
-          maxWidth: "1100px",
-          display: "grid",
-          gridTemplateColumns: "54% 46%",
-          minHeight: "660px",
-
-          borderRadius: "4px",
-        }}
+        className="relative w-full overflow-hidden rounded-[4px] flex flex-col md:flex-row md:min-h-[660px]"
+        style={{ maxWidth: "1100px" }}
       >
-        {/* ── LEFT: Brand narrative — no logo ── */}
+        {/* ── LEFT: Brand — desktop only ── */}
         <div
-          className="relative flex flex-col justify-center px-[52px] py-[56px]"
+          className="hidden md:flex relative flex-col justify-center px-[52px] py-[56px] md:w-[54%]"
           style={{ backgroundColor: "#f4f1ed" }}
         >
-          {/* Scissors — bottom-left corner inside left box */}
           <div
             className="absolute bottom-0 left-0 w-[180px] h-[180px] pointer-events-none select-none"
             style={{ opacity: 0.03, mixBlendMode: "multiply" }}
@@ -80,7 +72,6 @@ export default function Login() {
               className="w-full h-full object-contain"
             />
           </div>
-
           <div
             className="flex flex-col gap-[20px]"
             style={{ maxWidth: "380px" }}
@@ -104,11 +95,11 @@ export default function Login() {
           </div>
         </div>
 
-        {/* ── RULER: full card height, at the column boundary ── */}
+        {/* ── RULER: column divider — desktop only ── */}
         <div
-          className="absolute pointer-events-none select-none"
+          className="hidden md:block absolute pointer-events-none select-none"
           style={{
-            left: "50%",
+            left: "54%",
             transform: "translateX(-50%)",
             top: 0,
             bottom: 0,
@@ -123,14 +114,33 @@ export default function Login() {
           />
         </div>
 
-        {/* ── RIGHT: Login form — white, no footer line ── */}
-        <div
-          className="bg-white flex flex-col justify-start"
-          style={{ padding: "79px 60px 100px 70px" }}
-        >
+        {/* ── RIGHT: Login form ── */}
+        <div className="bg-white flex flex-col justify-center w-full md:w-[46%] px-[24px] py-[40px] sm:px-[40px] md:px-[70px] md:py-[79px]">
+          {/* Mobile-only brand header */}
+          <div className="md:hidden mb-[32px] text-center">
+            <h1
+              className="font-garamond font-bold italic leading-tight"
+              style={{ fontSize: "28px", color: "#3c3c3c" }}
+            >
+              AUTHENTICITY
+              <br />
+              REQUIRED
+            </h1>
+            <p
+              className="font-hanken text-[13px] mt-[8px]"
+              style={{ color: "#44474c" }}
+            >
+              Atelier management system
+            </p>
+          </div>
+
           <div
-            className="flex flex-col gap-[48px]"
-            style={{ maxWidth: "380px", width: "100%" }}
+            className="flex flex-col gap-[40px] sm:gap-[48px] w-full"
+            style={{
+              maxWidth: "380px",
+              marginLeft: "auto",
+              marginRight: "auto",
+            }}
           >
             {/* Heading */}
             <div className="flex flex-col gap-[8px]">
@@ -152,7 +162,7 @@ export default function Login() {
             <form
               onSubmit={handleSubmit}
               noValidate
-              className="flex flex-col gap-[40px]"
+              className="flex flex-col gap-[32px] sm:gap-[40px]"
             >
               {/* Error */}
               {error && (
@@ -190,7 +200,7 @@ export default function Login() {
                     placeholder="you@example.com"
                     autoComplete="email"
                     autoFocus
-                    className="font-hanken flex-1 bg-transparent outline-none text-black"
+                    className="font-hanken flex-1 bg-transparent outline-none text-black min-w-0"
                     style={{ fontSize: "16px" }}
                   />
                 </div>
@@ -222,13 +232,13 @@ export default function Login() {
                     }}
                     placeholder="••••••••••••"
                     autoComplete="current-password"
-                    className="font-hanken flex-1 bg-transparent outline-none text-black"
+                    className="font-hanken flex-1 bg-transparent outline-none text-black min-w-0"
                     style={{ fontSize: "16px" }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="text-[#6b7280] hover:text-black transition-colors ml-[8px]"
+                    className="text-[#6b7280] hover:text-black transition-colors ml-[8px] flex-shrink-0"
                   >
                     {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>

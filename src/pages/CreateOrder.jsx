@@ -8,9 +8,11 @@ import {
   PlusCircle,
   AlertCircle,
   ChevronRight,
+  ChevronDown,
   Search,
   Plus,
   Clock,
+  Check,
   CheckCircle2,
 } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -34,6 +36,7 @@ import {
   fetchTrouserMeasurementFields,
   fetchShirtMeasurementFields,
   fetchJacketMeasurementFields,
+  fetchStyleOptions,
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
 
@@ -511,8 +514,8 @@ function CustomerSelector({ value, onChange }) {
       </div>
       {open && (
         <div
-          className="absolute top-full left-0 right-0 z-50 mt-[4px] bg-white rounded-[8px] shadow-xl flex flex-col overflow-hidden"
-          style={{ border: "1px solid #d1c7bd", maxHeight: "458px" }}
+          className="absolute top-full left-0 right-0 z-[100] mt-[4px] bg-white rounded-[8px] shadow-xl flex flex-col overflow-hidden"
+          style={{ border: "1px solid #d1c7bd", maxHeight: "min(458px, 60vh)" }}
         >
           <div className="overflow-y-auto flex-1 px-px pt-[9px]">
             {resultsLoading ? (
@@ -534,36 +537,38 @@ function CustomerSelector({ value, onChange }) {
                       setOpen(false);
                       setSearch("");
                     }}
-                    className="w-full flex items-center justify-between px-[16px] pt-[16px] pb-[17px] text-left transition-colors cursor-pointer hover:bg-[#f4f1ed]"
+                    className="w-full flex items-center justify-between px-[12px] sm:px-[16px] py-[12px] sm:py-[16px] text-left transition-colors cursor-pointer hover:bg-[#f4f1ed]"
                     style={{ borderBottom: "1px solid rgba(207,196,197,0.1)" }}
                   >
-                    <div className="flex items-center gap-[16px]">
+                    <div className="flex items-center gap-[10px] sm:gap-[16px] min-w-0">
                       <div
-                        className="w-[48px] h-[48px] rounded-full flex items-center justify-center flex-shrink-0"
+                        className="w-[36px] h-[36px] sm:w-[48px] sm:h-[48px] rounded-full flex items-center justify-center flex-shrink-0"
                         style={{
                           backgroundColor: color.bg,
                           border: `1px solid ${color.border}`,
                         }}
                       >
                         <span
-                          className="font-garamond text-[18px]"
+                          className="font-garamond text-[14px] sm:text-[18px]"
                           style={{ color: color.text }}
                         >
                           {getInitials(customer.name)}
                         </span>
                       </div>
-                      <div className="flex flex-col items-start">
-                        <span className="font-hanken text-[16px] font-semibold text-black leading-tight">
+                      <div className="flex flex-col items-start min-w-0">
+                        <span className="font-hanken text-[14px] sm:text-[16px] font-semibold text-black leading-tight truncate max-w-full">
                           {customer.name}
                         </span>
                         {customer.email && (
-                          <span className="font-hanken text-[10px] font-semibold text-[#4c4546] tracking-[0.9px] lowercase">
+                          <span className="font-hanken text-[10px] font-semibold text-[#4c4546] tracking-[0.9px] lowercase truncate max-w-full">
                             {customer.email}
                           </span>
                         )}
                       </div>
                     </div>
-                    <OrdersBadge count={customer.numberOfOrders} />
+                    <div className="flex-shrink-0 ml-[8px]">
+                      <OrdersBadge count={customer.numberOfOrders} />
+                    </div>
                   </button>
                 );
               })
@@ -673,10 +678,13 @@ function AttributeEditor({
               {general.length} fields
             </span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[32px] gap-y-[24px]">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[12px] sm:gap-x-[32px] gap-y-[16px] sm:gap-y-[24px]">
             {general.map(({ key, originalKey }) => (
-              <div key={originalKey} className="relative h-[74px]">
-                <label className="absolute top-0 font-hanken text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase">
+              <div
+                key={originalKey}
+                className="flex flex-col gap-[4px] sm:relative sm:h-[74px]"
+              >
+                <label className="font-hanken text-[11px] sm:text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase leading-tight sm:absolute sm:top-0">
                   {key}
                 </label>
                 <input
@@ -685,7 +693,7 @@ function AttributeEditor({
                     attributes.find((a) => a.key === originalKey)?.value || ""
                   }
                   onChange={(e) => updateAttr(originalKey, e.target.value)}
-                  className="absolute top-[20px] left-0 right-0 h-[40px] bg-white rounded-[8px] px-[13px] font-garamond text-[18px] text-[#1c1c19] outline-none transition-colors"
+                  className="w-full h-[40px] bg-white rounded-[8px] px-[13px] font-garamond text-[16px] sm:text-[18px] text-[#1c1c19] outline-none transition-colors sm:absolute sm:top-[20px]"
                   style={{ border: "1px solid rgba(207,196,197,0.8)" }}
                 />
               </div>
@@ -716,7 +724,7 @@ function AttributeEditor({
                 {sec.items.length} measurements
               </span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[32px] gap-y-[24px]">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[12px] sm:gap-x-[32px] gap-y-[16px] sm:gap-y-[24px]">
               {sec.items.map(({ key, originalKey }) => {
                 const val =
                   attributes.find((a) => a.key === originalKey)?.value ?? "";
@@ -737,8 +745,11 @@ function AttributeEditor({
                   n >= range.min &&
                   n <= range.max;
                 return (
-                  <div key={originalKey} className="relative h-[74px]">
-                    <label className="absolute top-0 font-hanken text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase">
+                  <div
+                    key={originalKey}
+                    className="flex flex-col gap-[4px] sm:relative sm:h-[74px]"
+                  >
+                    <label className="font-hanken text-[11px] sm:text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase leading-tight sm:absolute sm:top-0">
                       {getRangeForKey(sec.ranges, key)?.label ?? key}
                     </label>
                     <input
@@ -746,7 +757,7 @@ function AttributeEditor({
                       value={val}
                       onChange={(e) => updateAttr(originalKey, e.target.value)}
                       className={cn(
-                        "absolute top-[20px] left-0 right-0 h-[40px] bg-white rounded-[8px] px-[13px] font-garamond text-[18px] outline-none transition-colors",
+                        "w-full h-[40px] bg-white rounded-[8px] px-[13px] font-garamond text-[16px] sm:text-[18px] outline-none transition-colors sm:absolute sm:top-[20px]",
                         isValid
                           ? "text-green-700"
                           : isInvalid
@@ -763,7 +774,7 @@ function AttributeEditor({
                     />
                     <p
                       className={cn(
-                        "absolute top-[67px] left-[4px] font-hanken text-[10px] font-medium",
+                        "font-hanken text-[10px] font-medium sm:absolute sm:top-[67px] sm:left-[4px]",
                         isValid
                           ? "text-green-600"
                           : isInvalid
@@ -780,6 +791,197 @@ function AttributeEditor({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Returns garment names (matching option.garment) that have style options for a product
+function styleGarmentsForProduct(product) {
+  const t = (product?.title ?? "").toLowerCase();
+  const garments = [];
+  if (
+    t.includes("tuxedo") ||
+    t.includes("suit") ||
+    t.includes("jacket") ||
+    t.includes("overcoat")
+  )
+    garments.push("Jacket");
+  if (
+    t.includes("tuxedo") ||
+    t.includes("suit") ||
+    t.includes("trouser") ||
+    t.includes("pant")
+  )
+    garments.push("Trouser");
+  return garments;
+}
+
+// ─── Style Option Dropdown (single category) ───────────────────────────────
+function StyleDropdown({ label, opts, selected, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const selectedLabel = opts.find((o) => o.label === selected)?.label ?? "";
+
+  return (
+    <div ref={ref} className="flex flex-col gap-[8px]">
+      <span className="font-hanken text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide">
+        {label}
+      </span>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="font-hanken w-full flex items-center justify-between gap-[8px] px-[14px] py-[10px] rounded-[8px] text-[13px] font-medium text-[#1a1c1b] bg-white cursor-pointer"
+          style={{ border: "1px solid #d1c7bd" }}
+        >
+          <span className={selectedLabel ? "text-[#1a1c1b]" : "text-[#9ca3af]"}>
+            {selectedLabel || "— Select —"}
+          </span>
+          <ChevronDown
+            size={14}
+            className={`flex-shrink-0 text-[#424656] transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {open && (
+          <div
+            className="absolute left-0 right-0 top-full mt-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden"
+            style={{ border: "1px solid #d1c7bd" }}
+          >
+            <ul className="max-h-[200px] overflow-y-auto py-[4px]">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelect("");
+                    setOpen(false);
+                  }}
+                  className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-[#9ca3af] hover:bg-[#f4f1ed] flex items-center justify-between cursor-pointer"
+                >
+                  — Select —
+                  {!selected && (
+                    <Check size={12} style={{ color: "#a45d41" }} />
+                  )}
+                </button>
+              </li>
+              {opts.map((opt) => (
+                <li key={opt.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelect(opt.label);
+                      setOpen(false);
+                    }}
+                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-[#1a1c1b] hover:bg-[#f4f1ed] flex items-center justify-between gap-[8px] cursor-pointer"
+                  >
+                    <span className="flex items-center gap-[6px] min-w-0">
+                      <span className="truncate">{opt.label}</span>
+                      {opt.upcharge > 0 && (
+                        <span
+                          className="font-hanken text-[10px] font-semibold flex-shrink-0 px-[5px] py-[1px] rounded-[4px]"
+                          style={{
+                            backgroundColor: "rgba(164,93,65,0.08)",
+                            color: "#a45d41",
+                          }}
+                        >
+                          +{opt.upcharge}
+                        </span>
+                      )}
+                    </span>
+                    {selected === opt.label && (
+                      <Check
+                        size={12}
+                        style={{ color: "#a45d41" }}
+                        className="flex-shrink-0"
+                      />
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Style Options Section ──────────────────────────────────────────────────
+function StyleOptionsSection({ styleOptions, selections, onChange, loading }) {
+  const grouped = useMemo(() => {
+    const map = {};
+    for (const opt of styleOptions) {
+      if (!opt.visible) continue;
+      const cat = opt.category || "General";
+      if (!map[cat]) map[cat] = [];
+      map[cat].push(opt);
+    }
+    for (const cat in map) {
+      map[cat].sort((a, b) => a.sortOrder - b.sortOrder);
+    }
+    return map;
+  }, [styleOptions]);
+
+  const categories = Object.keys(grouped).sort();
+
+  if (loading) {
+    return (
+      <div
+        className="bg-white rounded-[12px] p-[31px]"
+        style={{ border: "1px solid #c5c6cd" }}
+      >
+        <LoadingState message="Loading style options…" />
+      </div>
+    );
+  }
+  if (!categories.length) return null;
+
+  return (
+    <div
+      className="bg-white rounded-[12px] p-[31px] flex flex-col gap-[32px]"
+      style={{ border: "1px solid #c5c6cd" }}
+    >
+      <div
+        className="flex items-center justify-between pb-[9px]"
+        style={{ borderBottom: "1px solid rgba(146,73,50,0.2)" }}
+      >
+        <div className="flex items-center gap-[13px]">
+          <div
+            className="w-[3px] h-[20px] rounded-sm"
+            style={{ backgroundColor: "#a45d41" }}
+          />
+          <h3 className="font-garamond text-[28px] font-semibold text-[#a45d41]">
+            Style Options
+          </h3>
+        </div>
+        <span className="font-hanken text-[10px] font-bold text-[rgba(28,28,25,0.5)] tracking-[1px] uppercase">
+          {categories.length} categories
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-[24px] gap-y-[20px]">
+        {categories.map((category) => {
+          const opts = grouped[category];
+          return (
+            <StyleDropdown
+              key={category}
+              label={opts[0]?.displayLabel || category}
+              opts={opts}
+              selected={selections[category] ?? ""}
+              onSelect={(val) => onChange({ ...selections, [category]: val })}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -812,6 +1014,10 @@ export default function CreateOrder() {
   const [shirtRanges, setShirtRanges] = useState(null);
   const [trouserRanges, setTrouserRanges] = useState(null);
   const [jacketRanges, setJacketRanges] = useState(null);
+
+  const [styleOptions, setStyleOptions] = useState([]);
+  const [styleSelections, setStyleSelections] = useState({});
+  const [styleOptionsLoading, setStyleOptionsLoading] = useState(false);
 
   useEffect(() => {
     fetchVestRanges()
@@ -1126,6 +1332,31 @@ export default function CreateOrder() {
       .finally(() => setFieldsLoading(false));
   }, [selectedProduct, customerOrders]);
 
+  // Load style options when product changes — only if gc_builder value present
+  useEffect(() => {
+    setStyleOptions([]);
+    setStyleSelections({});
+    if (!selectedProduct?.metafield?.value) return;
+    const garments = styleGarmentsForProduct(selectedProduct);
+    if (!garments.length) return;
+    setStyleOptionsLoading(true);
+    fetchStyleOptions()
+      .then((all) => {
+        const filtered = all.filter((o) => garments.includes(o.garment));
+        setStyleOptions(filtered);
+        // Pre-select defaults
+        const defaults = {};
+        filtered
+          .filter((o) => o.isDefault && o.visible)
+          .forEach((o) => {
+            if (!defaults[o.category]) defaults[o.category] = o.label;
+          });
+        setStyleSelections(defaults);
+      })
+      .catch(() => {})
+      .finally(() => setStyleOptionsLoading(false));
+  }, [selectedProduct]);
+
   // Auto-select most recent past order as active template when product changes
   useEffect(() => {
     if (pastOrdersForProduct.length > 0) {
@@ -1140,18 +1371,45 @@ export default function CreateOrder() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const styleAttrs = Object.entries(styleSelections)
+        .filter(([, v]) => v)
+        .map(([key, value]) => ({ key, value }));
+
+      // Per-category upcharge attrs (hidden, prefixed with _upcharge_)
+      const upchargeAttrs = Object.entries(styleSelections)
+        .filter(([category, label]) => {
+          const opt = styleOptions.find(
+            (o) => o.category === category && o.label === label,
+          );
+          return opt?.upcharge > 0;
+        })
+        .map(([category, label]) => {
+          const opt = styleOptions.find(
+            (o) => o.category === category && o.label === label,
+          );
+          return { key: `_upcharge_${category}`, value: String(opt.upcharge) };
+        });
+
+      // Upcharge folded into the product price — custom item with requiresShipping
+      const finalPrice = (parseFloat(price || "0.00") + totalUpcharge).toFixed(
+        2,
+      );
+
       const draft = await createDraftOrder({
         customerId: selectedCustomer.id,
         lineItems: [
           {
             title: selectedProduct.title,
-            variantId:
-              selectedProduct.variants?.edges?.[0]?.node?.id ?? undefined,
             quantity: 1,
-            originalUnitPrice: String(price || "0.00"),
-            customAttributes: attributes
-              .filter((a) => a.key)
-              .map(({ key, value }) => ({ key, value: String(value) })),
+            originalUnitPrice: finalPrice,
+            requiresShipping: true,
+            customAttributes: [
+              ...attributes
+                .filter((a) => a.key)
+                .map(({ key, value }) => ({ key, value: String(value) })),
+              ...styleAttrs,
+              ...upchargeAttrs,
+            ],
           },
         ],
         note: note || "",
@@ -1198,6 +1456,18 @@ export default function CreateOrder() {
       setSubmitting(false);
     }
   }
+
+  const totalUpcharge = useMemo(() => {
+    if (!styleOptions.length) return 0;
+    return Object.entries(styleSelections)
+      .filter(([, label]) => label)
+      .reduce((sum, [category, label]) => {
+        const opt = styleOptions.find(
+          (o) => o.category === category && o.label === label,
+        );
+        return sum + (opt?.upcharge > 0 ? opt.upcharge : 0);
+      }, 0);
+  }, [styleSelections, styleOptions]);
 
   const hasMissingMeasurements = useMemo(() => {
     if (!attributes.length) return false;
@@ -1496,6 +1766,16 @@ export default function CreateOrder() {
                 </div>
               </div>
             </div>
+
+            {/* Style Options — only when gc_builder is set */}
+            {selectedProduct?.metafield?.value && (
+              <StyleOptionsSection
+                styleOptions={styleOptions}
+                selections={styleSelections}
+                onChange={setStyleSelections}
+                loading={styleOptionsLoading}
+              />
+            )}
 
             {/* Attribute form */}
             {fieldsLoading ? (

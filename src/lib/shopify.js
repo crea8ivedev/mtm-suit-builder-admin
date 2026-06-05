@@ -1202,7 +1202,7 @@ const STYLE_OPTIONS_QUERY = `
         node {
           id
           handle
-          fields { key value }
+          fields { key value type }
         }
       }
     }
@@ -1238,6 +1238,14 @@ async function fetchStyleOptionsForType(type) {
       const fm = Object.fromEntries(
         node.fields.map((f) => [f.key, f.value ?? ""]),
       );
+      // type string for every field — normalized lowercase
+      // e.g. "file_reference", "boolean", "number_integer"
+      const fieldTypes = Object.fromEntries(
+        node.fields.map((f) => [
+          f.key,
+          f.type ? f.type.toLowerCase().trim() : null,
+        ]),
+      );
       results.push({
         id: node.id,
         handle: node.handle,
@@ -1250,16 +1258,55 @@ async function fetchStyleOptionsForType(type) {
         isDefault: fm.is_default === "true",
         sortOrder: parseInt(fm.sort_order || "0", 10),
         kutetailerCode: fm.kutetailer_code || null,
+        conditionalHide: fm.conditional_hide || "",
+        imageGid: fm.image || null,
         imageUrlStored: fm.image_url || null,
-        imageUrl: fm.kutetailer_code
-          ? `https://aws-static-webp.kutetailor.com/comm/process/craft/${fm.kutetailer_code}.jpeg`
-          : null,
+        // image_url (uploaded) takes priority over kutetailor CDN
+        imageUrl:
+          fm.image_url ||
+          (fm.kutetailer_code
+            ? `https://aws-static-webp.kutetailor.com/comm/process/craft/${fm.kutetailer_code}.jpeg`
+            : null),
+        // ALL raw field values and types — so forms can pre-fill and render correctly
+        // for any field added to Shopify after this code was written
+        rawFields: fm,
+        fieldTypes,
       });
     }
     hasNextPage = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
   }
   return results;
+}
+
+const GET_FILE_URLS_QUERY = `
+  query GetFileUrls($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      id
+      ... on MediaImage {
+        image { url }
+      }
+    }
+  }
+`;
+
+// Batch-resolves file GIDs → CDN URLs. Returns { [gid]: url } map.
+async function resolveFileGidUrls(gids) {
+  const map = {};
+  if (!gids.length) return map;
+  // Shopify nodes query accepts up to 250 IDs per request
+  for (let i = 0; i < gids.length; i += 250) {
+    const batch = gids.slice(i, i + 250);
+    try {
+      const data = await shopifyGraphQL(GET_FILE_URLS_QUERY, { ids: batch });
+      for (const node of data.nodes ?? []) {
+        if (node?.image?.url) map[node.id] = node.image.url;
+      }
+    } catch {
+      // non-fatal — missing URLs just won't display
+    }
+  }
+  return map;
 }
 
 export async function fetchStyleOptions() {
@@ -1269,10 +1316,59 @@ export async function fetchStyleOptions() {
   ) {
     return _styleOptionsCache;
   }
-  const results = await Promise.all(
-    STYLE_OPTION_TYPES.map(fetchStyleOptionsForType),
-  );
-  const all = results.flat();
+
+  // Fetch option data AND field definitions in parallel
+  const [results, ...defsResults] = await Promise.all([
+    Promise.all(STYLE_OPTION_TYPES.map(fetchStyleOptionsForType)),
+    ...STYLE_OPTION_TYPES.map((t) =>
+      fetchStyleOptionFieldDefs(t).catch(() => []),
+    ),
+  ]);
+
+  // Build garmentType → { fieldKey: canonicalTypeName } map from defs
+  // defs are the authoritative type source — e.g. "file_reference", "boolean"
+  const defsTypeMap = {};
+  STYLE_OPTION_TYPES.forEach((garmentType, i) => {
+    const defs = defsResults[i] ?? [];
+    defsTypeMap[garmentType] = Object.fromEntries(
+      defs
+        .filter((d) => d.type?.name)
+        .map((d) => [d.key, d.type.name.toLowerCase().trim()]),
+    );
+  });
+
+  // Merge defs types into every option's fieldTypes
+  // defs take priority over the raw f.type from the data query
+  let all = results.flat().map((o) => {
+    const garmentType = GARMENT_TO_STYLE_TYPE[o.garment];
+    const defsTypes = defsTypeMap[garmentType] ?? {};
+    const merged = { ...o.fieldTypes };
+    for (const [k, t] of Object.entries(defsTypes)) {
+      merged[k] = t; // canonical lowercase type from defs
+    }
+    return { ...o, fieldTypes: merged };
+  });
+
+  // Resolve file GIDs for options where image was set via Shopify admin
+  const gidsToResolve = [
+    ...new Set(
+      all.filter((o) => o.imageGid && !o.imageUrlStored).map((o) => o.imageGid),
+    ),
+  ];
+  if (gidsToResolve.length) {
+    const urlMap = await resolveFileGidUrls(gidsToResolve);
+    all = all.map((o) => {
+      if (o.imageGid && !o.imageUrlStored && urlMap[o.imageGid]) {
+        return {
+          ...o,
+          imageUrlStored: urlMap[o.imageGid],
+          imageUrl: urlMap[o.imageGid],
+        };
+      }
+      return o;
+    });
+  }
+
   _styleOptionsCache = all;
   _styleOptionsCacheAt = Date.now();
   return all;
@@ -1281,6 +1377,7 @@ export async function fetchStyleOptions() {
 export function clearStyleOptionsCache() {
   _styleOptionsCache = null;
   _styleOptionsCacheAt = 0;
+  _fieldDefsCache.clear(); // force re-fetch so new Shopify fields appear immediately
 }
 
 export async function updateStyleOptionVisible(id, visible) {
@@ -1306,15 +1403,19 @@ const GET_METAOBJECT_FIELD_DEFS = `
   }
 `;
 
-const _fieldDefsCache = new Map();
+const _fieldDefsCache = new Map(); // garmentType → { defs, cachedAt }
+const FIELD_DEFS_CACHE_TTL = 30 * 1000; // 30 s — short so new Shopify field types appear quickly
 
 export async function fetchStyleOptionFieldDefs(garmentType) {
-  if (_fieldDefsCache.has(garmentType)) return _fieldDefsCache.get(garmentType);
+  const cached = _fieldDefsCache.get(garmentType);
+  if (cached && Date.now() - cached.cachedAt < FIELD_DEFS_CACHE_TTL) {
+    return cached.defs;
+  }
   const data = await shopifyGraphQL(GET_METAOBJECT_FIELD_DEFS, {
     type: garmentType,
   });
   const defs = data?.metaobjectDefinitionByType?.fieldDefinitions ?? [];
-  _fieldDefsCache.set(garmentType, defs);
+  _fieldDefsCache.set(garmentType, { defs, cachedAt: Date.now() });
   return defs;
 }
 
@@ -1326,6 +1427,103 @@ const CREATE_METAOBJECT_MUTATION = `
     }
   }
 `;
+
+const DELETE_METAOBJECT_MUTATION = `
+  mutation MetaobjectDelete($id: ID!) {
+    metaobjectDelete(id: $id) {
+      deletedId
+      userErrors { field message }
+    }
+  }
+`;
+
+export async function deleteStyleOption(id) {
+  const data = await shopifyGraphQL(DELETE_METAOBJECT_MUTATION, { id });
+  const { userErrors } = data.metaobjectDelete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectDelete.deletedId;
+}
+
+export async function updateStyleOption(id, fields) {
+  const fieldInputs = Object.entries(fields).map(([key, value]) => ({
+    key,
+    value: String(value),
+  }));
+  const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
+    id,
+    metaobject: { fields: fieldInputs },
+  });
+  const { userErrors } = data.metaobjectUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectUpdate.metaobject;
+}
+
+const STAGED_UPLOADS_CREATE = `
+  mutation StagedUploadsCreate($input: [StagedUploadInput!]!) {
+    stagedUploadsCreate(input: $input) {
+      stagedTargets {
+        url
+        resourceUrl
+        parameters { name value }
+      }
+      userErrors { field message }
+    }
+  }
+`;
+
+const FILE_CREATE = `
+  mutation FileCreate($files: [FileCreateInput!]!) {
+    fileCreate(files: $files) {
+      files { id }
+      userErrors { field message }
+    }
+  }
+`;
+
+// Uploads a File object to Shopify Files and returns { gid, cdnUrl }.
+// Flow: stagedUploadsCreate → PUT to S3 → fileCreate → GID
+export async function uploadImageToShopify(file) {
+  const stageData = await shopifyGraphQL(STAGED_UPLOADS_CREATE, {
+    input: [
+      {
+        filename: file.name,
+        mimeType: file.type,
+        resource: "IMAGE",
+        httpMethod: "POST",
+      },
+    ],
+  });
+  const { stagedTargets, userErrors: stageErrors } =
+    stageData.stagedUploadsCreate;
+  if (stageErrors?.length) throw new Error(stageErrors[0].message);
+  const target = stagedTargets[0];
+
+  // Upload directly to staged URL (S3 pre-signed POST — browser-safe)
+  const fd = new FormData();
+  for (const { name, value } of target.parameters) fd.append(name, value);
+  fd.append("file", file);
+  const uploadRes = await fetch(target.url, { method: "POST", body: fd });
+  if (!uploadRes.ok)
+    throw new Error(`Image upload failed (${uploadRes.status})`);
+
+  // Register file in Shopify Files
+  const fileData = await shopifyGraphQL(FILE_CREATE, {
+    files: [{ originalSource: target.resourceUrl, contentType: "IMAGE" }],
+  });
+  const { files, userErrors: fileErrors } = fileData.fileCreate;
+  if (fileErrors?.length) throw new Error(fileErrors[0].message);
+
+  return { gid: files[0].id, cdnUrl: target.resourceUrl };
+}
+
+let _shopDomain = null;
+
+export async function fetchShopAdminDomain() {
+  if (_shopDomain) return _shopDomain;
+  const data = await shopifyGraphQL(`query { shop { myshopifyDomain } }`);
+  _shopDomain = data.shop.myshopifyDomain;
+  return _shopDomain;
+}
 
 export async function createStyleOption(garmentType, fields) {
   const fieldInputs = Object.entries(fields)

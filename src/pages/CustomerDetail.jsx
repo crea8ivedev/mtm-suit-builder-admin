@@ -1,6 +1,14 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Mail, Phone, Save, X, Pencil } from "lucide-react";
+import {
+  Mail,
+  Phone,
+  Save,
+  X,
+  Pencil,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
@@ -16,8 +24,6 @@ import {
   setCustomerProductsMetafield,
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
-
-const ORDERS_PER_PAGE = 15;
 
 const PAYMENT_BADGE = {
   PAID: "paid",
@@ -121,11 +127,24 @@ export default function CustomerDetail() {
   const { customer, orders, loading, error } = useCustomerDetail(shopifyGid);
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [ordersPerPage, setOrdersPerPage] = useState(15);
+  const [entriesOpen, setEntriesOpen] = useState(false);
+  const entriesRef = useRef(null);
   const [vestMap, setVestMap] = useState({});
   const [shirtMap, setShirtMap] = useState({});
   const [trouserMap, setTrouserMap] = useState({});
   const [jacketMap, setJacketMap] = useState({});
   const profiles = useMemo(() => buildMeasurementProfiles(orders), [orders]);
+
+  useEffect(() => {
+    function handler(e) {
+      if (entriesRef.current && !entriesRef.current.contains(e.target)) {
+        setEntriesOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   useEffect(() => {
     fetchVestRanges()
@@ -260,10 +279,39 @@ export default function CustomerDetail() {
     [activeProfiles],
   );
 
-  const totalPages = Math.max(1, Math.ceil(orders.length / ORDERS_PER_PAGE));
+  // Group measurements by profile name for tabs
+  const profileTabNames = useMemo(() => {
+    const seen = new Set();
+    const names = [];
+    for (const entry of allMeasurements) {
+      if (!seen.has(entry.name)) {
+        seen.add(entry.name);
+        names.push(entry.name);
+      }
+    }
+    return names;
+  }, [allMeasurements]);
+
+  const [activeProfileTab, setActiveProfileTab] = useState(null);
+
+  // Auto-select first tab when tabs load / change
+  useEffect(() => {
+    if (profileTabNames.length > 0) {
+      setActiveProfileTab((prev) =>
+        profileTabNames.includes(prev) ? prev : profileTabNames[0],
+      );
+    }
+  }, [profileTabNames]);
+
+  const activeTabEntries = useMemo(
+    () => allMeasurements.filter((e) => e.name === activeProfileTab),
+    [allMeasurements, activeProfileTab],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(orders.length / ordersPerPage));
   const paginated = orders.slice(
-    (currentPage - 1) * ORDERS_PER_PAGE,
-    currentPage * ORDERS_PER_PAGE,
+    (currentPage - 1) * ordersPerPage,
+    currentPage * ordersPerPage,
   );
   const visiblePages = useMemo(() => {
     const range = 3,
@@ -294,9 +342,6 @@ export default function CustomerDetail() {
           >
             <div className="flex items-start justify-between">
               <div className="flex flex-col gap-[7px]">
-                <span className="font-hanken text-[11px] sm:text-[12px] font-semibold uppercase tracking-[1.8px] text-gc-primary">
-                  PREMIUM REGISTRY
-                </span>
                 <h1 className="font-garamond text-[28px] sm:text-[40px] font-bold text-[#3c3c3c] leading-tight">
                   {customer.name}
                 </h1>
@@ -458,55 +503,140 @@ export default function CustomerDetail() {
                   </div>
 
                   {/* Pagination */}
-                  {orders.length > ORDERS_PER_PAGE && (
-                    <div className="flex items-center justify-between px-[24px] py-[16px] gc-divider">
-                      <p className="gc-pagination-count">
-                        Showing{" "}
-                        <strong>
-                          {(currentPage - 1) * ORDERS_PER_PAGE + 1}
-                        </strong>
-                        {" – "}
-                        <strong>
-                          {Math.min(
-                            currentPage * ORDERS_PER_PAGE,
-                            orders.length,
-                          )}
-                        </strong>
-                        {" of "}
-                        <strong>{orders.length}</strong>
-                      </p>
-                      <div className="flex items-center gap-[4px]">
-                        <button
-                          onClick={() =>
-                            setCurrentPage((p) => Math.max(1, p - 1))
-                          }
-                          disabled={currentPage === 1}
-                          className="gc-pagination-btn"
-                        >
-                          ‹
-                        </button>
-                        {visiblePages.map((page) => (
+                  {orders.length > 0 && (
+                    <div className="flex items-center justify-between px-[24px] py-[16px] gc-divider flex-wrap gap-[12px]">
+                      {/* Left: Entries per page */}
+                      <div
+                        className="flex items-center gap-[8px]"
+                        ref={entriesRef}
+                      >
+                        <span className="font-hanken text-[13px] text-gc-text">
+                          Entries
+                        </span>
+                        <div className="relative">
                           <button
-                            key={page}
-                            onClick={() => setCurrentPage(page)}
-                            className={cn(
-                              "gc-pagination-btn",
-                              currentPage === page && "active",
-                            )}
+                            onClick={() => setEntriesOpen((v) => !v)}
+                            className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none"
+                            style={{
+                              border: "1px solid #dac1ba",
+                              background: "#fff",
+                            }}
                           >
-                            {page}
+                            {ordersPerPage}
+                            <ChevronRight
+                              size={13}
+                              className={`text-gc-text transition-transform ${entriesOpen ? "-rotate-90" : "rotate-90"}`}
+                            />
                           </button>
-                        ))}
-                        <button
-                          onClick={() =>
-                            setCurrentPage((p) => Math.min(totalPages, p + 1))
-                          }
-                          disabled={currentPage === totalPages}
-                          className="gc-pagination-btn"
-                        >
-                          ›
-                        </button>
+                          {entriesOpen && (
+                            <div
+                              className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md"
+                              style={{
+                                border: "1px solid #dac1ba",
+                                background: "#fff",
+                                minWidth: "100%",
+                              }}
+                            >
+                              {[10, 20, 40, 100].map((n) => (
+                                <button
+                                  key={n}
+                                  onClick={() => {
+                                    setOrdersPerPage(n);
+                                    setCurrentPage(1);
+                                    setEntriesOpen(false);
+                                  }}
+                                  className="w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors"
+                                  style={{
+                                    color:
+                                      n === ordersPerPage
+                                        ? "#a45d41"
+                                        : "#3c3c3c",
+                                    background:
+                                      n === ordersPerPage
+                                        ? "rgba(164,93,65,0.06)"
+                                        : "transparent",
+                                    fontWeight: n === ordersPerPage ? 600 : 400,
+                                  }}
+                                >
+                                  {n}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Right: Page navigation */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center gap-[4px]">
+                          <button
+                            onClick={() =>
+                              setCurrentPage((p) => Math.max(1, p - 1))
+                            }
+                            disabled={currentPage === 1}
+                            className="gc-pagination-btn"
+                          >
+                            <ChevronLeft size={15} />
+                          </button>
+
+                          {visiblePages[0] > 1 && (
+                            <>
+                              <button
+                                onClick={() => setCurrentPage(1)}
+                                className="gc-pagination-btn"
+                              >
+                                1
+                              </button>
+                              {visiblePages[0] > 2 && (
+                                <span className="w-[28px] text-center text-gc-text text-[13px]">
+                                  …
+                                </span>
+                              )}
+                            </>
+                          )}
+
+                          {visiblePages.map((page) => (
+                            <button
+                              key={page}
+                              onClick={() => setCurrentPage(page)}
+                              className={cn(
+                                "gc-pagination-btn",
+                                currentPage === page && "active",
+                              )}
+                            >
+                              {page}
+                            </button>
+                          ))}
+
+                          {visiblePages[visiblePages.length - 1] <
+                            totalPages && (
+                            <>
+                              {visiblePages[visiblePages.length - 1] <
+                                totalPages - 1 && (
+                                <span className="w-[28px] text-center text-gc-text text-[13px]">
+                                  …
+                                </span>
+                              )}
+                              <button
+                                onClick={() => setCurrentPage(totalPages)}
+                                className="gc-pagination-btn"
+                              >
+                                {totalPages}
+                              </button>
+                            </>
+                          )}
+
+                          <button
+                            onClick={() =>
+                              setCurrentPage((p) => Math.min(totalPages, p + 1))
+                            }
+                            disabled={currentPage === totalPages}
+                            className="gc-pagination-btn"
+                          >
+                            <ChevronRight size={15} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -516,195 +646,222 @@ export default function CustomerDetail() {
 
           {/* ── Section 3: Technical Measurements ── */}
           {allMeasurements.length > 0 && (
-            <div className="flex flex-col gap-[24px]">
-              {allMeasurements.map((entry) => {
-                const isEditing = editingProfileId === entry.id;
-                const isSaving = savingProfileId === entry.id;
-                const profileError = profileErrors[entry.id];
-                const productLower = entry.productName.toLowerCase();
-                const isSuit =
-                  productLower.includes("tuxedo") ||
-                  productLower.includes("suit");
-                const isJacket =
-                  productLower.includes("jacket") ||
-                  productLower.includes("overcoat");
-                const isTrouser = productLower.includes("trouser");
-                const isVest = productLower.includes("vest");
-                const isShirt = productLower.includes("shirt");
-                const RANGES = isSuit
-                  ? { ...jacketMap, ...trouserMap, ...vestMap, ...shirtMap }
-                  : isJacket
-                    ? jacketMap
-                    : isTrouser
-                      ? trouserMap
-                      : isVest
-                        ? vestMap
-                        : isShirt
-                          ? shirtMap
-                          : null;
-                const sizeTypeKey = Object.keys(entry.measurements).find(
-                  (k) => k.toLowerCase() === "size type",
-                );
-                const isStandard =
-                  sizeTypeKey &&
-                  entry.measurements[sizeTypeKey]?.toLowerCase() === "standard";
+            <div className="flex flex-col gap-[0]">
+              {/* Profile name tabs */}
+              <div className="flex flex-wrap gap-[8px] pb-[20px]">
+                {profileTabNames.map((name) => (
+                  <button
+                    key={name}
+                    onClick={() => setActiveProfileTab(name)}
+                    className="font-hanken text-[13px] font-semibold px-[16px] py-[8px] rounded-[20px] whitespace-nowrap transition-all cursor-pointer"
+                    style={{
+                      backgroundColor:
+                        activeProfileTab === name ? "#a45d41" : "#f4f1ed",
+                      color: activeProfileTab === name ? "#ffffff" : "#6d6d6d",
+                      border:
+                        activeProfileTab === name
+                          ? "1px solid #a45d41"
+                          : "1px solid #d1c7bd",
+                    }}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
 
-                return (
-                  <div key={entry.id} className="flex flex-col gap-[24px]">
-                    {/* Section header row */}
-                    <div
-                      className="flex flex-wrap items-start sm:items-end justify-between gap-[12px] pb-[17px]"
-                      style={{ borderBottom: "1px solid rgba(0,0,0,0.1)" }}
-                    >
-                      <div className="flex flex-col gap-[4px]">
-                        <span className="font-garamond text-[20px] sm:text-[24px] font-medium text-[#1a1c1b]">
-                          {entry.productName}
-                        </span>
-                        <span className="font-hanken text-[12px] sm:text-[14px] font-semibold text-[#6d6d6d]">
-                          Profile: {entry.name} • Last updated: {entry.created}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-[8px]">
-                        {profileError && (
-                          <span className="font-hanken text-[12px] text-red-500">
-                            {profileError}
-                          </span>
-                        )}
-                        {isEditing ? (
-                          <>
-                            <button
-                              onClick={() => handleProfileSave(entry)}
-                              disabled={isSaving}
-                              className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <Save size={13} />
-                              {isSaving ? "Saving…" : "SAVE LEDGER"}
-                            </button>
-                            <button
-                              onClick={handleProfileCancel}
-                              disabled={isSaving}
-                              className="gc-btn text-[13px] gap-[5px] cursor-pointer disabled:cursor-not-allowed"
-                            >
-                              <X size={12} />
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          !isStandard && (
-                            <button
-                              onClick={() => handleProfileEditStart(entry)}
-                              disabled={!!editingProfileId}
-                              className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              <Pencil size={13} />
-                              EDIT LEDGER
-                            </button>
-                          )
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 6-col measurement grid — Figma: gray bg + 1px gaps + white cells */}
-                    <div
-                      className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 rounded-[12px] p-px gap-px"
-                      style={{ border: "1px solid rgba(207,196,197,0.4)" }}
-                    >
-                      {Object.entries(
-                        isEditing ? editingValues : entry.measurements,
-                      ).map(([key, val], idx) => {
-                        const metaEntry = isVest
-                          ? getRangeForKey(vestMap, key)
+              {/* Active tab content */}
+              <div className="flex flex-col gap-[24px] pt-[24px]">
+                {activeTabEntries.map((entry) => {
+                  const isEditing = editingProfileId === entry.id;
+                  const isSaving = savingProfileId === entry.id;
+                  const profileError = profileErrors[entry.id];
+                  const productLower = entry.productName.toLowerCase();
+                  const isSuit =
+                    productLower.includes("tuxedo") ||
+                    productLower.includes("suit");
+                  const isJacket =
+                    productLower.includes("jacket") ||
+                    productLower.includes("overcoat");
+                  const isTrouser = productLower.includes("trouser");
+                  const isVest = productLower.includes("vest");
+                  const isShirt = productLower.includes("shirt");
+                  const RANGES = isSuit
+                    ? { ...jacketMap, ...trouserMap, ...vestMap, ...shirtMap }
+                    : isJacket
+                      ? jacketMap
+                      : isTrouser
+                        ? trouserMap
+                        : isVest
+                          ? vestMap
                           : isShirt
-                            ? getRangeForKey(shirtMap, key)
-                            : isTrouser
-                              ? getRangeForKey(trouserMap, key)
-                              : isJacket
-                                ? getRangeForKey(jacketMap, key)
-                                : null;
-                        const displayKey = metaEntry ? metaEntry.label : key;
-                        const isSizeType = key.toLowerCase() === "size type";
-                        const range = metaEntry ?? getRangeForKey(RANGES, key);
-                        const isTouched = touchedFields.has(key);
-                        const numVal = parseFloat(val);
-                        const hasRange = !!range;
-                        const isValid =
-                          isTouched &&
-                          hasRange &&
-                          !isNaN(numVal) &&
-                          numVal >= range.min &&
-                          numVal <= range.max;
-                        const isInvalid =
-                          isTouched &&
-                          hasRange &&
-                          !isNaN(numVal) &&
-                          (numVal < range.min || numVal > range.max);
-                        const isFirst = idx === 0;
+                            ? shirtMap
+                            : null;
+                  const sizeTypeKey = Object.keys(entry.measurements).find(
+                    (k) => k.toLowerCase() === "size type",
+                  );
+                  const isStandard =
+                    sizeTypeKey &&
+                    entry.measurements[sizeTypeKey]?.toLowerCase() ===
+                      "standard";
 
-                        return (
-                          <div
-                            key={key}
-                            className={cn(
-                              "bg-white flex flex-col p-[24px] h-[124px]",
-                              isFirst && "rounded-tl-[12px]",
-                            )}
-                          >
-                            {/* Label */}
-                            <span className="font-hanken text-[9px] font-semibold uppercase tracking-[0.9px] text-[#7e7576] leading-[9px]">
-                              {displayKey}
+                  return (
+                    <div key={entry.id} className="flex flex-col gap-[24px]">
+                      {/* Section header row */}
+                      <div
+                        className="flex flex-wrap items-start sm:items-end justify-between gap-[12px] pb-[17px]"
+                        style={{ borderBottom: "1px solid rgba(0,0,0,0.1)" }}
+                      >
+                        <div className="flex flex-col gap-[4px]">
+                          <span className="font-garamond text-[20px] sm:text-[24px] font-medium text-[#1a1c1b]">
+                            {entry.productName}
+                          </span>
+                          <span className="font-hanken text-[12px] sm:text-[14px] font-semibold text-[#6d6d6d]">
+                            Last updated: {entry.created}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-[8px]">
+                          {profileError && (
+                            <span className="font-hanken text-[12px] text-red-500">
+                              {profileError}
                             </span>
-
-                            {/* Value */}
-                            {isEditing && !isSizeType ? (
-                              <input
-                                type="text"
-                                value={val}
-                                onChange={(e) =>
-                                  handleProfileMeasurementChange(
-                                    key,
-                                    e.target.value,
-                                  )
-                                }
-                                className={cn(
-                                  "font-garamond mt-[5px] w-full text-[28px] text-black bg-transparent outline-none border-b",
-                                  isValid
-                                    ? "border-green-500 text-green-700"
-                                    : isInvalid
-                                      ? "border-red-400 text-red-600"
-                                      : "border-[#d1c7bd]",
-                                )}
-                              />
-                            ) : (
-                              <span className="font-garamond text-[32px] text-black leading-[48px] mt-[5px]">
-                                {val}
-                              </span>
-                            )}
-
-                            {/* Unit or range hint */}
-                            {isEditing && range ? (
-                              <span
-                                className={cn(
-                                  "font-hanken text-[10px] mt-auto",
-                                  isValid
-                                    ? "text-green-600"
-                                    : isInvalid
-                                      ? "text-red-500"
-                                      : "text-[#7e7576]",
-                                )}
+                          )}
+                          {isEditing ? (
+                            <>
+                              <button
+                                onClick={() => handleProfileSave(entry)}
+                                disabled={isSaving}
+                                className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                {range.min}–{range.max}
+                                <Save size={13} />
+                                {isSaving ? "Saving…" : "SAVE"}
+                              </button>
+                              <button
+                                onClick={handleProfileCancel}
+                                disabled={isSaving}
+                                className="gc-btn text-[13px] gap-[5px] cursor-pointer disabled:cursor-not-allowed"
+                              >
+                                <X size={12} />
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            !isStandard && (
+                              <button
+                                onClick={() => handleProfileEditStart(entry)}
+                                disabled={!!editingProfileId}
+                                className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                <Pencil size={13} />
+                                EDIT
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 6-col measurement grid — Figma: gray bg + 1px gaps + white cells */}
+                      <div
+                        className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 rounded-[12px] p-px gap-px"
+                        style={{ border: "1px solid rgba(207,196,197,0.4)" }}
+                      >
+                        {Object.entries(
+                          isEditing ? editingValues : entry.measurements,
+                        ).map(([key, val], idx) => {
+                          const metaEntry = isVest
+                            ? getRangeForKey(vestMap, key)
+                            : isShirt
+                              ? getRangeForKey(shirtMap, key)
+                              : isTrouser
+                                ? getRangeForKey(trouserMap, key)
+                                : isJacket
+                                  ? getRangeForKey(jacketMap, key)
+                                  : null;
+                          const displayKey = metaEntry ? metaEntry.label : key;
+                          const isSizeType = key.toLowerCase() === "size type";
+                          const range =
+                            metaEntry ?? getRangeForKey(RANGES, key);
+                          const isTouched = touchedFields.has(key);
+                          const numVal = parseFloat(val);
+                          const hasRange = !!range;
+                          const isValid =
+                            isTouched &&
+                            hasRange &&
+                            !isNaN(numVal) &&
+                            numVal >= range.min &&
+                            numVal <= range.max;
+                          const isInvalid =
+                            isTouched &&
+                            hasRange &&
+                            !isNaN(numVal) &&
+                            (numVal < range.min || numVal > range.max);
+                          const isFirst = idx === 0;
+
+                          return (
+                            <div
+                              key={key}
+                              className={cn(
+                                "bg-white flex flex-col p-[24px] h-[124px]",
+                                isFirst && "rounded-tl-[12px]",
+                              )}
+                            >
+                              {/* Label */}
+                              <span className="font-hanken text-[9px] font-semibold uppercase tracking-[0.9px] text-[#7e7576] leading-[9px]">
+                                {displayKey}
                               </span>
-                            ) : (
-                              <span className="font-hanken text-[10px] text-[#7e7576] mt-auto leading-[15px]">
-                                Inches
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
+
+                              {/* Value */}
+                              {isEditing && !isSizeType ? (
+                                <input
+                                  type="text"
+                                  value={val}
+                                  onChange={(e) =>
+                                    handleProfileMeasurementChange(
+                                      key,
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={cn(
+                                    "font-garamond mt-[5px] w-full text-[28px] text-black bg-transparent outline-none border-b",
+                                    isValid
+                                      ? "border-green-500 text-green-700"
+                                      : isInvalid
+                                        ? "border-red-400 text-red-600"
+                                        : "border-[#d1c7bd]",
+                                  )}
+                                />
+                              ) : (
+                                <span className="font-garamond text-[32px] text-black leading-[48px] mt-[5px]">
+                                  {val}
+                                </span>
+                              )}
+
+                              {/* Unit or range hint */}
+                              {isEditing && range ? (
+                                <span
+                                  className={cn(
+                                    "font-hanken text-[10px] mt-auto",
+                                    isValid
+                                      ? "text-green-600"
+                                      : isInvalid
+                                        ? "text-red-500"
+                                        : "text-[#7e7576]",
+                                  )}
+                                >
+                                  {range.min}–{range.max}
+                                </span>
+                              ) : (
+                                <span className="font-hanken text-[10px] text-[#7e7576] mt-auto leading-[15px]">
+                                  Inches
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

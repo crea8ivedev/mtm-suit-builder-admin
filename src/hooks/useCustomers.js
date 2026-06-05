@@ -5,8 +5,6 @@ import {
   transformCustomer,
 } from "../lib/shopify";
 
-const PAGE_SIZE = 20;
-
 export function useCustomers() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,17 +12,20 @@ export function useCustomers() {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [totalCount, setTotalCount] = useState(null);
+  const [pageSize, setPageSizeState] = useState(20);
 
   // cursors[i] = the Shopify cursor needed to fetch page (i+1)
   // cursors[0] = null (first page has no cursor)
   const cursorStack = useRef([null]);
   const activeSearch = useRef("");
+  const activePageSize = useRef(20);
 
-  const fetchPage = useCallback((pageNum, search) => {
+  const fetchPage = useCallback((pageNum, search, size) => {
     const cursor = cursorStack.current[pageNum - 1] ?? null;
+    const ps = size ?? activePageSize.current;
     setLoading(true);
     setError(null);
-    fetchCustomersPage({ cursor, pageSize: PAGE_SIZE, searchQuery: search })
+    fetchCustomersPage({ cursor, pageSize: ps, searchQuery: search })
       .then(({ customers: raw, pageInfo }) => {
         setCustomers(raw.map(transformCustomer));
         setHasNextPage(pageInfo.hasNextPage);
@@ -53,21 +54,32 @@ export function useCustomers() {
     [fetchPage],
   );
 
+  const changePageSize = useCallback(
+    (size) => {
+      activePageSize.current = size;
+      setPageSizeState(size);
+      cursorStack.current = [null];
+      fetchPage(1, activeSearch.current, size);
+    },
+    [fetchPage],
+  );
+
   const nextPage = useCallback(() => {
-    fetchPage(currentPage + 1, activeSearch.current);
+    fetchPage(currentPage + 1, activeSearch.current, activePageSize.current);
   }, [fetchPage, currentPage]);
 
   const prevPage = useCallback(() => {
-    if (currentPage > 1) fetchPage(currentPage - 1, activeSearch.current);
+    if (currentPage > 1)
+      fetchPage(currentPage - 1, activeSearch.current, activePageSize.current);
   }, [fetchPage, currentPage]);
 
   const retry = useCallback(() => {
-    fetchPage(currentPage, activeSearch.current);
+    fetchPage(currentPage, activeSearch.current, activePageSize.current);
   }, [fetchPage, currentPage]);
 
   const goToPage = useCallback(
     (page) => {
-      fetchPage(page, activeSearch.current);
+      fetchPage(page, activeSearch.current, activePageSize.current);
     },
     [fetchPage],
   );
@@ -83,6 +95,8 @@ export function useCustomers() {
     hasNextPage,
     maxKnownPage,
     totalCount,
+    pageSize,
+    changePageSize,
     load,
     nextPage,
     prevPage,

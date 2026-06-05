@@ -44,21 +44,33 @@ function parseSupplierMeta(order) {
   };
 }
 
+// Split all custom attributes into two display buckets:
+//   options   — style/fit choices (non-numeric values)
+//   measurements — any attribute whose value looks like a measurement (numeric, size, etc.)
+//                  also includes "Vest " prefixed keys with the prefix stripped
+// Both buckets are displayed so nothing is hidden.
 function categorize(customAttributes = []) {
-  const general = [];
+  const options = [];
   const measurements = [];
-  const vest = [];
   for (const attr of customAttributes) {
     if (attr.key.startsWith("_")) continue;
-    if (attr.key.startsWith("Vest ")) {
-      vest.push({ key: attr.key.replace("Vest ", ""), value: attr.value });
-    } else if (attr.value && /^\d/.test(attr.value)) {
-      measurements.push(attr);
+    // strip "Vest " prefix for neater display
+    const key = attr.key.startsWith("Vest ")
+      ? attr.key.replace("Vest ", "")
+      : attr.key;
+    // strip trailing inch-mark from stored values e.g. "38\""  → "38"
+    const value = attr.value?.endsWith('"')
+      ? attr.value.slice(0, -1)
+      : (attr.value ?? "");
+    const entry = { key, value };
+    // numeric-looking value → measurement; everything else → style option
+    if (value && /^\d/.test(value)) {
+      measurements.push(entry);
     } else {
-      general.push(attr);
+      options.push(entry);
     }
   }
-  return { general, measurements, vest };
+  return { options, measurements };
 }
 
 // ─── GC Section label ──────────────────────────────────────────────────────
@@ -280,6 +292,37 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
   );
 }
 
+// ─── Attribute grid (shared by Style Options + Measurements) ──────────────
+function AttrGrid({ items }) {
+  return (
+    <div
+      className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
+      style={{
+        borderLeft: "1px solid rgba(197,198,205,0.3)",
+        borderTop: "1px solid rgba(197,198,205,0.3)",
+      }}
+    >
+      {items.map(({ key, value }) => (
+        <div
+          key={key}
+          className="flex flex-col items-start px-[16px] py-[14px]"
+          style={{
+            borderRight: "1px solid rgba(197,198,205,0.3)",
+            borderBottom: "1px solid rgba(197,198,205,0.3)",
+          }}
+        >
+          <span className="font-hanken text-[10px] text-[#44474c] uppercase leading-[15px]">
+            {key}
+          </span>
+          <span className="font-hanken text-[16px] font-medium text-[#1a1c1b] leading-[26px] break-words">
+            {value || "—"}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────
 export default function OrderDetail() {
   const { orderId } = useParams();
@@ -287,6 +330,14 @@ export default function OrderDetail() {
   const { order, loading, error, refetch } = useOrderDetail(shopifyGid);
 
   const lineItems = order?.lineItems?.edges?.map((e) => e.node) ?? [];
+  const allAttributes = lineItems.flatMap((item) =>
+    (item.customAttributes ?? [])
+      .filter((a) => !a.key.startsWith("_"))
+      .map((a) => ({
+        key: a.key.startsWith("Vest ") ? a.key.replace("Vest ", "") : a.key,
+        value: a.value?.endsWith('"') ? a.value.slice(0, -1) : (a.value ?? ""),
+      })),
+  );
   const supplierMeta = parseSupplierMeta(order);
   const { supplierError, supplierStatus, supplierSubmittedAt } = supplierMeta;
   const isFailed = supplierStatus === "failed";
@@ -494,11 +545,8 @@ export default function OrderDetail() {
             <div className="flex flex-col gap-[20px] flex-1 min-w-0">
               {/* Order items card */}
               {lineItems.map((item, idx) => {
-                const { general, measurements, vest } = categorize(
-                  item.customAttributes,
-                );
-                const allMeasurements = [...measurements, ...vest];
-                const sizeType = general.find(
+                const { options } = categorize(item.customAttributes);
+                const sizeType = options.find(
                   (a) => a.key.toLowerCase() === "size type",
                 )?.value;
 
@@ -551,6 +599,62 @@ export default function OrderDetail() {
                               ? formatCurrency(item.originalUnitPriceSet)
                               : "—"}
                           </p>
+
+                          {/* Style upcharge breakdown */}
+                          {(() => {
+                            const upchargeEntries = (
+                              item.customAttributes ?? []
+                            ).filter((a) => a.key.startsWith("_upcharge_"));
+                            if (!upchargeEntries.length) return null;
+                            const currencyCode =
+                              order.totalPriceSet?.shopMoney?.currencyCode ||
+                              "USD";
+                            return (
+                              <div
+                                className="flex flex-col gap-[6px] mt-[8px] pt-[10px]"
+                                style={{
+                                  borderTop: "1px solid rgba(197,198,205,0.4)",
+                                }}
+                              >
+                                {upchargeEntries.map((ua) => {
+                                  const category = ua.key.slice(
+                                    "_upcharge_".length,
+                                  );
+                                  const selection =
+                                    (item.customAttributes ?? []).find(
+                                      (a) => a.key === category,
+                                    )?.value || "";
+                                  const amount = parseFloat(ua.value || 0);
+                                  let formatted;
+                                  try {
+                                    formatted = new Intl.NumberFormat("en-US", {
+                                      style: "currency",
+                                      currency: currencyCode,
+                                    }).format(amount);
+                                  } catch {
+                                    formatted = `${currencyCode} ${amount.toFixed(2)}`;
+                                  }
+                                  return (
+                                    <div
+                                      key={ua.key}
+                                      className="flex items-center justify-between"
+                                    >
+                                      <span className="font-hanken text-[13px] text-[#44474c]">
+                                        {category}
+                                        {selection ? `: ${selection}` : ""}
+                                      </span>
+                                      <span
+                                        className="font-hanken text-[13px] font-semibold"
+                                        style={{ color: "#a45d41" }}
+                                      >
+                                        +{formatted}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
 
                           {/* Fulfillment info box */}
                           <div
@@ -623,48 +727,22 @@ export default function OrderDetail() {
                         </div>
                       </div>
                     </div>
-
-                    {/* Measurements card */}
-                    {allMeasurements.length > 0 && (
-                      <GCCard className="flex flex-col gap-[24px]">
-                        <div className="flex items-center gap-[8px]">
-                          <Ruler size={18} style={{ color: "#1a1c1b" }} />
-                          <span className="font-garamond text-[24px] font-medium text-[#1a1c1b] leading-[31px]">
-                            Anatomical Measurements
-                          </span>
-                        </div>
-
-                        {/* 4-col grid */}
-                        <div
-                          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
-                          style={{
-                            borderLeft: "1px solid rgba(197,198,205,0.3)",
-                            borderTop: "1px solid rgba(197,198,205,0.3)",
-                          }}
-                        >
-                          {allMeasurements.map(({ key, value }) => (
-                            <div
-                              key={key}
-                              className="flex flex-col items-start px-[16px] py-[16px]"
-                              style={{
-                                borderRight: "1px solid rgba(197,198,205,0.3)",
-                                borderBottom: "1px solid rgba(197,198,205,0.3)",
-                              }}
-                            >
-                              <span className="font-hanken text-[10px] text-[#44474c] uppercase leading-[15px]">
-                                {key}
-                              </span>
-                              <span className="font-hanken text-[18px] font-medium text-[#1a1c1b] leading-[28px]">
-                                {value}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </GCCard>
-                    )}
                   </div>
                 );
               })}
+
+              {/* Measurements card */}
+              {allAttributes.length > 0 && (
+                <GCCard className="flex flex-col gap-[24px]">
+                  <div className="flex items-center gap-[8px]">
+                    <Ruler size={18} style={{ color: "#1a1c1b" }} />
+                    <span className="font-garamond text-[24px] font-medium text-[#1a1c1b] leading-[31px]">
+                      Anatomical Measurements
+                    </span>
+                  </div>
+                  <AttrGrid items={allAttributes} />
+                </GCCard>
+              )}
             </div>
           </div>
         </div>

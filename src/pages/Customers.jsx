@@ -45,12 +45,27 @@ export default function Customers() {
     hasNextPage,
     maxKnownPage,
     totalCount,
+    pageSize,
+    changePageSize,
     load,
     nextPage,
     prevPage,
     goToPage,
     retry,
   } = useCustomers();
+
+  const [entriesOpen, setEntriesOpen] = useState(false);
+  const entriesRef = useRef(null);
+
+  useEffect(() => {
+    function handler(e) {
+      if (entriesRef.current && !entriesRef.current.contains(e.target)) {
+        setEntriesOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -274,47 +289,97 @@ export default function Customers() {
           )}
         </div>
 
-        {!loading && !error && (currentPage > 1 || hasNextPage) && (
+        {!loading && !error && (
           <div className="gc-divider flex items-center justify-between px-[24px] py-[16px] flex-wrap gap-[12px]">
-            <p className="gc-pagination-count">
-              Showing {(currentPage - 1) * 20 + 1} to{" "}
-              {(currentPage - 1) * 20 + customers.length} entries
-            </p>
-            <div className="flex items-center gap-[4px]">
-              <button
-                onClick={prevPage}
-                disabled={currentPage === 1}
-                className="gc-pagination-btn"
-              >
-                <ChevronLeft size={15} />
-              </button>
-              {(() => {
-                const WINDOW = 5;
-                let start = Math.max(1, currentPage - Math.floor(WINDOW / 2));
-                let end = Math.min(maxKnownPage, start + WINDOW - 1);
-                if (end - start + 1 < WINDOW)
-                  start = Math.max(1, end - WINDOW + 1);
-                return Array.from(
-                  { length: end - start + 1 },
-                  (_, i) => start + i,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => page !== currentPage && goToPage(page)}
-                    className={`gc-pagination-btn${page === currentPage ? " active" : ""}`}
+            {/* Left: Entries per page */}
+            <div className="flex items-center gap-[8px]" ref={entriesRef}>
+              <span className="font-hanken text-[13px] text-gc-text">
+                Entries
+              </span>
+              <div className="relative">
+                <button
+                  onClick={() => setEntriesOpen((v) => !v)}
+                  className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none"
+                  style={{ border: "1px solid #dac1ba", background: "#fff" }}
+                >
+                  {pageSize}
+                  <ChevronRight
+                    size={13}
+                    className={`text-gc-text transition-transform ${entriesOpen ? "-rotate-90" : "rotate-90"}`}
+                  />
+                </button>
+                {entriesOpen && (
+                  <div
+                    className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md"
+                    style={{
+                      border: "1px solid #dac1ba",
+                      background: "#fff",
+                      minWidth: "100%",
+                    }}
                   >
-                    {page}
-                  </button>
-                ));
-              })()}
-              <button
-                onClick={nextPage}
-                disabled={!hasNextPage}
-                className="gc-pagination-btn"
-              >
-                <ChevronRight size={15} />
-              </button>
+                    {[10, 20, 40, 100].map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => {
+                          changePageSize(n);
+                          setEntriesOpen(false);
+                        }}
+                        className="w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors"
+                        style={{
+                          color: n === pageSize ? "#a45d41" : "#3c3c3c",
+                          background:
+                            n === pageSize
+                              ? "rgba(164,93,65,0.06)"
+                              : "transparent",
+                          fontWeight: n === pageSize ? 600 : 400,
+                        }}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Right: Page navigation */}
+            {(currentPage > 1 || hasNextPage) && (
+              <div className="flex items-center gap-[4px]">
+                <button
+                  onClick={prevPage}
+                  disabled={currentPage === 1}
+                  className="gc-pagination-btn"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                {(() => {
+                  const WINDOW = 5;
+                  let start = Math.max(1, currentPage - Math.floor(WINDOW / 2));
+                  let end = Math.min(maxKnownPage, start + WINDOW - 1);
+                  if (end - start + 1 < WINDOW)
+                    start = Math.max(1, end - WINDOW + 1);
+                  return Array.from(
+                    { length: end - start + 1 },
+                    (_, i) => start + i,
+                  ).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => page !== currentPage && goToPage(page)}
+                      className={`gc-pagination-btn${page === currentPage ? " active" : ""}`}
+                    >
+                      {page}
+                    </button>
+                  ));
+                })()}
+                <button
+                  onClick={nextPage}
+                  disabled={!hasNextPage}
+                  className="gc-pagination-btn"
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
