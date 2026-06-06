@@ -1180,6 +1180,7 @@ export async function shopifyGqlQuery(query, variables = {}) {
 const STYLE_OPTION_TYPES = [
   "gc_jacket_style_option",
   "gc_trouser_style_option",
+  "gc_shirt_style_option",
 ];
 
 export const GARMENT_TO_STYLE_TYPE = Object.fromEntries(
