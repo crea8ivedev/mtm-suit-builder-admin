@@ -1,12 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import {
-  ShoppingBag,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  ArrowRight,
-} from "lucide-react";
+import { ShoppingBag, Clock, Check, X, ArrowRight } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
@@ -16,8 +10,8 @@ import { cn } from "../utils/cn";
 const STAT_CONFIG = [
   { id: "total", label: "Total Orders", icon: ShoppingBag },
   { id: "pending", label: "Pending Orders", icon: Clock },
-  { id: "submitted", label: "Submitted Orders", icon: CheckCircle2 },
-  { id: "failed", label: "Failed Orders", icon: XCircle },
+  { id: "submitted", label: "Submitted Orders", icon: Check },
+  { id: "failed", label: "Failed Orders", icon: X },
 ];
 
 const SP_CLASS = {
@@ -63,7 +57,6 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout onRefresh={retry} isRefreshing={loading}>
-      {/* ── Page Header ── */}
       <div className="mb-[24px] sm:mb-[30px]">
         <h2 className="gc-page-title">Dashboard</h2>
         <p className="gc-page-subtitle">
@@ -75,12 +68,11 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* ── Stat Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-[24px] mb-[40px]">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-[16px] sm:gap-[24px] mb-[40px] md:mr-[-28px]">
         {STAT_CONFIG.map(({ id, label, icon: Icon }) => (
           <div key={id} className="gc-stat-card">
             <div className="gc-stat-icon">
-              <Icon size={14} />
+              <Icon size={14} strokeWidth={4} />
             </div>
             <p className="gc-stat-value">
               {loading ? "—" : String(stats[id] ?? "0")}
@@ -90,9 +82,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* ── Recent Orders Table ── */}
       <div className="gc-table-container">
-        {/* Section header */}
         <div
           className="gc-divider flex items-center justify-between px-[20px] py-[16px]"
           style={{
@@ -126,7 +116,7 @@ export default function Dashboard() {
 
         {!loading && !error && (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full border-collapse">
               <thead>
                 <tr className="gc-table-header-row">
                   {[

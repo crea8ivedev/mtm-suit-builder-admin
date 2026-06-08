@@ -14,8 +14,6 @@ export function useCustomers() {
   const [totalCount, setTotalCount] = useState(null);
   const [pageSize, setPageSizeState] = useState(20);
 
-  // cursors[i] = the Shopify cursor needed to fetch page (i+1)
-  // cursors[0] = null (first page has no cursor)
   const cursorStack = useRef([null]);
   const activeSearch = useRef("");
   const activePageSize = useRef(20);
@@ -41,7 +39,6 @@ export function useCustomers() {
       });
   }, []);
 
-  // Call this to (re)load from page 1 with a given search query
   const load = useCallback(
     (search = "") => {
       activeSearch.current = search;
@@ -84,7 +81,6 @@ export function useCustomers() {
     [fetchPage],
   );
 
-  // Highest page number we can navigate to
   const maxKnownPage = currentPage + (hasNextPage ? 1 : 0);
 
   return {

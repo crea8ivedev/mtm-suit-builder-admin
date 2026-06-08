@@ -79,15 +79,13 @@ export default function Customers() {
   const activeSearch = topSearch || inlineSearch;
   const isFirstLoad = useRef(true);
 
-  // Auto-open modal when navigated from "New Customer" in order flow
   useEffect(() => {
     if (location.state?.autoCreateModal) {
       setModalOpen(true);
       window.history.replaceState({}, "");
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Initial load + debounced search on change
   useEffect(() => {
     if (isFirstLoad.current) {
       isFirstLoad.current = false;
@@ -96,7 +94,7 @@ export default function Customers() {
     }
     const t = setTimeout(() => load(activeSearch), 350);
     return () => clearTimeout(t);
-  }, [activeSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeSearch]);
 
   useEffect(() => {
     if (!toast) return;
@@ -291,7 +289,6 @@ export default function Customers() {
 
         {!loading && !error && (
           <div className="gc-divider flex items-center justify-between px-[24px] py-[16px] flex-wrap gap-[12px]">
-            {/* Left: Entries per page */}
             <div className="flex items-center gap-[8px]" ref={entriesRef}>
               <span className="font-hanken text-[13px] text-gc-text">
                 Entries
@@ -342,7 +339,6 @@ export default function Customers() {
               </div>
             </div>
 
-            {/* Right: Page navigation */}
             {(currentPage > 1 || hasNextPage) && (
               <div className="flex items-center gap-[4px]">
                 <button

@@ -11,7 +11,7 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-page-bg">
+    <div className="min-h-screen bg-gc-bg">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <TopBar
         onMenuClick={() => setSidebarOpen(true)}

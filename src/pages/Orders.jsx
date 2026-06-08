@@ -84,8 +84,6 @@ export default function Orders() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const resetPage = () => setCurrentPage(1);
-
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return orders.filter((order) => {
@@ -118,7 +116,6 @@ export default function Orders() {
 
   return (
     <DashboardLayout onRefresh={retry} isRefreshing={loading}>
-      {/* ── Page Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-[16px] mb-[30px]">
         <div>
           <h2 className="gc-page-title">Order Management</h2>
@@ -132,7 +129,6 @@ export default function Orders() {
         </div>
 
         <div className="flex flex-wrap items-center gap-[10px] w-full sm:w-auto justify-end sm:justify-start">
-          {/* Filter dropdown */}
           <div className="relative" ref={filterRef}>
             <button
               onClick={() => setFilterOpen((v) => !v)}
@@ -158,7 +154,6 @@ export default function Orders() {
                 <button
                   onClick={() => {
                     setSupplierFilter(null);
-                    resetPage();
                     setFilterOpen(false);
                   }}
                   className="font-hanken w-full flex items-center justify-between px-[14px] py-[9px] text-[14px] font-medium text-gc-dark hover:bg-gc-bg transition-colors"
@@ -173,7 +168,6 @@ export default function Orders() {
                     key={opt}
                     onClick={() => {
                       setSupplierFilter(opt);
-                      resetPage();
                       setFilterOpen(false);
                     }}
                     className="font-hanken w-full flex items-center justify-between px-[14px] py-[9px] text-[14px] font-medium text-gc-dark hover:bg-gc-bg transition-colors"
@@ -207,7 +201,6 @@ export default function Orders() {
         </div>
       </div>
 
-      {/* ── Table ── */}
       <div className="gc-table-container">
         {loading && <LoadingState progress={progress} />}
         {error && <ErrorState message={error} onRetry={retry} />}
@@ -289,10 +282,8 @@ export default function Orders() {
               </table>
             </div>
 
-            {/* Pagination */}
             {filtered.length > 0 && (
               <div className="gc-divider flex items-center justify-between px-[24px] py-[16px] flex-wrap gap-[12px]">
-                {/* Left: Entries per page */}
                 <div className="flex items-center gap-[8px]" ref={entriesRef}>
                   <span className="font-hanken text-[13px] text-gc-text">
                     Entries
@@ -347,7 +338,6 @@ export default function Orders() {
                   </div>
                 </div>
 
-                {/* Right: Page navigation */}
                 {totalPages > 1 && (
                   <div className="flex items-center gap-[4px]">
                     <button

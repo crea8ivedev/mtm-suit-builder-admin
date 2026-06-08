@@ -101,7 +101,6 @@ export default function FabricDetailModal({ fabric, onClose }) {
       }}
     >
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-[960px] max-h-[90vh] flex flex-col overflow-hidden">
-        {/* ── Modal header ── */}
         <div className="flex items-center justify-between px-[28px] py-[18px] border-b border-gray-200 flex-shrink-0">
           <h2 className="text-[18px] font-semibold text-gray-800">
             Product Detail
@@ -114,11 +113,8 @@ export default function FabricDetailModal({ fabric, onClose }) {
           </button>
         </div>
 
-        {/* ── Scrollable content ── */}
         <div className="overflow-y-auto flex-1 px-[28px] py-[24px]">
-          {/* ── Category + Fabric row ── */}
           <div className="flex gap-[48px] mb-[28px]">
-            {/* Category */}
             <div className="flex-1 min-w-0">
               <p className="text-[12px] text-gray-400 mb-[12px] font-medium">
                 Category
@@ -138,7 +134,6 @@ export default function FabricDetailModal({ fabric, onClose }) {
               </div>
             </div>
 
-            {/* Fabric */}
             <div className="flex-1 min-w-0">
               <p className="text-[12px] text-gray-400 mb-[12px] font-medium">
                 Fabric
@@ -177,15 +172,12 @@ export default function FabricDetailModal({ fabric, onClose }) {
             </div>
           </div>
 
-          {/* ── Divider ── */}
           <div className="border-t border-gray-200 mb-[24px]" />
 
-          {/* ── Customization heading ── */}
           <p className="text-[13px] font-bold text-gray-700 uppercase tracking-widest mb-[16px]">
             Customization
           </p>
 
-          {/* ── JACKET tab ── */}
           <div className="flex items-center gap-[10px] mb-[20px]">
             <button className="bg-gray-800 text-white text-[12px] font-semibold px-[14px] py-[6px] rounded-md flex items-center gap-[6px]">
               JACKET ({crafts.length})
@@ -212,7 +204,6 @@ export default function FabricDetailModal({ fabric, onClose }) {
             </button>
           </div>
 
-          {/* ── Crafts content ── */}
           {craftsLoading && (
             <div className="flex items-center justify-center py-[48px] gap-[10px] text-gray-400">
               <Loader2 size={20} className="animate-spin" />

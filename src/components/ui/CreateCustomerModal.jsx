@@ -197,7 +197,6 @@ function PhoneField({ phoneIso, onPhoneIsoChange, value, onChange }) {
 
   return (
     <div className="flex gap-[8px]">
-      {/* Flag selector — up/down arrows, no search */}
       <div ref={ref} className="relative flex-shrink-0">
         <button
           type="button"
@@ -207,7 +206,6 @@ function PhoneField({ phoneIso, onPhoneIsoChange, value, onChange }) {
           <span className="text-[20px] leading-none">
             {current?.flag ?? "🌐"}
           </span>
-          {/* Up / down spinner arrows */}
           <div className="flex flex-col items-center gap-[2px]">
             <svg width="7" height="5" viewBox="0 0 7 5" fill="none">
               <path d="M3.5 0L7 5H0L3.5 0Z" fill="#9ca3af" />
@@ -250,7 +248,6 @@ function PhoneField({ phoneIso, onPhoneIsoChange, value, onChange }) {
         )}
       </div>
 
-      {/* Phone code prefix + number input in one box */}
       <div className="flex flex-1 items-center h-[38px] bg-white border border-[#d1c7bd] rounded-[8px] focus-within:border-[#a45d41] transition-colors overflow-hidden">
         {current && (
           <span className="font-hanken text-[14px] text-[#1a1c1b] pl-[14px] pr-[2px] select-none whitespace-nowrap flex-shrink-0">
@@ -289,6 +286,17 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
       setPhoneIso("US");
       setTimeout(() => firstRef.current?.focus(), 50);
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [open]);
 
   useEffect(() => {
@@ -389,7 +397,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-[16px] sm:p-[24px]">
-      {/* Backdrop */}
       <div
         className="absolute inset-0"
         style={{
@@ -399,7 +406,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
         onClick={() => !saving && onClose()}
       />
 
-      {/* Modal */}
       <div
         className="relative w-full sm:w-[672px] rounded-[12px] overflow-hidden flex flex-col max-h-full"
         style={{
@@ -408,7 +414,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
           maxHeight: "min(90vh, 800px)",
         }}
       >
-        {/* Watermark top-right corner */}
         <div
           className="absolute top-0 right-0 w-[128px] h-[129px] pointer-events-none z-10 overflow-hidden"
           style={{ opacity: 0.03, mixBlendMode: "multiply" }}
@@ -442,13 +447,10 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
           </button>
         </div>
 
-        {/* Form body — scrolls when content overflows (e.g. validation errors) */}
         <div className="px-[20px] sm:px-[40px] py-[24px] sm:py-[32px] flex flex-col gap-[32px] sm:gap-[48px] overflow-y-auto flex-1">
-          {/* Section 01 — Identity */}
           <div className="flex flex-col gap-[24px]">
             <SectionHeading num="01" title="Identity" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-[24px] gap-y-[20px] sm:gap-y-[32px]">
-              {/* First Name */}
               <div>
                 <FieldLabel>First Name</FieldLabel>
                 <GCInput
@@ -464,7 +466,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                   </p>
                 )}
               </div>
-              {/* Last Name */}
               <div>
                 <FieldLabel>Last Name</FieldLabel>
                 <GCInput
@@ -479,7 +480,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                   </p>
                 )}
               </div>
-              {/* Email */}
               <div>
                 <FieldLabel>Email Address</FieldLabel>
                 <GCInput
@@ -495,7 +495,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                   </p>
                 )}
               </div>
-              {/* Phone */}
               <div>
                 <FieldLabel>
                   Phone Number{" "}
@@ -513,11 +512,9 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
             </div>
           </div>
 
-          {/* Section 02 — Residence */}
           <div className="flex flex-col gap-[24px]">
             <SectionHeading num="02" title="Residence" />
             <div className="flex flex-col gap-[32px]">
-              {/* Country */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-[24px]">
                 <div>
                   <FieldLabel>Country</FieldLabel>
@@ -538,7 +535,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                   )}
                 </div>
               </div>
-              {/* Address */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-[24px] gap-y-[20px] sm:gap-y-0">
                 <div>
                   <FieldLabel>Address</FieldLabel>
@@ -568,7 +564,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                   />
                 </div>
               </div>
-              {/* City / State / Zip */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-[24px] gap-y-[20px] sm:gap-y-0">
                 <div>
                   <FieldLabel>State</FieldLabel>
@@ -639,7 +634,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
             </div>
           </div>
 
-          {/* API error */}
           {apiError && (
             <div className="px-[14px] py-[10px] bg-red-50 border border-red-200 rounded-[8px]">
               <p className="font-hanken text-[13px] text-red-600">{apiError}</p>
@@ -647,7 +641,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
           )}
         </div>
 
-        {/* Footer */}
         <form onSubmit={handleSubmit} className="flex-shrink-0">
           <div
             className="flex items-center justify-end gap-[12px] sm:gap-[20px] px-[20px] sm:px-[40px] pb-[20px] pt-[16px] sm:pt-[21px]"

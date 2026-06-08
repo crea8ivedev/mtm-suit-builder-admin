@@ -2,13 +2,13 @@ import { useParams } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import {
   ExternalLink,
-  RefreshCw,
   RotateCw,
   ChevronDown,
   Check,
   AlertCircle,
-  Calendar,
-  Ruler,
+  CalendarCheck2,
+  ListChecks,
+  Download,
 } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
@@ -16,8 +16,7 @@ import ErrorState from "../components/ui/ErrorState";
 import { useOrderDetail } from "../hooks/useOrderDetail";
 import { useSupplierSubmit, SUPPLIERS } from "../hooks/useSupplierSubmit";
 import { formatCurrency, formatDate } from "../lib/shopify";
-
-// ─── Helpers ───────────────────────────────────────────────────────────────
+import { generateSingleOrderCSV } from "../utils/exportUtils";
 
 function mapPaymentBadge(s) {
   return (
@@ -44,26 +43,18 @@ function parseSupplierMeta(order) {
   };
 }
 
-// Split all custom attributes into two display buckets:
-//   options   — style/fit choices (non-numeric values)
-//   measurements — any attribute whose value looks like a measurement (numeric, size, etc.)
-//                  also includes "Vest " prefixed keys with the prefix stripped
-// Both buckets are displayed so nothing is hidden.
 function categorize(customAttributes = []) {
   const options = [];
   const measurements = [];
   for (const attr of customAttributes) {
     if (attr.key.startsWith("_")) continue;
-    // strip "Vest " prefix for neater display
     const key = attr.key.startsWith("Vest ")
       ? attr.key.replace("Vest ", "")
       : attr.key;
-    // strip trailing inch-mark from stored values e.g. "38\""  → "38"
     const value = attr.value?.endsWith('"')
       ? attr.value.slice(0, -1)
       : (attr.value ?? "");
     const entry = { key, value };
-    // numeric-looking value → measurement; everything else → style option
     if (value && /^\d/.test(value)) {
       measurements.push(entry);
     } else {
@@ -73,7 +64,6 @@ function categorize(customAttributes = []) {
   return { options, measurements };
 }
 
-// ─── GC Section label ──────────────────────────────────────────────────────
 function SectionLabel({ children }) {
   return (
     <p
@@ -85,7 +75,6 @@ function SectionLabel({ children }) {
   );
 }
 
-// ─── GC White card ─────────────────────────────────────────────────────────
 function GCCard({ children, className = "" }) {
   return (
     <div
@@ -100,7 +89,6 @@ function GCCard({ children, className = "" }) {
   );
 }
 
-// ─── Payment badge ─────────────────────────────────────────────────────────
 function PaymentBadge({ status }) {
   const s = (status ?? "").toLowerCase();
   const styles = {
@@ -119,7 +107,6 @@ function PaymentBadge({ status }) {
   );
 }
 
-// ─── Supplier status pill ──────────────────────────────────────────────────
 function SupplierPill({ status }) {
   const s = (status ?? "").toLowerCase();
   const styles = {
@@ -144,7 +131,6 @@ function SupplierPill({ status }) {
   );
 }
 
-// ─── Supplier Card ─────────────────────────────────────────────────────────
 function SupplierCard({ orderId, supplierMeta, onSettled }) {
   const [suppliers, setSuppliers] = useState([]);
   const [selectedId, setSelectedId] = useState(supplierMeta.supplierName ?? "");
@@ -199,50 +185,47 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
               className={`flex-shrink-0 text-[#424656] transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
             />
           </button>
-          {dropdownOpen && (
-            <div
-              className="absolute left-0 right-0 top-full mt-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden"
-              style={{ border: "1px solid #d1c7bd" }}
-            >
-              <ul className="max-h-[220px] overflow-y-auto py-[4px]">
-                <li>
+          <div
+            className={`absolute left-0 right-0 bottom-full mb-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden transition-all duration-200 origin-bottom ${dropdownOpen ? "opacity-100 scale-y-100 pointer-events-auto" : "opacity-0 scale-y-95 pointer-events-none"}`}
+            style={{ border: "1px solid #d1c7bd" }}
+          >
+            <ul className="max-h-[220px] overflow-y-auto py-[4px]">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedId("");
+                    setDropdownOpen(false);
+                  }}
+                  className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-[#424656] hover:bg-[#f4f1ed] flex items-center justify-between cursor-pointer"
+                >
+                  — Choose supplier —
+                  {!selectedId && (
+                    <Check size={13} className="text-gc-primary" />
+                  )}
+                </button>
+              </li>
+              {suppliers.map((s) => (
+                <li key={s.id}>
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedId("");
+                      setSelectedId(s.id);
                       setDropdownOpen(false);
                     }}
-                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-[#424656] hover:bg-[#f4f1ed] flex items-center justify-between cursor-pointer"
+                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-[#1a1c1b] hover:bg-[#f4f1ed] flex items-center justify-between cursor-pointer"
                   >
-                    — Choose supplier —
-                    {!selectedId && (
+                    {s.name}
+                    {selectedId === s.id && (
                       <Check size={13} className="text-gc-primary" />
                     )}
                   </button>
                 </li>
-                {suppliers.map((s) => (
-                  <li key={s.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedId(s.id);
-                        setDropdownOpen(false);
-                      }}
-                      className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-[#1a1c1b] hover:bg-[#f4f1ed] flex items-center justify-between cursor-pointer"
-                    >
-                      {s.name}
-                      {selectedId === s.id && (
-                        <Check size={13} className="text-gc-primary" />
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+              ))}
+            </ul>
+          </div>
         </div>
 
-        {/* Action button */}
         {isFailed ? (
           <button
             onClick={() => retry(selectedId)}
@@ -262,7 +245,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
             className="flex items-center justify-center w-[35px] rounded-[8px] text-[#1a1c1b] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ border: "1px solid #000" }}
           >
-            <RefreshCw
+            <RotateCw
               size={14}
               className={isProcessing ? "animate-spin" : ""}
             />
@@ -292,7 +275,6 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
   );
 }
 
-// ─── Attribute grid (shared by Style Options + Measurements) ──────────────
 function AttrGrid({ items }) {
   return (
     <div
@@ -305,16 +287,16 @@ function AttrGrid({ items }) {
       {items.map(({ key, value }) => (
         <div
           key={key}
-          className="flex flex-col items-start px-[16px] py-[14px]"
+          className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[14px] min-w-0 overflow-hidden"
           style={{
             borderRight: "1px solid rgba(197,198,205,0.3)",
             borderBottom: "1px solid rgba(197,198,205,0.3)",
           }}
         >
-          <span className="font-hanken text-[10px] text-[#44474c] uppercase leading-[15px]">
+          <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
             {key}
           </span>
-          <span className="font-hanken text-[16px] font-medium text-[#1a1c1b] leading-[26px] break-words">
+          <span className="font-hanken text-[12px] sm:text-[16px] font-medium text-[#1a1c1b] leading-[20px] sm:leading-[26px] break-words w-full">
             {value || "—"}
           </span>
         </div>
@@ -323,7 +305,6 @@ function AttrGrid({ items }) {
   );
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────
 export default function OrderDetail() {
   const { orderId } = useParams();
   const shopifyGid = `gid://shopify/Order/${orderId}`;
@@ -363,7 +344,6 @@ export default function OrderDetail() {
 
       {!loading && !error && order && (
         <div className="space-y-[20px]">
-          {/* ── Error alert banner ── */}
           {(isFailed || supplierError) && (
             <div
               className="flex flex-wrap items-start justify-between gap-[16px] pl-[20px] sm:pl-[28px] pr-[16px] sm:pr-[24px] py-[20px] sm:py-[24px] rounded-[4px]"
@@ -405,7 +385,6 @@ export default function OrderDetail() {
             </div>
           )}
 
-          {/* ── Order header card ── */}
           <div
             className="bg-white rounded-[12px] p-[20px] sm:p-[33px]"
             style={{
@@ -415,10 +394,9 @@ export default function OrderDetail() {
           >
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-[16px]">
               <div className="flex flex-wrap items-start gap-[16px] sm:gap-[24px]">
-                {/* Order # + status + date */}
                 <div className="flex flex-col gap-[8px]">
                   <h1 className="font-garamond text-[28px] sm:text-[36px] font-normal text-black leading-[1.1]">
-                    {order.name}
+                    Order {order.name}
                   </h1>
                   <div className="flex flex-wrap items-center gap-[8px] sm:gap-[12px]">
                     <PaymentBadge
@@ -430,15 +408,12 @@ export default function OrderDetail() {
                   </div>
                 </div>
 
-                {/* Vertical divider — hidden on mobile */}
                 <div
-                  className="hidden sm:block w-px h-[48px] flex-shrink-0"
+                  className="hidden sm:block w-px h-[48px] flex-shrink-0 mt-[14px]"
                   style={{ backgroundColor: "#c5c6cd" }}
                 />
-
-                {/* Stats */}
                 <div className="flex gap-[24px] sm:gap-[48px] items-start">
-                  <div className="flex flex-col gap-[3px]">
+                  <div className="flex flex-col gap-[3px] mt-[14px]">
                     <span className="font-hanken text-[10px] tracking-[1px] uppercase text-[#44474c]">
                       TOTAL AMOUNT
                     </span>
@@ -446,7 +421,7 @@ export default function OrderDetail() {
                       {formatCurrency(order.totalPriceSet)}
                     </span>
                   </div>
-                  <div className="flex flex-col gap-[3px]">
+                  <div className="flex flex-col gap-[3px] mt-[14px]">
                     <span className="font-hanken text-[10px] tracking-[1px] uppercase text-[#44474c]">
                       ITEMS
                     </span>
@@ -458,24 +433,29 @@ export default function OrderDetail() {
                 </div>
               </div>
 
-              {/* Open in Shopify */}
-              <a
-                href={shopifyAdminUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-hanken inline-flex items-center gap-[8px] px-[16px] sm:px-[25px] py-[10px] sm:py-[13px] rounded-[8px] text-[12px] font-bold uppercase text-black border border-black hover:bg-gray-50 transition-colors self-start sm:self-auto flex-shrink-0"
-              >
-                <ExternalLink size={13} />
-                OPEN IN SHOPIFY
-              </a>
+              <div className="flex items-center gap-[10px] self-start sm:self-auto flex-shrink-0">
+                <button
+                  onClick={() => generateSingleOrderCSV(order)}
+                  className="font-hanken inline-flex items-center gap-[8px] px-[16px] sm:px-[25px] py-[10px] sm:py-[13px] rounded-[8px] text-[12px] font-bold uppercase text-black border border-black hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  <Download size={13} />
+                  EXPORT
+                </button>
+                <a
+                  href={shopifyAdminUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-hanken inline-flex items-center gap-[8px] px-[16px] sm:px-[25px] py-[10px] sm:py-[13px] rounded-[8px] text-[12px] font-bold uppercase text-black border border-black hover:bg-gray-50 transition-colors"
+                >
+                  <ExternalLink size={13} />
+                  OPEN IN SHOPIFY
+                </a>
+              </div>
             </div>
           </div>
 
-          {/* ── Two-column layout ── */}
           <div className="flex flex-col lg:flex-row gap-[20px] lg:gap-[30px] items-start">
-            {/* Left column */}
             <div className="flex flex-col gap-[20px] w-full lg:w-[326px] lg:flex-shrink-0">
-              {/* Customer card */}
               {order.customer && (
                 <GCCard>
                   <SectionLabel>Customer Information</SectionLabel>
@@ -485,14 +465,6 @@ export default function OrderDetail() {
                         .filter(Boolean)
                         .join(" ") || "Guest"}
                     </span>
-                    {order.customer.tags?.includes("premium") && (
-                      <span
-                        className="font-hanken text-[10px] font-bold uppercase text-black px-[8px] py-[2px] rounded-[8px]"
-                        style={{ backgroundColor: "#ffdea5" }}
-                      >
-                        PREMIUM MEMBER
-                      </span>
-                    )}
                   </div>
                   {order.customer.email && (
                     <p className="font-hanken italic text-[16px] text-black mt-[8px] leading-[25.6px]">
@@ -510,7 +482,6 @@ export default function OrderDetail() {
                 </GCCard>
               )}
 
-              {/* Address card */}
               {(order.shippingAddress || order.billingAddress) && (
                 <GCCard className="flex flex-col gap-[24px]">
                   {order.shippingAddress && (
@@ -533,7 +504,6 @@ export default function OrderDetail() {
                 </GCCard>
               )}
 
-              {/* Supplier card */}
               <SupplierCard
                 orderId={orderId}
                 supplierMeta={supplierMeta}
@@ -541,9 +511,7 @@ export default function OrderDetail() {
               />
             </div>
 
-            {/* Right column */}
-            <div className="flex flex-col gap-[20px] flex-1 min-w-0">
-              {/* Order items card */}
+            <div className="flex flex-col gap-[20px] w-full flex-1 min-w-0">
               {lineItems.map((item, idx) => {
                 const { options } = categorize(item.customAttributes);
                 const sizeType = options.find(
@@ -552,7 +520,6 @@ export default function OrderDetail() {
 
                 return (
                   <div key={item.id} className="flex flex-col gap-[20px]">
-                    {/* Items card */}
                     <div
                       className="bg-white rounded-[12px] overflow-hidden"
                       style={{
@@ -560,7 +527,6 @@ export default function OrderDetail() {
                         boxShadow: "0px 1px 1px rgba(0,0,0,0.05)",
                       }}
                     >
-                      {/* Card header */}
                       <div
                         className="flex items-center justify-between px-[24px] py-[12px]"
                         style={{ backgroundColor: "#f2e9e5" }}
@@ -577,7 +543,6 @@ export default function OrderDetail() {
                       </div>
 
                       <div className="p-[24px] flex flex-col gap-[24px]">
-                        {/* Item row */}
                         <div className="flex flex-col gap-[8px]">
                           <div className="flex items-start justify-between">
                             <span className="font-garamond text-[24px] font-medium text-[#1a1c1b] leading-[31px]">
@@ -600,7 +565,6 @@ export default function OrderDetail() {
                               : "—"}
                           </p>
 
-                          {/* Style upcharge breakdown */}
                           {(() => {
                             const upchargeEntries = (
                               item.customAttributes ?? []
@@ -656,7 +620,6 @@ export default function OrderDetail() {
                             );
                           })()}
 
-                          {/* Fulfillment info box */}
                           <div
                             className="flex flex-col gap-[13px] p-[17px] rounded-[8px] mt-[4px]"
                             style={{
@@ -674,7 +637,7 @@ export default function OrderDetail() {
                             </div>
                             {supplierSubmittedAt && (
                               <div className="flex items-center gap-[8px]">
-                                <Calendar
+                                <CalendarCheck2
                                   size={13}
                                   style={{ color: "#1a1c1b" }}
                                 />
@@ -686,8 +649,7 @@ export default function OrderDetail() {
                           </div>
                         </div>
 
-                        {/* Ledger */}
-                        <div className="flex flex-col gap-[12px] w-[256px] self-start">
+                        <div className="flex flex-col gap-[12px] w-full sm:w-[256px] self-start">
                           {[
                             {
                               label: "Subtotal",
@@ -731,13 +693,12 @@ export default function OrderDetail() {
                 );
               })}
 
-              {/* Measurements card */}
               {allAttributes.length > 0 && (
                 <GCCard className="flex flex-col gap-[24px]">
                   <div className="flex items-center gap-[8px]">
-                    <Ruler size={18} style={{ color: "#1a1c1b" }} />
+                    <ListChecks size={20} style={{ color: "#A45D41" }} />
                     <span className="font-garamond text-[24px] font-medium text-[#1a1c1b] leading-[31px]">
-                      Anatomical Measurements
+                      Measurements
                     </span>
                   </div>
                   <AttrGrid items={allAttributes} />
@@ -751,7 +712,6 @@ export default function OrderDetail() {
   );
 }
 
-// ─── Address lines helper ──────────────────────────────────────────────────
 function AddressLines({ address }) {
   const name = [address.firstName, address.lastName].filter(Boolean).join(" ");
   const cityLine = [address.city, address.province, address.zip]

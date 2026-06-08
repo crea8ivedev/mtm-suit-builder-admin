@@ -1,4 +1,4 @@
-const BASE = "/api/kt"; // proxied to VITE_KUTETAILOR_API_URL in vite.config.js / vercel api/kt.js
+const BASE = "/api/kt";
 
 let _token = null;
 let _tokenExpiry = 0;
@@ -26,9 +26,7 @@ async function fetchFreshToken() {
   let json = {};
   try {
     json = JSON.parse(raw);
-  } catch {
-    /* non-JSON */
-  }
+  } catch {}
 
   if (!res.ok || (json.code !== undefined && json.code !== "0")) {
     throw new Error(
@@ -118,10 +116,8 @@ async function fetchCraftsByCategory(categoryId, token) {
   for (const item of defaults) {
     if (item.lapel !== null) continue;
     const pid = item.pid;
-    // eslint-disable-next-line eqeqeq
     if (item.memberId == 0 && !(pid in systemDefaults)) {
       systemDefaults[pid] = { craftId: item.craftId, sort: item.sort ?? 999 };
-      // eslint-disable-next-line eqeqeq
     } else if (userId && item.memberId == userId) {
       memberOverrides[pid] = { craftId: item.craftId, sort: item.sort ?? 999 };
     }
@@ -211,7 +207,6 @@ export async function getCraftOptions(pid, categoryId = 2) {
   const userId = decodeUserId(token);
   for (const item of defaults) {
     if (item.pid === pid && item.lapel === null) {
-      // eslint-disable-next-line eqeqeq
       if (
         (item.memberId == 0 || (userId && item.memberId == userId)) &&
         !filteredIds.includes(item.craftId)
@@ -244,79 +239,6 @@ export async function getCraftOptions(pid, categoryId = 2) {
   return options;
 }
 
-const SYNC_CATS = [
-  { label: "Men Jacket", categoryId: 2 },
-  { label: "Men Pants", categoryId: 1001 },
-  { label: "Men Vest", categoryId: 1002 },
-  { label: "Men Shirt", categoryId: 1100 },
-  { label: "Men Tuxedo", categoryId: 2853 },
-];
-
-const CDN = "https://aws-static-webp.kutetailor.com/comm/process/craft";
-const CRAFT_BASE = "/craft/craft";
-
-export async function buildSyncPayload() {
-  const token = await getToken();
-  const result = {};
-
-  for (const cat of SYNC_CATS) {
-    const defaultsResp = await ktFetch(
-      `${CRAFT_BASE}/craft-default/selectByCategoryId?categoryId=${cat.categoryId}`,
-      token,
-    );
-    const defaults = Array.isArray(defaultsResp.data) ? defaultsResp.data : [];
-    const crafts = await fetchCraftsByCategory(cat.categoryId, token);
-    const categoryData = {};
-
-    const allCraftIds = [
-      ...new Set(
-        defaults.filter((i) => i.lapel === null).map((i) => i.craftId),
-      ),
-    ];
-    const craftResp = await ktPost(
-      `${CRAFT_BASE}/craft/listCraftByIdList`,
-      token,
-      allCraftIds,
-    );
-    const craftMap = Object.fromEntries(
-      (craftResp.data || []).map((c) => [c.id, c]),
-    );
-
-    for (const craft of crafts) {
-      const pidCraftIds = [
-        ...new Set(
-          defaults
-            .filter((i) => i.pid === craft.pid && i.lapel === null)
-            .map((i) => i.craftId),
-        ),
-      ];
-      const seenNames = new Set();
-      const options = [];
-      for (const id of pidCraftIds) {
-        const c = craftMap[id];
-        if (!c) continue;
-        const name = c.en || c.name;
-        if (seenNames.has(name)) continue;
-        seenNames.add(name);
-        options.push({
-          id: c.id,
-          name,
-          code: c.ecode || null,
-          imgUrl: c.ecode ? `${CDN}/${c.ecode}.jpeg` : null,
-        });
-      }
-      categoryData[craft.category] = {
-        pid: craft.pid,
-        defaultCode: craft.code,
-        defaultName: craft.name,
-        options,
-      };
-    }
-    result[cat.label] = categoryData;
-  }
-  return result;
-}
-
 function mapSizes(customAttributes = []) {
   return customAttributes
     .filter(
@@ -339,8 +261,6 @@ function buildOrderPayload(order, { submit }) {
   const weight = parseFloat(kuteAttr(attrs, "weight") ?? "0") || 0;
   const gender = parseInt(kuteAttr(attrs, "gender") ?? "1004", 10);
 
-  // Kutetailor requires customerNo to be at least 8 digits.
-  // order.name is "#1167" (too short) — use the numeric Shopify order ID instead.
   const customerNo =
     (order.id ?? "").split("/").pop() || order.name.replace(/\D/g, "");
 

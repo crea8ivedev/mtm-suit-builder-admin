@@ -58,7 +58,6 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
         <Menu size={20} />
       </button>
 
-      {/* Left area: back button OR search OR empty */}
       <div className="flex-1 min-w-0">
         {isOrderDetail ? (
           <div className="flex items-center gap-[16px] sm:gap-[32px]">
@@ -119,7 +118,6 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
 
       {/* Right side */}
       <div className="flex items-center gap-[12px] sm:gap-[20px] flex-shrink-0">
-        {/* Refresh — only on pages that provide the handler */}
         {onRefresh && (
           <>
             <button
@@ -134,7 +132,6 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
               />
             </button>
 
-            {/* Divider */}
             <div
               className="hidden sm:block w-px h-[32px]"
               style={{ backgroundColor: "rgba(194,198,216,0.3)" }}
@@ -142,7 +139,6 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
           </>
         )}
 
-        {/* User info */}
         <div className="flex items-center gap-[8px] sm:gap-[12px]">
           <div className="hidden sm:flex flex-col items-end">
             <span className="font-garamond text-[12px] font-bold text-gc-dark leading-[14px] whitespace-nowrap">

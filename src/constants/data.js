@@ -1,5 +1,3 @@
-// ─── Dashboard stat cards ──────────────────────────────────────────────────
-// `value` is overridden dynamically in Dashboard.jsx using real Shopify counts
 export const STAT_CARDS = [
   {
     id: "total",

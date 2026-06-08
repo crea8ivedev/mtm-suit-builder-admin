@@ -102,7 +102,6 @@ function getRangeForKey(rangeMap, key) {
   return null;
 }
 
-// Status pill — same as Orders page
 const SP_CLASS = {
   paid: "sp-paid",
   verified: "sp-verified",
@@ -279,7 +278,6 @@ export default function CustomerDetail() {
     [activeProfiles],
   );
 
-  // Group measurements by profile name for tabs
   const profileTabNames = useMemo(() => {
     const seen = new Set();
     const names = [];
@@ -294,7 +292,6 @@ export default function CustomerDetail() {
 
   const [activeProfileTab, setActiveProfileTab] = useState(null);
 
-  // Auto-select first tab when tabs load / change
   useEffect(() => {
     if (profileTabNames.length > 0) {
       setActiveProfileTab((prev) =>
@@ -335,7 +332,6 @@ export default function CustomerDetail() {
 
       {!loading && !error && customer && (
         <div className="flex flex-col gap-[40px]">
-          {/* ── Section 1: Customer Profile Header ── */}
           <div
             className="bg-white rounded-[12px] p-[20px] sm:p-[33px] flex flex-col gap-[20px] sm:gap-[24px]"
             style={{ border: "1px solid rgba(207,196,197,0.3)" }}
@@ -372,7 +368,6 @@ export default function CustomerDetail() {
               </div>
             </div>
 
-            {/* Stats row */}
             <div
               className="grid grid-cols-1 sm:grid-cols-3 gap-[20px] sm:gap-[32px] pt-[20px] sm:pt-[25px]"
               style={{ borderTop: "1px solid rgba(207,196,197,0.4)" }}
@@ -394,18 +389,13 @@ export default function CustomerDetail() {
             </div>
           </div>
 
-          {/* ── Section 2: Recent Orders ── */}
           <div className="flex flex-col gap-[24px]">
-            {/* Section heading */}
             <div
               className="flex flex-wrap items-center gap-[12px] pb-[17px]"
               style={{ borderBottom: "1px solid rgba(0,0,0,0.1)" }}
             >
               <span className="font-garamond text-[20px] sm:text-[24px] font-medium text-[#1a1c1b]">
-                Recent Orders
-              </span>
-              <span className="font-hanken text-[14px] font-semibold uppercase text-gc-primary">
-                {orders.length} total
+                Orders
               </span>
             </div>
 
@@ -505,7 +495,6 @@ export default function CustomerDetail() {
                   {/* Pagination */}
                   {orders.length > 0 && (
                     <div className="flex items-center justify-between px-[24px] py-[16px] gc-divider flex-wrap gap-[12px]">
-                      {/* Left: Entries per page */}
                       <div
                         className="flex items-center gap-[8px]"
                         ref={entriesRef}
@@ -644,10 +633,8 @@ export default function CustomerDetail() {
             </div>
           </div>
 
-          {/* ── Section 3: Technical Measurements ── */}
           {allMeasurements.length > 0 && (
             <div className="flex flex-col gap-[0]">
-              {/* Profile name tabs */}
               <div className="flex flex-wrap gap-[8px] pb-[20px]">
                 {profileTabNames.map((name) => (
                   <button
@@ -669,7 +656,6 @@ export default function CustomerDetail() {
                 ))}
               </div>
 
-              {/* Active tab content */}
               <div className="flex flex-col gap-[24px] pt-[24px]">
                 {activeTabEntries.map((entry) => {
                   const isEditing = editingProfileId === entry.id;
@@ -706,7 +692,6 @@ export default function CustomerDetail() {
 
                   return (
                     <div key={entry.id} className="flex flex-col gap-[24px]">
-                      {/* Section header row */}
                       <div
                         className="flex flex-wrap items-start sm:items-end justify-between gap-[12px] pb-[17px]"
                         style={{ borderBottom: "1px solid rgba(0,0,0,0.1)" }}
@@ -759,7 +744,6 @@ export default function CustomerDetail() {
                         </div>
                       </div>
 
-                      {/* 6-col measurement grid — Figma: gray bg + 1px gaps + white cells */}
                       <div
                         className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 rounded-[12px] p-px gap-px"
                         style={{ border: "1px solid rgba(207,196,197,0.4)" }}
@@ -800,16 +784,13 @@ export default function CustomerDetail() {
                             <div
                               key={key}
                               className={cn(
-                                "bg-white flex flex-col p-[24px] h-[124px]",
+                                "bg-white flex flex-col p-[10px] sm:p-[20px] h-[90px] sm:h-[120px] overflow-hidden",
                                 isFirst && "rounded-tl-[12px]",
                               )}
                             >
-                              {/* Label */}
-                              <span className="font-hanken text-[9px] font-semibold uppercase tracking-[0.9px] text-[#7e7576] leading-[9px]">
+                              <span className="font-hanken text-[8px] sm:text-[10px] font-semibold uppercase tracking-[0.5px] text-[#7e7576] leading-[10px] sm:leading-[12px] break-words">
                                 {displayKey}
                               </span>
-
-                              {/* Value */}
                               {isEditing && !isSizeType ? (
                                 <input
                                   type="text"
@@ -821,7 +802,7 @@ export default function CustomerDetail() {
                                     )
                                   }
                                   className={cn(
-                                    "font-garamond mt-[5px] w-full text-[28px] text-black bg-transparent outline-none border-b",
+                                    "font-garamond mt-[3px] w-full text-[16px] sm:text-[20px] text-black bg-transparent outline-none border-b",
                                     isValid
                                       ? "border-green-500 text-green-700"
                                       : isInvalid
@@ -830,16 +811,15 @@ export default function CustomerDetail() {
                                   )}
                                 />
                               ) : (
-                                <span className="font-garamond text-[32px] text-black leading-[48px] mt-[5px]">
+                                <span className="font-garamond text-[14px] sm:text-[22px] text-black leading-[18px] sm:leading-[30px] mt-[3px]">
                                   {val}
                                 </span>
                               )}
 
-                              {/* Unit or range hint */}
                               {isEditing && range ? (
                                 <span
                                   className={cn(
-                                    "font-hanken text-[10px] mt-auto",
+                                    "font-hanken text-[9px] mt-auto",
                                     isValid
                                       ? "text-green-600"
                                       : isInvalid
@@ -850,7 +830,7 @@ export default function CustomerDetail() {
                                   {range.min}–{range.max}
                                 </span>
                               ) : (
-                                <span className="font-hanken text-[10px] text-[#7e7576] mt-auto leading-[15px]">
+                                <span className="font-hanken text-[9px] text-[#7e7576] mt-auto leading-[13px]">
                                   Inches
                                 </span>
                               )}

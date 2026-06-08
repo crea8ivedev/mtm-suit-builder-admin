@@ -1,11 +1,9 @@
 export const config = { api: { bodyParser: false } };
 
 export default async function handler(req, res) {
-  // req.query.path = ['token','oauth','token'] for /api/kt/token/oauth/token
   const segments = req.query.path;
   const pathPart = Array.isArray(segments) ? "/" + segments.join("/") : "/";
 
-  // Preserve query string but strip the Vercel routing param
   const qs = req.url.includes("?") ? "?" + req.url.split("?").slice(1).join("?") : "";
 
   const base = (

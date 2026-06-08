@@ -71,7 +71,6 @@ export default function Sidebar({ isOpen, onClose }) {
           </div>
         </div>
 
-        {/* Close button mobile */}
         <button
           onClick={onClose}
           className="absolute top-[16px] right-[16px] lg:hidden text-white/70 hover:text-white p-[4px] rounded transition-colors"
@@ -124,19 +123,19 @@ export default function Sidebar({ isOpen, onClose }) {
         </nav>
 
         {/* Logout */}
-        <div
-          className="px-[24px] pb-[32px] pt-[25px]"
-          style={{ borderTop: "1px solid rgba(255,255,255,0.2)" }}
-        >
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-[4px] hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <LogOut size={14} className="text-white" />
-            <span className="font-hanken text-white text-[14px] font-medium whitespace-nowrap">
-              Log Out
-            </span>
-          </button>
+        <div>
+          <div className="w-[208px] h-[1px] bg-white opacity-20 mx-auto" />
+          <div className="px-[24px] pb-[32px] pt-[25px]">
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-[4px] hover:opacity-80 transition-opacity cursor-pointer"
+            >
+              <LogOut size={14} className="text-white" />
+              <span className="font-hanken text-white text-[14px] font-medium whitespace-nowrap">
+                Log Out
+              </span>
+            </button>
+          </div>
         </div>
       </aside>
     </>

@@ -32,7 +32,6 @@ export async function checkSuperAdmin(email) {
 // ─── GraphQL query ─────────────────────────────────────────────────────────
 // Fetches one page of orders with cursor-based pagination.
 // lineItems(first: 10) keeps per-request cost well under Shopify's 1 000-point limit.
-// (50 orders × 10 lineItems × ~2 fields ≈ 1 000 cost units total.)
 const GET_ORDERS_QUERY = `
   query GetOrders($first: Int!, $after: String) {
     orders(first: $first, after: $after, sortKey: CREATED_AT, reverse: true) {
@@ -95,7 +94,6 @@ const GET_ORDERS_QUERY = `
   }
 `;
 
-// ─── Low-level GraphQL executor ────────────────────────────────────────────
 async function shopifyGraphQL(query, variables = {}) {
   const res = await fetch(ENDPOINT, {
     method: "POST",
@@ -266,7 +264,6 @@ export async function fetchGcBuilderProducts() {
   return all;
 }
 
-// ─── Module-level cache ────────────────────────────────────────────────────
 let _cachedOrders = null;
 let _fetchPromise = null;
 const _orderDetailCache = new Map();
@@ -291,8 +288,6 @@ export async function fetchOrderById(shopifyGid) {
 }
 
 // ─── Fetch ALL orders with cursor pagination ───────────────────────────────
-// Loops through pages until pageInfo.hasNextPage is false.
-// onProgress(count) is called after each page to allow live progress display.
 async function _doFetch(onProgress) {
   const all = [];
   let hasNextPage = true;
@@ -543,7 +538,6 @@ export function transformCustomer(node) {
   };
 }
 
-// ─── Status mapping ────────────────────────────────────────────────────────
 const PAYMENT_STATUS_MAP = {
   PAID: "paid",
   UNPAID: "pending",
@@ -565,10 +559,6 @@ const FULFILLMENT_STATUS_MAP = {
   SCHEDULED: "pending",
 };
 
-// Map Shopify statuses → custom admin status column:
-//   submitted = fulfilled (sent to supplier / delivered)
-//   failed    = refunded or voided
-//   pending   = everything else (awaiting processing)
 function mapCustomStatus(node) {
   if (
     node.displayFinancialStatus === "REFUNDED" ||
@@ -600,7 +590,6 @@ export function formatDate(isoString) {
   });
 }
 
-// ─── Transform raw Shopify order node → UI-ready shape ────────────────────
 export function transformOrder(node) {
   const firstName = node.customer?.firstName || "";
   const lastName = node.customer?.lastName || "";
@@ -652,8 +641,6 @@ export function transformOrder(node) {
     tags: [],
   };
 }
-
-// ─── Mutations (previously server-side) ───────────────────────────────────
 
 const SET_METAFIELDS = `
   mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
@@ -851,7 +838,6 @@ export async function getProductFields(shopifyProductGid) {
       const itemNumericId = item.product?.id?.split("/").pop();
       if (itemNumericId !== numericId) continue;
 
-      // Skip standard-size orders — only collect fields from custom-size orders
       const sizeType = (item.customAttributes ?? [])
         .find((a) => a.key.toLowerCase() === "size type")
         ?.value?.toLowerCase();
@@ -1109,7 +1095,6 @@ let _jacketFieldsListCache = null;
 let _jacketRangesCacheAt = 0;
 const JACKET_CACHE_TTL = 30 * 60 * 1000;
 
-// Keyed by handle — maps to alternate label used in older orders
 const JACKET_BUILDER_ABBR = {
   seat: "Seat (Hip)",
   "front-waist-length": "Front Waist Len",
@@ -1135,7 +1120,6 @@ async function _loadJacketData() {
     const min = parseFloat(fm.min ?? 0);
     const max = parseFloat(fm.max ?? 0);
     const handle = node.handle;
-    // key field values like "j_ neck" have an extra space — strip all whitespace
     const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : handle;
     if (!label || isNaN(min) || isNaN(max)) continue;
     const entry = { label, min, max, hint: `${min}–${max}` };
@@ -1174,8 +1158,6 @@ export async function fetchJacketMeasurementFields() {
 export async function shopifyGqlQuery(query, variables = {}) {
   return shopifyGraphQL(query, variables);
 }
-
-// ─── Style Options (multi-garment metaobjects) ────────────────────────────────
 
 const STYLE_OPTION_TYPES = [
   "gc_jacket_style_option",
@@ -1239,8 +1221,6 @@ async function fetchStyleOptionsForType(type) {
       const fm = Object.fromEntries(
         node.fields.map((f) => [f.key, f.value ?? ""]),
       );
-      // type string for every field — normalized lowercase
-      // e.g. "file_reference", "boolean", "number_integer"
       const fieldTypes = Object.fromEntries(
         node.fields.map((f) => [
           f.key,
@@ -1262,14 +1242,11 @@ async function fetchStyleOptionsForType(type) {
         conditionalHide: fm.conditional_hide || "",
         imageGid: fm.image || null,
         imageUrlStored: fm.image_url || null,
-        // image_url (uploaded) takes priority over kutetailor CDN
         imageUrl:
           fm.image_url ||
           (fm.kutetailer_code
             ? `https://aws-static-webp.kutetailor.com/comm/process/craft/${fm.kutetailer_code}.jpeg`
             : null),
-        // ALL raw field values and types — so forms can pre-fill and render correctly
-        // for any field added to Shopify after this code was written
         rawFields: fm,
         fieldTypes,
       });
@@ -1291,11 +1268,9 @@ const GET_FILE_URLS_QUERY = `
   }
 `;
 
-// Batch-resolves file GIDs → CDN URLs. Returns { [gid]: url } map.
 async function resolveFileGidUrls(gids) {
   const map = {};
   if (!gids.length) return map;
-  // Shopify nodes query accepts up to 250 IDs per request
   for (let i = 0; i < gids.length; i += 250) {
     const batch = gids.slice(i, i + 250);
     try {
@@ -1318,7 +1293,6 @@ export async function fetchStyleOptions() {
     return _styleOptionsCache;
   }
 
-  // Fetch option data AND field definitions in parallel
   const [results, ...defsResults] = await Promise.all([
     Promise.all(STYLE_OPTION_TYPES.map(fetchStyleOptionsForType)),
     ...STYLE_OPTION_TYPES.map((t) =>
@@ -1326,8 +1300,6 @@ export async function fetchStyleOptions() {
     ),
   ]);
 
-  // Build garmentType → { fieldKey: canonicalTypeName } map from defs
-  // defs are the authoritative type source — e.g. "file_reference", "boolean"
   const defsTypeMap = {};
   STYLE_OPTION_TYPES.forEach((garmentType, i) => {
     const defs = defsResults[i] ?? [];
@@ -1338,19 +1310,16 @@ export async function fetchStyleOptions() {
     );
   });
 
-  // Merge defs types into every option's fieldTypes
-  // defs take priority over the raw f.type from the data query
   let all = results.flat().map((o) => {
     const garmentType = GARMENT_TO_STYLE_TYPE[o.garment];
     const defsTypes = defsTypeMap[garmentType] ?? {};
     const merged = { ...o.fieldTypes };
     for (const [k, t] of Object.entries(defsTypes)) {
-      merged[k] = t; // canonical lowercase type from defs
+      merged[k] = t;
     }
     return { ...o, fieldTypes: merged };
   });
 
-  // Resolve file GIDs for options where image was set via Shopify admin
   const gidsToResolve = [
     ...new Set(
       all.filter((o) => o.imageGid && !o.imageUrlStored).map((o) => o.imageGid),
@@ -1378,7 +1347,115 @@ export async function fetchStyleOptions() {
 export function clearStyleOptionsCache() {
   _styleOptionsCache = null;
   _styleOptionsCacheAt = 0;
+  _contrastOptionsCache = null;
+  _contrastOptionsCacheAt = 0;
   _fieldDefsCache.clear(); // force re-fetch so new Shopify fields appear immediately
+}
+
+// ─── Contrast Options (gc_contrast_option) ────────────────────────────────
+
+const CONTRAST_OPTIONS_QUERY = `
+  query GetContrastOptions($first: Int!, $after: String) {
+    metaobjects(type: "gc_contrast_option", first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          handle
+          fields { key value }
+        }
+      }
+    }
+  }
+`;
+
+let _contrastOptionsCache = null;
+let _contrastOptionsCacheAt = 0;
+
+export async function fetchContrastOptions() {
+  if (
+    _contrastOptionsCache &&
+    Date.now() - _contrastOptionsCacheAt < STYLE_OPTIONS_CACHE_TTL
+  ) {
+    return _contrastOptionsCache;
+  }
+
+  const results = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(CONTRAST_OPTIONS_QUERY, {
+      first: 250,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.metaobjects;
+    for (const { node } of edges) {
+      const fm = Object.fromEntries(
+        node.fields.map((f) => [f.key, f.value ?? ""]),
+      );
+      results.push({
+        id: node.id,
+        handle: node.handle,
+        label: fm.color_name || node.handle,
+        category: "contrast_option",
+        garment: fm.garment || "",
+        displayLabel: "Color",
+        upcharge: 0,
+        visible: fm.visible !== "false",
+        isDefault: false,
+        sortOrder: 9999,
+        kutetailerCode: null,
+        conditionalHide: "",
+        imageGid: fm.color_image || null,
+        imageUrlStored: null,
+        imageUrl: null,
+        rawFields: fm,
+        fieldTypes: {
+          color_image: "file_reference",
+          color_hex: "color",
+          color_name: "single_line_text_field",
+          visible: "boolean",
+          garment: "single_line_text_field",
+        },
+        isContrastOption: true,
+        colorHex: fm.color_hex || null,
+      });
+    }
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+
+  // Resolve color_image GIDs → CDN URLs
+  const gids = [
+    ...new Set(results.filter((r) => r.imageGid).map((r) => r.imageGid)),
+  ];
+  if (gids.length) {
+    const urlMap = await resolveFileGidUrls(gids);
+    for (const r of results) {
+      if (r.imageGid && urlMap[r.imageGid]) {
+        r.imageUrl = urlMap[r.imageGid];
+        r.imageUrlStored = urlMap[r.imageGid];
+      }
+    }
+  }
+
+  _contrastOptionsCache = results;
+  _contrastOptionsCacheAt = Date.now();
+  return results;
+}
+
+export async function updateContrastOption(id, fields) {
+  const fieldInputs = Object.entries(fields).map(([key, value]) => ({
+    key,
+    value: value == null ? null : String(value),
+  }));
+  const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
+    id,
+    metaobject: { fields: fieldInputs },
+  });
+  const { userErrors } = data.metaobjectUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectUpdate.metaobject;
 }
 
 export async function updateStyleOptionVisible(id, visible) {
@@ -1404,8 +1481,8 @@ const GET_METAOBJECT_FIELD_DEFS = `
   }
 `;
 
-const _fieldDefsCache = new Map(); // garmentType → { defs, cachedAt }
-const FIELD_DEFS_CACHE_TTL = 30 * 1000; // 30 s — short so new Shopify field types appear quickly
+const _fieldDefsCache = new Map();
+const FIELD_DEFS_CACHE_TTL = 30 * 1000;
 
 export async function fetchStyleOptionFieldDefs(garmentType) {
   const cached = _fieldDefsCache.get(garmentType);
@@ -1481,8 +1558,6 @@ const FILE_CREATE = `
   }
 `;
 
-// Uploads a File object to Shopify Files and returns { gid, cdnUrl }.
-// Flow: stagedUploadsCreate → PUT to S3 → fileCreate → GID
 export async function uploadImageToShopify(file) {
   const stageData = await shopifyGraphQL(STAGED_UPLOADS_CREATE, {
     input: [
@@ -1499,7 +1574,6 @@ export async function uploadImageToShopify(file) {
   if (stageErrors?.length) throw new Error(stageErrors[0].message);
   const target = stagedTargets[0];
 
-  // Upload directly to staged URL (S3 pre-signed POST — browser-safe)
   const fd = new FormData();
   for (const { name, value } of target.parameters) fd.append(name, value);
   fd.append("file", file);
@@ -1507,7 +1581,6 @@ export async function uploadImageToShopify(file) {
   if (!uploadRes.ok)
     throw new Error(`Image upload failed (${uploadRes.status})`);
 
-  // Register file in Shopify Files
   const fileData = await shopifyGraphQL(FILE_CREATE, {
     files: [{ originalSource: target.resourceUrl, contentType: "IMAGE" }],
   });
@@ -1543,7 +1616,6 @@ export async function createStyleOption(garmentType, fields) {
 }
 
 export async function syncStyleOptionImageUrls(options) {
-  // only sync options that have kutetailer_code but image_url not yet saved
   const toSync = options.filter((o) => o.kutetailerCode && !o.imageUrlStored);
   if (!toSync.length) return 0;
   const results = await Promise.allSettled(

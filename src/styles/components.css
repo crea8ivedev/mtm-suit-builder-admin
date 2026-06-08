@@ -50,9 +50,6 @@
   @apply bg-gray-50 transition-colors duration-100;
 }
 
-/* ─────────────────────────────────────────────
-   GC Figma Design System Components
-   ───────────────────────────────────────────── */
 
 /* Page titles */
 .gc-page-title {
@@ -78,7 +75,6 @@
   margin-top: 4px;
 }
 
-/* GC Button base — border, rounded, Hanken Grotesk */
 .gc-btn {
   display: inline-flex;
   align-items: center;
@@ -143,9 +139,14 @@
 .gc-table-container {
   background: var(--color-gc-surface);
   border: 1px solid var(--color-gc-border);
-  border-bottom-left-radius: 12px;
-  border-top-left-radius: 12px;
+  border-radius: 12px;
   overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .gc-table-container {
+    margin-right: -28px;
+  }
 }
 
 /* GC Table header row */
@@ -156,13 +157,20 @@
 
 /* GC Table header cell */
 .gc-th {
-  padding: 14px 20px;
+  padding: 14px 8px;
   text-align: left;
   font-family: var(--font-hanken);
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 500;
   color: #000;
   white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .gc-th {
+    padding: 14px 12px;
+    font-size: 14px;
+  }
 }
 
 /* GC Table body row */
@@ -183,10 +191,17 @@
 
 /* GC Table body cell */
 .gc-td {
-  padding: 18px 20px;
+  padding: 12px 8px;
   font-family: var(--font-hanken);
-  font-size: 14px;
+  font-size: 11px;
   white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .gc-td {
+    padding: 18px 12px;
+    font-size: 14px;
+  }
 }
 
 /* GC Order ID link */
@@ -235,28 +250,24 @@
   box-shadow: 0 0 0 0.8px rgba(22, 163, 74, 0.2);
 }
 
-/* Payment: Pending / Supplier: Pending */
 .sp-pending {
   background: #fef3c7;
   color: #b45309;
   box-shadow: 0 0 0 0.8px rgba(217, 119, 6, 0.2);
 }
 
-/* Fulfillment: Shipped */
 .sp-shipped {
   background: #dbeafe;
   color: #1d4ed8;
   box-shadow: 0 0 0 0.8px rgba(37, 99, 235, 0.2);
 }
 
-/* Fulfillment: Processing */
 .sp-processing {
   background: #f1f5f9;
   color: #334155;
   box-shadow: 0 0 0 0.8px rgba(71, 85, 105, 0.2);
 }
 
-/* Failed */
 .sp-failed {
   background: #fee2e2;
   color: #dc2626;
@@ -269,7 +280,6 @@
   box-shadow: 0 0 0 0.8px rgba(71, 85, 105, 0.2);
 }
 
-/* Items count badge */
 .items-badge {
   display: inline-flex;
   align-items: center;
@@ -369,12 +379,24 @@
   color: #656565;
 }
 
-/* GC section divider */
 .gc-divider {
   border-top: 1px solid rgba(194, 198, 216, 0.3);
 }
 
-/* Sidebar nav item */
+.style-cat-scroll-always {
+  overflow-y: auto;
+}
+
+.style-cat-scroll-mobile {
+  overflow-y: hidden;
+}
+
+@media (max-width: 767px) {
+  .style-cat-scroll-mobile {
+    overflow-y: auto;
+  }
+}
+
 .nav-item {
   @apply flex items-center gap-[12px] px-[12px] py-[9px] rounded-lg text-14 text-sidebar-text cursor-pointer transition-all duration-150 hover:bg-sidebar-hover hover:text-white w-full text-left border-0 outline-none bg-transparent;
 }

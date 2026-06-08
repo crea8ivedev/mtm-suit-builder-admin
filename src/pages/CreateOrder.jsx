@@ -2,16 +2,12 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   X,
-  Ruler,
-  Tag,
   FileText,
-  PlusCircle,
   AlertCircle,
-  ChevronRight,
   ChevronDown,
   Search,
   Plus,
-  Clock,
+  History,
   Check,
   CheckCircle2,
 } from "lucide-react";
@@ -81,8 +77,6 @@ function getRangeForKey(rangeMap, key) {
   return null;
 }
 
-// Remove duplicate attrs where two different keys resolve to the same range entry
-// (e.g. "t_waist" and "Waist" both map to the same trouser measurement).
 function deduplicateByRange(attrs, rangeMap) {
   const seenRangeKeys = new Set();
   const seenNormKeys = new Set();
@@ -101,7 +95,6 @@ function deduplicateByRange(attrs, rangeMap) {
   });
 }
 
-// Section colors indexed by label
 const SECTION_COLORS = {
   Jacket: {
     border: "border-blue-500",
@@ -135,15 +128,6 @@ const SECTION_COLORS = {
   },
 };
 
-// Groups attributes into general (detail) fields and per-section measurement fields.
-//
-// Priority order for field placement:
-//  1. Explicit section prefix ("Vest X", "Jacket X", "Trouser X", "Shirt X") → that section
-//  2. Range-map match against each section in order (Jacket → Trouser → Vest → Shirt)
-//  3. No match → general Details section
-//
-// Using prefix detection FIRST prevents key-name collisions (e.g. "Chest" exists in both
-// jacketRanges and vestRanges/shirtRanges) from wrongly assigning fields in tuxedo products.
 function groupAttributes(attributes, rangeGroups) {
   const general = [];
   const sections = rangeGroups.map((g) => ({
@@ -155,7 +139,6 @@ function groupAttributes(attributes, rangeGroups) {
 
   const findSec = (label) => sections.find((s) => s.label === label);
 
-  // Prefix → [section label, strip length]
   const PREFIX_ROUTES = [
     ["Vest ", "Vest"],
     ["Jacket ", "Jacket"],
@@ -167,23 +150,20 @@ function groupAttributes(attributes, rangeGroups) {
     if (attr.key.startsWith("_")) continue;
     const kl = attr.key.toLowerCase();
 
-    // Always keep Size Type in Details (forced to "Custom" on load)
     if (kl === "size type") {
       general.push({ key: attr.key, originalKey: attr.key });
       continue;
     }
 
-    // Drop standard-size fields — we only show custom measurements
     if (hasGroups && kl.startsWith("standard")) continue;
 
-    // ── Step 1: explicit prefix match ─────────────────────────────────────────
     let placed = false;
     for (const [prefix, label] of PREFIX_ROUTES) {
       if (attr.key.startsWith(prefix)) {
         const sec = findSec(label);
         if (sec) {
           sec.items.push({
-            key: attr.key.slice(prefix.length), // display without prefix
+            key: attr.key.slice(prefix.length),
             originalKey: attr.key,
           });
           placed = true;
@@ -193,7 +173,6 @@ function groupAttributes(attributes, rangeGroups) {
     }
     if (placed) continue;
 
-    // ── Step 2: range-map match (for un-prefixed plain field names) ───────────
     if (hasGroups) {
       for (const sec of sections) {
         if (getRangeForKey(sec.ranges, attr.key)) {
@@ -210,7 +189,6 @@ function groupAttributes(attributes, rangeGroups) {
   return { general, sections };
 }
 
-// Try to extract field keys from gc_builder JSON
 function parseGcBuilderFields(jsonValue) {
   try {
     const parsed = JSON.parse(jsonValue);
@@ -256,7 +234,6 @@ function parseGcBuilderFields(jsonValue) {
   }
 }
 
-// Returns true if a line-item node is custom-size (not standard)
 function isCustomSizeLineItem(node) {
   const sizeType = (node.customAttributes ?? [])
     .find((a) => a.key.toLowerCase() === "size type")
@@ -264,9 +241,6 @@ function isCustomSizeLineItem(node) {
   return sizeType !== "standard";
 }
 
-// Finds the most recent custom-size line item for a product.
-// Matches by product ID first; falls back to title match for admin-created orders
-// (draft orders without variantId have product: null on their line items).
 function findPastLineItem(customerOrders, selectedProductId, productTitle) {
   const numericId = selectedProductId.split("/").pop();
   const titleLower = (productTitle ?? "").toLowerCase();
@@ -284,8 +258,6 @@ function findPastLineItem(customerOrders, selectedProductId, productTitle) {
   return null;
 }
 
-// Converts a line-item's customAttributes into the attributes state array.
-// Strips internal (_) and standard-size keys. Forces Size Type = "Custom".
 function attrsFromLineItem(node, emptyValues = false) {
   return (node.customAttributes ?? [])
     .filter(
@@ -354,7 +326,6 @@ function StepIndicator({ currentStep }) {
   );
 }
 
-// ─── Customer Selector helpers ───────────────────────────────────────────────
 const AVATAR_PALETTE = [
   { bg: "rgba(42,10,10,0.05)", border: "rgba(42,10,10,0.1)", text: "#2a0a0a" },
   {
@@ -398,7 +369,7 @@ function OrdersBadge({ count }) {
   const label = count === 1 ? "1 ORDER" : `${count} ORDERS`;
   return (
     <span
-      className="font-hanken text-[12px] font-medium tracking-[1.2px] uppercase px-[8px] py-[6px] rounded-[5px]"
+      className="font-hanken text-[10px] font-medium tracking-[0.8px] uppercase px-[6px] py-[3px] rounded-[4px]"
       style={{ background: bg, color: col }}
     >
       {label}
@@ -595,7 +566,6 @@ function CustomerSelector({ value, onChange }) {
   );
 }
 
-// ─── Attribute Editor ───────────────────────────────────────────────────────
 function AttributeEditor({
   attributes,
   onChange,
@@ -604,11 +574,9 @@ function AttributeEditor({
 }) {
   const [touchedFields, setTouchedFields] = useState(new Set());
 
-  // Stable key signature — prevents inputs unmounting/remounting on every keystroke
   const keySignature = attributes.map((a) => a.key).join("\0");
   const { general, sections } = useMemo(
     () => groupAttributes(attributes, rangeGroups),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [keySignature, rangeGroups],
   );
 
@@ -619,7 +587,6 @@ function AttributeEditor({
     );
   }
 
-  // Notify parent on validity changes — uses section ranges for correct per-field check
   useEffect(() => {
     if (!onValidChange) return;
     if (!sections.length) {
@@ -637,7 +604,6 @@ function AttributeEditor({
       }),
     );
     onValidChange(!hasError);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attributes, sections]);
 
   if (attributes.length === 0) {
@@ -658,7 +624,6 @@ function AttributeEditor({
       className="bg-white rounded-[12px] p-[31px] flex flex-col gap-[48px]"
       style={{ border: "1px solid #c5c6cd" }}
     >
-      {/* ── Details (Size Type etc.) ── */}
       {general.length > 0 && (
         <div className="flex flex-col gap-[16px]">
           <div
@@ -670,7 +635,7 @@ function AttributeEditor({
                 className="w-[3px] h-[20px] rounded-sm"
                 style={{ backgroundColor: "#a45d41" }}
               />
-              <h3 className="font-garamond text-[28px] font-semibold text-[#a45d41]">
+              <h3 className="font-garamond text-[20px] sm:text-[28px] font-semibold text-[#a45d41]">
                 Details
               </h3>
             </div>
@@ -678,13 +643,13 @@ function AttributeEditor({
               {general.length} fields
             </span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[12px] sm:gap-x-[32px] gap-y-[16px] sm:gap-y-[24px]">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[8px] sm:gap-x-[32px] gap-y-[16px] sm:gap-y-[24px]">
             {general.map(({ key, originalKey }) => (
               <div
                 key={originalKey}
-                className="flex flex-col gap-[4px] sm:relative sm:h-[74px]"
+                className="flex flex-col gap-[4px] min-w-0 sm:relative sm:h-[74px]"
               >
-                <label className="font-hanken text-[11px] sm:text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase leading-tight sm:absolute sm:top-0">
+                <label className="font-hanken text-[9px] sm:text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase leading-tight truncate sm:absolute sm:top-0">
                   {key}
                 </label>
                 <input
@@ -693,7 +658,7 @@ function AttributeEditor({
                     attributes.find((a) => a.key === originalKey)?.value || ""
                   }
                   onChange={(e) => updateAttr(originalKey, e.target.value)}
-                  className="w-full h-[40px] bg-white rounded-[8px] px-[13px] font-garamond text-[16px] sm:text-[18px] text-[#1c1c19] outline-none transition-colors sm:absolute sm:top-[20px]"
+                  className="w-full h-[36px] sm:h-[40px] bg-white rounded-[8px] px-[8px] sm:px-[13px] font-garamond text-[14px] sm:text-[18px] text-[#1c1c19] outline-none transition-colors sm:absolute sm:top-[20px]"
                   style={{ border: "1px solid rgba(207,196,197,0.8)" }}
                 />
               </div>
@@ -702,7 +667,6 @@ function AttributeEditor({
         </div>
       )}
 
-      {/* ── Per-section measurement grids ── */}
       {sections.map((sec) => {
         if (!sec.items.length) return null;
         return (
@@ -716,7 +680,7 @@ function AttributeEditor({
                   className="w-[3px] h-[20px] rounded-sm"
                   style={{ backgroundColor: "#a45d41" }}
                 />
-                <h3 className="font-garamond text-[28px] font-semibold text-[#a45d41]">
+                <h3 className="font-garamond text-[20px] sm:text-[28px] font-semibold text-[#a45d41]">
                   {sec.label} Measurements
                 </h3>
               </div>
@@ -724,7 +688,7 @@ function AttributeEditor({
                 {sec.items.length} measurements
               </span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[12px] sm:gap-x-[32px] gap-y-[16px] sm:gap-y-[24px]">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[8px] sm:gap-x-[32px] gap-y-[16px] sm:gap-y-[24px]">
               {sec.items.map(({ key, originalKey }) => {
                 const val =
                   attributes.find((a) => a.key === originalKey)?.value ?? "";
@@ -747,9 +711,9 @@ function AttributeEditor({
                 return (
                   <div
                     key={originalKey}
-                    className="flex flex-col gap-[4px] sm:relative sm:h-[74px]"
+                    className="flex flex-col gap-[4px] min-w-0 sm:relative sm:h-[74px]"
                   >
-                    <label className="font-hanken text-[11px] sm:text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase leading-tight sm:absolute sm:top-0">
+                    <label className="font-hanken text-[9px] sm:text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase leading-tight truncate sm:absolute sm:top-0">
                       {getRangeForKey(sec.ranges, key)?.label ?? key}
                     </label>
                     <input
@@ -757,7 +721,7 @@ function AttributeEditor({
                       value={val}
                       onChange={(e) => updateAttr(originalKey, e.target.value)}
                       className={cn(
-                        "w-full h-[40px] bg-white rounded-[8px] px-[13px] font-garamond text-[16px] sm:text-[18px] outline-none transition-colors sm:absolute sm:top-[20px]",
+                        "w-full h-[36px] sm:h-[40px] bg-white rounded-[8px] px-[8px] sm:px-[13px] font-garamond text-[14px] sm:text-[18px] outline-none transition-colors sm:absolute sm:top-[20px]",
                         isValid
                           ? "text-green-700"
                           : isInvalid
@@ -795,7 +759,6 @@ function AttributeEditor({
   );
 }
 
-// Returns garment names (matching option.garment) that have style options for a product
 function styleGarmentsForProduct(product) {
   const t = (product?.title ?? "").toLowerCase();
   const garments = [];
@@ -816,7 +779,6 @@ function styleGarmentsForProduct(product) {
   return garments;
 }
 
-// ─── Style Option Dropdown (single category) ───────────────────────────────
 function StyleDropdown({ label, opts, selected, onSelect }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -833,18 +795,20 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
   const selectedLabel = opts.find((o) => o.label === selected)?.label ?? "";
 
   return (
-    <div ref={ref} className="flex flex-col gap-[8px]">
-      <span className="font-hanken text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide">
+    <div ref={ref} className="flex flex-col gap-[6px] min-w-0">
+      <span className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide truncate">
         {label}
       </span>
       <div className="relative">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="font-hanken w-full flex items-center justify-between gap-[8px] px-[14px] py-[10px] rounded-[8px] text-[13px] font-medium text-[#1a1c1b] bg-white cursor-pointer"
+          className="font-hanken w-full flex items-center justify-between gap-[6px] px-[10px] py-[9px] rounded-[8px] text-[12px] sm:text-[13px] font-medium text-[#1a1c1b] bg-white cursor-pointer"
           style={{ border: "1px solid #d1c7bd" }}
         >
-          <span className={selectedLabel ? "text-[#1a1c1b]" : "text-[#9ca3af]"}>
+          <span
+            className={`truncate ${selectedLabel ? "text-[#1a1c1b]" : "text-[#9ca3af]"}`}
+          >
             {selectedLabel || "— Select —"}
           </span>
           <ChevronDown
@@ -916,7 +880,6 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
   );
 }
 
-// ─── Style Options Section ──────────────────────────────────────────────────
 function StyleOptionsSection({ styleOptions, selections, onChange, loading }) {
   const grouped = useMemo(() => {
     const map = {};
@@ -960,7 +923,7 @@ function StyleOptionsSection({ styleOptions, selections, onChange, loading }) {
             className="w-[3px] h-[20px] rounded-sm"
             style={{ backgroundColor: "#a45d41" }}
           />
-          <h3 className="font-garamond text-[28px] font-semibold text-[#a45d41]">
+          <h3 className="font-garamond text-[20px] sm:text-[28px] font-semibold text-[#a45d41]">
             Style Options
           </h3>
         </div>
@@ -968,7 +931,7 @@ function StyleOptionsSection({ styleOptions, selections, onChange, loading }) {
           {categories.length} categories
         </span>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-[24px] gap-y-[20px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-[12px] sm:gap-x-[24px] gap-y-[12px] sm:gap-y-[20px]">
         {categories.map((category) => {
           const opts = grouped[category];
           return (
@@ -986,7 +949,7 @@ function StyleOptionsSection({ styleOptions, selections, onChange, loading }) {
   );
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────
+// ─── Page ──────────────────────────────────────
 export default function CreateOrder() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -996,7 +959,7 @@ export default function CreateOrder() {
 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [selectedTemplate, setSelectedTemplate] = useState(null); // past order template
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
 
   const [customerOrders, setCustomerOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -1042,7 +1005,6 @@ export default function CreateOrder() {
       .catch(() => {});
   }, []);
 
-  // Separate range groups per product section — drives labeled sections in AttributeEditor
   const rangeGroups = useMemo(() => {
     if (!selectedProduct) return [];
     const t = selectedProduct.title.toLowerCase();
@@ -1062,9 +1024,6 @@ export default function CreateOrder() {
     return groups;
   }, [selectedProduct, jacketRanges, trouserRanges, vestRanges, shirtRanges]);
 
-  // Past orders for selected product.
-  // Matches by product ID OR title — title fallback covers admin-created orders
-  // (draft orders without variantId have product: null on their line items).
   const pastOrdersForProduct = useMemo(() => {
     if (!selectedProduct || !customerOrders.length) return [];
     const numericId = selectedProduct.id.split("/").pop();
@@ -1091,15 +1050,13 @@ export default function CreateOrder() {
       .filter((o) => o.attributes.length > 0);
   }, [selectedProduct, customerOrders]);
 
-  // Pre-select customer returned from "New Customer" flow
   useEffect(() => {
     if (location.state?.newCustomer) {
       setSelectedCustomer(location.state.newCustomer);
       window.history.replaceState({}, "");
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Load gc_builder products on mount
   useEffect(() => {
     fetchGcBuilderProducts()
       .then((products) => {
@@ -1109,7 +1066,6 @@ export default function CreateOrder() {
       .catch(() => setProductsLoading(false));
   }, []);
 
-  // When customer changes → fetch their orders
   useEffect(() => {
     if (!selectedCustomer) {
       setCustomerOrders([]);
@@ -1145,7 +1101,6 @@ export default function CreateOrder() {
     return "unknown";
   }
 
-  // Returns ordered canonical field list for known product types, null for unknown.
   async function getCanonicalFieldsForType(ptype) {
     if (ptype === "vest") return fetchVestMeasurementFields();
     if (ptype === "trouser") return fetchTrouserMeasurementFields();
@@ -1163,8 +1118,6 @@ export default function CreateOrder() {
     return null;
   }
 
-  // Pre-fills canonical fields with values from a past order's attributes.
-  // Tries direct key match first, then range-fingerprint match (handles key variants).
   function prefillFromPastOrder(canonicalFields, pastAttrs, rangeMap) {
     const directMap = new Map(
       pastAttrs.map((a) => [a.key.trim().toLowerCase(), a.value]),
@@ -1189,10 +1142,8 @@ export default function CreateOrder() {
 
   async function getFieldsForProduct(product) {
     const ptype = productType(product);
-    // Known types: always use canonical metaobject structure — never infer from past orders
     const canonical = await getCanonicalFieldsForType(ptype);
     if (canonical) return canonical.map((f) => ({ key: f.key, value: "" }));
-    // Unknown type: fall back to past-order key discovery → gc_builder
     const serverFields = await getProductFields(product.id);
     if (serverFields.length > 0)
       return serverFields.map((key) => ({ key, value: "" }));
@@ -1200,8 +1151,6 @@ export default function CreateOrder() {
     return (gcFields ?? []).map((a) => ({ ...a, value: "" }));
   }
 
-  // Load empty measurement fields for a fresh new order entry.
-  // Uses field NAMES from a past order (same keys as real Shopify data) but clears all values.
   async function handleNewOrder() {
     setSelectedTemplate(null);
     if (!selectedProduct) return;
@@ -1220,7 +1169,6 @@ export default function CreateOrder() {
     const ptype = productType(selectedProduct);
 
     if (pastNode?.customAttributes?.length > 0 && ptype !== "unknown") {
-      // Known type: canonical fields, empty values
       setFieldsLoading(true);
       try {
         const canonical = await getCanonicalFieldsForType(ptype);
@@ -1255,7 +1203,6 @@ export default function CreateOrder() {
     }
   }
 
-  // When product or customer orders change → fetch field keys from server, pre-fill values from customer history
   useEffect(() => {
     if (!selectedProduct) {
       setAttributes([]);
@@ -1268,14 +1215,11 @@ export default function CreateOrder() {
       selectedProduct.variants?.edges?.[0]?.node?.price || "0.00";
     setPrice(variantPrice);
 
-    // No gc_builder value → skip measurement fields entirely
     if (!selectedProduct.metafield?.value) {
       setAttributes([]);
       return;
     }
 
-    // Find the most recent custom-size line item for this product by product ID
-    // (same traversal CustomerDetail uses in buildMeasurementProfiles)
     const pastNode = findPastLineItem(
       customerOrders,
       selectedProduct.id,
@@ -1291,7 +1235,6 @@ export default function CreateOrder() {
     const ptype = productType(selectedProduct);
 
     if (pastNode?.customAttributes?.length > 0 && ptype !== "unknown") {
-      // Known type + past order: use canonical field structure, pre-fill values from past order
       setFieldsLoading(true);
       const pastAttrs = attrsFromLineItem(pastNode, false);
       getCanonicalFieldsForType(ptype)
@@ -1311,20 +1254,16 @@ export default function CreateOrder() {
     }
 
     if (pastNode?.customAttributes?.length > 0) {
-      // Unknown type: use past order attrs directly
       setAttributes(
         deduplicateByRange(attrsFromLineItem(pastNode, false), combinedRanges),
       );
       return;
     }
 
-    // ── No gc_builder value → no measurement fields ──
     if (!selectedProduct.metafield?.value) {
       setAttributes([]);
       return;
     }
-
-    // ── No past order → fetch canonical field list with empty values ──
     setFieldsLoading(true);
     getFieldsForProduct(selectedProduct)
       .then((fields) => setAttributes(applyDefaultSizeType(fields)))
@@ -1332,7 +1271,6 @@ export default function CreateOrder() {
       .finally(() => setFieldsLoading(false));
   }, [selectedProduct, customerOrders]);
 
-  // Load style options when product changes — only if gc_builder value present
   useEffect(() => {
     setStyleOptions([]);
     setStyleSelections({});
@@ -1344,7 +1282,6 @@ export default function CreateOrder() {
       .then((all) => {
         const filtered = all.filter((o) => garments.includes(o.garment));
         setStyleOptions(filtered);
-        // Pre-select defaults
         const defaults = {};
         filtered
           .filter((o) => o.isDefault && o.visible)
@@ -1357,7 +1294,6 @@ export default function CreateOrder() {
       .finally(() => setStyleOptionsLoading(false));
   }, [selectedProduct]);
 
-  // Auto-select most recent past order as active template when product changes
   useEffect(() => {
     if (pastOrdersForProduct.length > 0) {
       setSelectedTemplate(pastOrdersForProduct[0].orderId);
@@ -1375,7 +1311,6 @@ export default function CreateOrder() {
         .filter(([, v]) => v)
         .map(([key, value]) => ({ key, value }));
 
-      // Per-category upcharge attrs (hidden, prefixed with _upcharge_)
       const upchargeAttrs = Object.entries(styleSelections)
         .filter(([category, label]) => {
           const opt = styleOptions.find(
@@ -1390,7 +1325,6 @@ export default function CreateOrder() {
           return { key: `_upcharge_${category}`, value: String(opt.upcharge) };
         });
 
-      // Upcharge folded into the product price — custom item with requiresShipping
       const finalPrice = (parseFloat(price || "0.00") + totalUpcharge).toFixed(
         2,
       );
@@ -1418,9 +1352,6 @@ export default function CreateOrder() {
       const order = await completeDraftOrder(draft.id, true);
       const numericId = order.id.split("/").pop();
 
-      // Save ALL measurements (past orders + this new one) to profiles.gc_measurements.
-      // We build from customerOrders already in state — no separate metafield fetch needed,
-      // so there is no silent-catch hiding a failed read that would wipe prior entries.
       const measureAttrs = attributes.filter(
         (a) => a.key && !a.key.startsWith("_"),
       );
@@ -1492,7 +1423,6 @@ export default function CreateOrder() {
 
   return (
     <DashboardLayout bgColor="#f4f1ed">
-      {/* Watermark — anchored to bottom-right corner, rotated 12deg around that point */}
       <img
         src="/watermark-tailor.png"
         alt=""
@@ -1509,12 +1439,10 @@ export default function CreateOrder() {
         }}
       />
 
-      {/* All page content at z-2 — above the watermark */}
       <div
         className="relative flex flex-col gap-[40px] pb-[80px]"
         style={{ zIndex: 2 }}
       >
-        {/* ── Page header ── */}
         <div className="flex flex-col gap-[4px]">
           <h1 className="font-garamond text-[28px] sm:text-[40px] font-bold text-[#3c3c3c] leading-tight">
             Create New Order
@@ -1524,10 +1452,8 @@ export default function CreateOrder() {
           </p>
         </div>
 
-        {/* ── Step flow indicator ── */}
         <StepIndicator currentStep={currentStep} />
 
-        {/* ── Step 1: Customer search / selected ── */}
         <CustomerSelector
           value={selectedCustomer}
           onChange={(c) => {
@@ -1536,7 +1462,6 @@ export default function CreateOrder() {
           }}
         />
 
-        {/* ── Step 2: Product grid ── */}
         {selectedCustomer && (
           <div className="flex flex-col gap-[23px]">
             <div className="flex flex-wrap items-center justify-between gap-[8px]">
@@ -1554,7 +1479,7 @@ export default function CreateOrder() {
                 No gc_builder products found in store.
               </p>
             ) : (
-              <div className="flex flex-wrap gap-[19px]">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-[12px] sm:gap-[19px]">
                 {gcProducts.map((product) => {
                   const isSelected = selectedProduct?.id === product.id;
                   const variantPrice =
@@ -1572,7 +1497,7 @@ export default function CreateOrder() {
                       onClick={() =>
                         setSelectedProduct(isSelected ? null : product)
                       }
-                      className="flex flex-col items-start gap-[30px] p-[22px] rounded-[8px] text-left transition-all cursor-pointer bg-white w-[270px] flex-shrink-0"
+                      className="flex flex-col items-start gap-[16px] sm:gap-[30px] p-[14px] sm:p-[22px] rounded-[8px] text-left transition-all cursor-pointer bg-white w-full"
                       style={{
                         border: isSelected
                           ? "2px solid #1c1c19"
@@ -1615,7 +1540,6 @@ export default function CreateOrder() {
           </div>
         )}
 
-        {/* ── Past order template ── */}
         {selectedCustomer &&
           selectedProduct &&
           pastOrdersForProduct.length > 0 && (
@@ -1624,8 +1548,8 @@ export default function CreateOrder() {
                 className="flex flex-wrap items-center gap-[8px] pb-[17px]"
                 style={{ borderBottom: "1px solid rgba(207,196,197,0.3)" }}
               >
-                <Clock size={14} style={{ color: "#6b7280" }} />
-                <span className="font-garamond text-[20px] font-medium text-[#1a1c1b]">
+                <History size={16} style={{ color: "#A45D41" }} />
+                <span className="font-garamond text-[14px] font-medium uppercase text-[#A45D41]">
                   Use Past Order as Template
                 </span>
                 <span className="font-hanken text-[12px] text-[#6b7280] ml-auto">
@@ -1719,23 +1643,11 @@ export default function CreateOrder() {
             </div>
           )}
 
-        {/* ── Step 3: Measurements + Details ── */}
+        {/* ── Measurements + Details ── */}
         {selectedCustomer && selectedProduct && (
           <>
-            {/* Section divider */}
             <div
-              className="flex flex-wrap items-center gap-[8px] pb-[17px]"
-              style={{ borderBottom: "1px solid rgba(207,196,197,0.3)" }}
-            >
-              <Ruler size={16} style={{ color: "#a45d41" }} />
-              <span className="font-garamond text-[24px] font-medium text-[#1a1c1b]">
-                Measurements &amp; Details
-              </span>
-            </div>
-
-            {/* Price */}
-            <div
-              className="bg-white rounded-[12px] p-[31px]"
+              className="bg-[#FFFFFF]/40 rounded-[12px] p-[31px]"
               style={{ border: "1px solid #d1c7bd" }}
             >
               <h2 className="font-garamond text-[28px] font-semibold text-[#a45d41] mb-[20px]">
@@ -1747,10 +1659,10 @@ export default function CreateOrder() {
               >
                 <div className="max-w-[200px] mt-[20px]">
                   <label className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide block mb-[7px]">
-                    Price (store currency)
+                    Price
                   </label>
                   <div
-                    className="bg-white rounded-[4px] h-[48px] flex items-center px-[11px] overflow-hidden"
+                    className="bg-white rounded-[4px] h-[48px] flex items-center px-[8px] overflow-hidden"
                     style={{ border: "1px solid #ddd6cf" }}
                   >
                     <input
@@ -1767,7 +1679,6 @@ export default function CreateOrder() {
               </div>
             </div>
 
-            {/* Style Options — only when gc_builder is set */}
             {selectedProduct?.metafield?.value && (
               <StyleOptionsSection
                 styleOptions={styleOptions}
@@ -1777,7 +1688,6 @@ export default function CreateOrder() {
               />
             )}
 
-            {/* Attribute form */}
             {fieldsLoading ? (
               <div
                 className="bg-white rounded-[12px] p-[31px]"
@@ -1804,32 +1714,28 @@ export default function CreateOrder() {
             )}
 
             {/* Note */}
-            <div
-              className="bg-white rounded-[12px] p-[31px]"
-              style={{ border: "1px solid #d1c7bd" }}
-            >
+            <div className="p-[31px]">
               <div className="flex items-center gap-[8px] mb-[20px]">
-                <FileText size={16} style={{ color: "#a45d41" }} />
+                <FileText size={18} style={{ color: "#a45d41" }} />
                 <h2 className="font-garamond text-[28px] font-semibold text-[#a45d41]">
                   Order Note
                 </h2>
               </div>
-              <div style={{ borderTop: "1px solid rgba(207,196,197,0.3)" }}>
+              <div style={{ borderTop: "1px solid #92493233" }}>
                 <label className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide block mt-[16px] mb-[8px]">
-                  Internal Notes &amp; Special Instructions
+                  Notes
                 </label>
                 <textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   rows={4}
                   placeholder="Add a note for this order..."
-                  className="font-hanken w-full px-[14px] py-[12px] rounded-[8px] text-[14px] text-[#1a1c1b] placeholder:text-[#6b7280] outline-none resize-none transition-colors"
+                  className="font-hanken w-full bg-white px-[14px] py-[12px] rounded-[10px] text-[14px] text-[#1a1c1b] placeholder:text-[#6b7280] outline-none resize-none transition-colors"
                   style={{ border: "1px solid #d1c7bd" }}
                 />
               </div>
             </div>
 
-            {/* Missing measurements warning */}
             {hasMissingMeasurements && (
               <div
                 className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px]"
@@ -1849,7 +1755,6 @@ export default function CreateOrder() {
               </div>
             )}
 
-            {/* Out-of-range warning */}
             {!measurementsValid && (
               <div
                 className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px]"
@@ -1869,7 +1774,6 @@ export default function CreateOrder() {
               </div>
             )}
 
-            {/* Submit error */}
             {submitError && (
               <div
                 className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px]"
@@ -1893,12 +1797,13 @@ export default function CreateOrder() {
               </div>
             )}
 
-            {/* Actions */}
             <div className="flex flex-wrap items-center justify-end gap-[12px] pb-[8px]">
               <Link
                 to="/orders"
-                className="font-hanken text-[14px] font-medium text-black uppercase px-[20px] py-[11px] hover:opacity-70 transition-opacity"
+                className="font-hanken flex items-center gap-[6px] text-[14px] font-medium text-black uppercase px-[20px] py-[11px] rounded-[8px] hover:opacity-70 transition-opacity"
+                style={{ border: "1px solid #D6D6D6" }}
               >
+                <X size={14} />
                 Cancel
               </Link>
               <button
@@ -1909,14 +1814,13 @@ export default function CreateOrder() {
               >
                 {submitting ? (
                   <>
-                    <PlusCircle size={14} className="animate-pulse" />
+                    <Plus size={14} className="animate-pulse" />
                     Creating Order…
                   </>
                 ) : (
                   <>
-                    <PlusCircle size={14} />
+                    <Plus size={14} />
                     Create Order
-                    <ChevronRight size={14} />
                   </>
                 )}
               </button>

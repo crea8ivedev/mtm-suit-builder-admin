@@ -52,26 +52,25 @@ export default function Login() {
       className="min-h-screen flex items-center justify-center p-[16px] sm:p-[24px]"
       style={{ backgroundColor: "#f4f1ed" }}
     >
-      {/* Card — single column on mobile, two columns on md+ */}
+      <div
+        className="fixed bottom-0 left-0 w-[180px] h-[180px] pointer-events-none select-none"
+        style={{ opacity: 0.03, mixBlendMode: "multiply" }}
+      >
+        <img
+          src="/watermark-scissors.png"
+          alt=""
+          className="w-full h-full object-contain"
+        />
+      </div>
+
       <div
         className="relative w-full overflow-hidden rounded-[4px] flex flex-col md:flex-row md:min-h-[660px]"
         style={{ maxWidth: "1100px" }}
       >
-        {/* ── LEFT: Brand — desktop only ── */}
         <div
           className="hidden md:flex relative flex-col justify-center px-[52px] py-[56px] md:w-[54%]"
           style={{ backgroundColor: "#f4f1ed" }}
         >
-          <div
-            className="absolute bottom-0 left-0 w-[180px] h-[180px] pointer-events-none select-none"
-            style={{ opacity: 0.03, mixBlendMode: "multiply" }}
-          >
-            <img
-              src="/watermark-scissors.png"
-              alt=""
-              className="w-full h-full object-contain"
-            />
-          </div>
           <div
             className="flex flex-col gap-[20px]"
             style={{ maxWidth: "380px" }}
@@ -95,11 +94,10 @@ export default function Login() {
           </div>
         </div>
 
-        {/* ── RULER: column divider — desktop only ── */}
         <div
           className="hidden md:block absolute pointer-events-none select-none"
           style={{
-            left: "54%",
+            left: "52%",
             transform: "translateX(-50%)",
             top: 0,
             bottom: 0,
@@ -114,9 +112,7 @@ export default function Login() {
           />
         </div>
 
-        {/* ── RIGHT: Login form ── */}
         <div className="bg-white flex flex-col justify-center w-full md:w-[46%] px-[24px] py-[40px] sm:px-[40px] md:px-[70px] md:py-[79px]">
-          {/* Mobile-only brand header */}
           <div className="md:hidden mb-[32px] text-center">
             <h1
               className="font-garamond font-bold italic leading-tight"
@@ -142,7 +138,6 @@ export default function Login() {
               marginRight: "auto",
             }}
           >
-            {/* Heading */}
             <div className="flex flex-col gap-[8px]">
               <h2
                 className="font-garamond font-semibold text-black"
@@ -158,13 +153,11 @@ export default function Login() {
               </p>
             </div>
 
-            {/* Form */}
             <form
               onSubmit={handleSubmit}
               noValidate
               className="flex flex-col gap-[32px] sm:gap-[40px]"
             >
-              {/* Error */}
               {error && (
                 <div className="px-[14px] py-[10px] bg-red-50 border border-red-200 rounded-[4px]">
                   <p className="font-hanken text-[13px] text-red-600">
@@ -173,7 +166,6 @@ export default function Login() {
                 </div>
               )}
 
-              {/* Email */}
               <div className="flex flex-col gap-[8px]">
                 <label
                   className="font-hanken font-medium text-black uppercase"
@@ -206,7 +198,6 @@ export default function Login() {
                 </div>
               </div>
 
-              {/* Password */}
               <div className="flex flex-col gap-[8px]">
                 <label
                   className="font-hanken font-medium text-black uppercase"
@@ -245,7 +236,6 @@ export default function Login() {
                 </div>
               </div>
 
-              {/* Submit */}
               <button
                 type="submit"
                 disabled={loading}

@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   Search,
   Filter,
+  ListFilter,
   ChevronRight,
   Save,
   ChevronDown,
@@ -16,11 +17,13 @@ import {
 import DashboardLayout from "../components/layout/DashboardLayout";
 import {
   fetchStyleOptions,
+  fetchContrastOptions,
   updateStyleOptionVisible,
   clearStyleOptionsCache,
   syncStyleOptionImageUrls,
   createStyleOption,
   updateStyleOption,
+  updateContrastOption,
   deleteStyleOption,
   fetchShopAdminDomain,
   uploadImageToShopify,
@@ -29,7 +32,6 @@ import {
 } from "../lib/shopify";
 import LoadingState from "../components/ui/LoadingState";
 
-// Known hardcoded field keys — never rendered as "extra"
 const KNOWN_KEYS = new Set([
   "label",
   "category",
@@ -48,12 +50,9 @@ function normalizeCategory(val) {
   return val.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
-// Convert a field key like "my_field" → "My Field" for display
 function keyToLabel(key) {
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
-
-// Infer Shopify type name from a stored value (used when defs haven't loaded yet)
 function inferTypeName(value) {
   if (value == null || value === "") return null;
   const s = String(value);
@@ -69,7 +68,6 @@ function inferTypeName(value) {
   return null;
 }
 
-// Returns a Map<key, bestValue> of extra fields across all options (picks first non-null value)
 function extraKVFromOptions(options) {
   const map = new Map();
   for (const opt of options) {
@@ -87,8 +85,6 @@ function extraKVFromOptions(options) {
   return map;
 }
 
-// Build a field def. Uses exact Shopify type string when available,
-// falls back to value inference, then defaults to text.
 function stubDef(key, value, shopifyTypeName) {
   const typeName =
     shopifyTypeName || inferTypeName(value) || "single_line_text_field";
@@ -99,7 +95,6 @@ function inputTypeFor(rawTypeName) {
   if (!rawTypeName) return "text";
   const t = rawTypeName.toLowerCase().trim();
 
-  // Numbers
   if (t === "number_integer" || t === "integer" || t === "int") return "number";
   if (
     t === "number_decimal" ||
@@ -108,14 +103,10 @@ function inputTypeFor(rawTypeName) {
     t === "double"
   )
     return "number";
-  // rating / money / dimension / weight / volume — numeric-ish stored as JSON
   if (["rating", "money", "dimension", "weight", "volume"].includes(t))
     return "textarea";
 
-  // Boolean
   if (t === "boolean" || t === "bool") return "checkbox";
-
-  // File / image — all Shopify variants
   if (
     t === "file_reference" ||
     t === "file" ||
@@ -126,7 +117,6 @@ function inputTypeFor(rawTypeName) {
   )
     return "file";
 
-  // Multi-line text / JSON / rich text
   if (
     t === "multi_line_text_field" ||
     t === "multi_line_text" ||
@@ -136,30 +126,22 @@ function inputTypeFor(rawTypeName) {
   )
     return "textarea";
 
-  // URL
   if (t === "url" || t === "link") return "url";
 
-  // Color
   if (t === "color" || t === "colour") return "color";
 
-  // Date
   if (t === "date") return "date";
 
-  // Date + time
   if (t === "date_time" || t === "datetime" || t === "date_and_time")
     return "datetime-local";
 
-  // References (product, page, metaobject, etc.) — show GID as read-only text
   if (t.endsWith("_reference") || t === "mixed_reference") return "text";
 
-  // List of text — textarea for comma-separated
   if (t.startsWith("list.")) return "textarea";
 
-  // Default — single_line_text_field and anything else
   return "text";
 }
 
-// ─── Image Picker ──────────────────────────────────────────────────────────
 function ImagePicker({ currentUrl, gid, onUploaded, onUploadChange }) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState(null);
@@ -256,13 +238,10 @@ function ImagePicker({ currentUrl, gid, onUploaded, onUploadChange }) {
   );
 }
 
-// ─── Add Style Option Modal ────────────────────────────────────────────────
 function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
-  // Detect extra fields immediately from existing options — no async wait
   const [extraFields, setExtraFields] = useState(() => {
     const kv = extraKVFromOptions(garmentOptions);
     return [...kv.entries()].map(([k, v]) => {
-      // fieldTypes comes directly from Shopify's data query — most reliable source
       const shopifyType = garmentOptions
         .map((o) => o.fieldTypes?.[k])
         .find((t) => t != null);
@@ -292,7 +271,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
   const [error, setError] = useState(null);
   const garmentType = GARMENT_TO_STYLE_TYPE[garment];
 
-  // Fallback: re-fetch defs to catch any field added since page load
   useEffect(() => {
     if (!garmentType) return;
     fetchStyleOptionFieldDefs(garmentType)
@@ -396,7 +374,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
           border: "1px solid #dac1ba",
         }}
       >
-        {/* Header */}
         <div
           className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0"
           style={{ borderBottom: "1px solid #dac1ba" }}
@@ -421,7 +398,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
           onSubmit={handleSubmit}
           className="px-[20px] py-[16px] flex flex-col gap-[12px]"
         >
-          {/* Label */}
           <div>
             <label className={labelCls} style={labelStyle}>
               Label <span style={{ color: "#dc2626" }}>*</span>
@@ -435,7 +411,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
             />
           </div>
 
-          {/* Category + Display Label */}
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
               <label className={labelCls} style={labelStyle}>
@@ -466,7 +441,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
             </div>
           </div>
 
-          {/* Upcharge + Sort Order */}
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
               <label className={labelCls} style={labelStyle}>
@@ -525,7 +499,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
             </div>
           </div>
 
-          {/* Image upload */}
           <div>
             <label className={labelCls} style={labelStyle}>
               Image
@@ -541,7 +514,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
             />
           </div>
 
-          {/* Extra inline fields (text / number / url / color / date) — 2-col grid */}
           {extraFields
             .filter((d) => {
               const t = inputTypeFor(d.type?.name);
@@ -585,7 +557,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
               </div>
             ))}
 
-          {/* Extra textarea fields (multi_line_text_field / json) — full-width */}
           {extraFields
             .filter((d) => inputTypeFor(d.type?.name) === "textarea")
             .map((def) => (
@@ -604,7 +575,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
               </div>
             ))}
 
-          {/* Extra file_reference fields */}
           {extraFields
             .filter((d) => inputTypeFor(d.type?.name) === "file")
             .map((def) => (
@@ -624,7 +594,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
               </div>
             ))}
 
-          {/* Visible (locked) + Is Default + extra boolean fields */}
           <div className="flex flex-wrap items-center gap-x-[24px] gap-y-[8px] pt-[4px]">
             <label className="flex items-center gap-[8px]">
               <input
@@ -692,7 +661,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
             {error || ""}
           </p>
 
-          {/* Actions */}
           <div
             className="flex items-center justify-end gap-[8px] pt-[8px]"
             style={{ borderTop: "1px solid #dac1ba" }}
@@ -724,7 +692,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
   );
 }
 
-// ─── View Style Option Modal ───────────────────────────────────────────────
 function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
   const rows = [
     { label: "Label", value: option.label },
@@ -739,7 +706,6 @@ function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
     { label: "Conditional Hide", value: option.conditionalHide || "—" },
   ];
 
-  // Extra raw fields not in the known set
   const extraRows = Object.entries(option.rawFields ?? {})
     .filter(([k]) => !KNOWN_KEYS.has(k))
     .map(([k, v]) => ({
@@ -810,7 +776,6 @@ function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
         </div>
 
         <div className="px-[20px] py-[16px] flex flex-col gap-[12px]">
-          {/* Image */}
           {option.imageUrl && (
             <div className="flex justify-center pb-[4px]">
               <img
@@ -822,7 +787,6 @@ function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
             </div>
           )}
 
-          {/* Status badges */}
           <div className="flex flex-wrap gap-[8px]">
             <span
               className="font-hanken font-semibold text-[11px] px-[10px] py-[4px] rounded-full"
@@ -843,7 +807,6 @@ function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
             )}
           </div>
 
-          {/* Fields grid */}
           <div
             className="rounded-[8px] overflow-hidden"
             style={{ border: "1px solid #dac1ba" }}
@@ -872,9 +835,7 @@ function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
   );
 }
 
-// ─── Edit Style Option Modal ───────────────────────────────────────────────
 function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
-  // Derive extra keys from rawFields immediately — visible before any async call
   const rawExtra = Object.keys(option.rawFields ?? {}).filter(
     (k) => !KNOWN_KEYS.has(k),
   );
@@ -914,7 +875,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
   const [shopifyUrl, setShopifyUrl] = useState(null);
   const garmentType = GARMENT_TO_STYLE_TYPE[garment];
 
-  // Fallback: re-fetch defs to catch any field added since page load
   useEffect(() => {
     if (!garmentType) return;
     fetchStyleOptionFieldDefs(garmentType)
@@ -1032,13 +992,12 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
           border: "1px solid #dac1ba",
         }}
       >
-        {/* Header */}
         <div
           className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0"
           style={{ borderBottom: "1px solid #dac1ba" }}
         >
           <h2
-            className="font-garamond font-bold text-[22px]"
+            className="font-garamond font-bold text-[18px] sm:text-[22px]"
             style={{ color: "#3c3c3c" }}
           >
             Edit {garment} Option
@@ -1049,10 +1008,10 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
                 href={shopifyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-[5px] font-hanken font-semibold text-[12px] h-[30px] px-[10px] rounded-[6px] cursor-pointer hover:opacity-80"
+                className="flex items-center gap-[4px] font-hanken font-semibold text-[10px] sm:text-[12px] h-[26px] sm:h-[30px] px-[8px] sm:px-[10px] rounded-[6px] cursor-pointer hover:opacity-80"
                 style={{ border: "1px solid #dac1ba", color: "#7c3820" }}
               >
-                <ExternalLink size={11} />
+                <ExternalLink size={10} />
                 Open in Shopify
               </a>
             )}
@@ -1071,7 +1030,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
           onSubmit={handleSubmit}
           className="px-[20px] py-[16px] flex flex-col gap-[12px]"
         >
-          {/* Label */}
           <div>
             <label className={labelCls} style={labelStyle}>
               Label <span style={{ color: "#dc2626" }}>*</span>
@@ -1084,7 +1042,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
             />
           </div>
 
-          {/* Category + Display Label */}
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
               <label className={labelCls} style={labelStyle}>
@@ -1113,7 +1070,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
             </div>
           </div>
 
-          {/* Upcharge + Sort Order */}
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
               <label className={labelCls} style={labelStyle}>
@@ -1144,7 +1100,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
             </div>
           </div>
 
-          {/* Kutetailor Code + Conditional Hide */}
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
               <label className={labelCls} style={labelStyle}>
@@ -1170,7 +1125,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
             </div>
           </div>
 
-          {/* Image upload */}
           <div>
             <label className={labelCls} style={labelStyle}>
               Image
@@ -1186,7 +1140,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
             />
           </div>
 
-          {/* Extra inline fields (text / number / url / color / date) — 2-col grid */}
           {extraFields
             .filter((d) => {
               const t = inputTypeFor(d.type?.name);
@@ -1229,7 +1182,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
               </div>
             ))}
 
-          {/* Extra textarea fields (multi_line_text_field / json) — full-width */}
           {extraFields
             .filter((d) => inputTypeFor(d.type?.name) === "textarea")
             .map((def) => (
@@ -1247,7 +1199,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
               </div>
             ))}
 
-          {/* Extra file_reference fields */}
           {extraFields
             .filter((d) => inputTypeFor(d.type?.name) === "file")
             .map((def) => (
@@ -1267,7 +1218,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
               </div>
             ))}
 
-          {/* Checkboxes */}
           <div className="flex flex-wrap items-center gap-x-[24px] gap-y-[8px] pt-[4px]">
             <label className="flex items-center gap-[8px] cursor-pointer">
               <input
@@ -1336,7 +1286,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
             {error || ""}
           </p>
 
-          {/* Actions */}
           <div
             className="flex items-center justify-end gap-[8px] pt-[8px]"
             style={{ borderTop: "1px solid #dac1ba" }}
@@ -1368,7 +1317,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
   );
 }
 
-// ─── Delete Confirm Modal ──────────────────────────────────────────────────
 function DeleteConfirmModal({ option, onClose, onDeleted }) {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState(null);
@@ -1459,7 +1407,388 @@ function DeleteConfirmModal({ option, onClose, onDeleted }) {
   );
 }
 
-// ─── Garment Dropdown ──────────────────────────────────────────────────────
+function ViewContrastOptionModal({ option, onClose, onEdit }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.4)" }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto"
+        style={{
+          maxWidth: 480,
+          maxHeight: "90vh",
+          border: "1px solid #dac1ba",
+        }}
+      >
+        <div
+          className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0"
+          style={{ borderBottom: "1px solid #dac1ba" }}
+        >
+          <div>
+            <p
+              className="font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[2px]"
+              style={{ color: "#a45d41" }}
+            >
+              {option.garment} · Contrast Option
+            </p>
+            <h2
+              className="font-garamond font-bold text-[22px]"
+              style={{ color: "#3c3c3c" }}
+            >
+              {option.label}
+            </h2>
+          </div>
+          <div className="flex items-center gap-[8px]">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onEdit(option);
+              }}
+              className="flex items-center gap-[5px] font-hanken font-semibold text-[12px] h-[30px] px-[10px] rounded-[6px] cursor-pointer hover:opacity-80"
+              style={{ border: "1px solid #dac1ba", color: "#7c3820" }}
+            >
+              <Pencil size={11} />
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80"
+              style={{ width: 30, height: 30, background: "#f1ede8" }}
+            >
+              <X size={14} style={{ color: "#7c3820" }} />
+            </button>
+          </div>
+        </div>
+
+        <div className="px-[20px] py-[16px] flex flex-col gap-[12px]">
+          {option.imageUrl && (
+            <div className="flex justify-center pb-[4px]">
+              <img
+                src={option.imageUrl}
+                alt={option.label}
+                className="rounded-[8px] object-cover"
+                style={{ width: 80, height: 80, border: "1px solid #dac1ba" }}
+              />
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-[8px]">
+            <span
+              className="font-hanken font-semibold text-[11px] px-[10px] py-[4px] rounded-full"
+              style={{
+                background: option.visible ? "#dcfce7" : "#f1ede8",
+                color: option.visible ? "#166534" : "#7c3820",
+              }}
+            >
+              {option.visible ? "Visible" : "Hidden"}
+            </span>
+          </div>
+
+          <div
+            className="rounded-[8px] overflow-hidden"
+            style={{ border: "1px solid #dac1ba" }}
+          >
+            {[
+              { label: "Color Name", value: option.label || "—" },
+              {
+                label: "Color Hex",
+                value: option.colorHex || "—",
+                hex: option.colorHex,
+              },
+              { label: "Garment", value: option.garment || "—" },
+            ].map(({ label, value, hex }, i) => (
+              <div
+                key={label}
+                className="grid grid-cols-2 gap-[12px] px-[14px] py-[10px]"
+                style={{
+                  borderTop: i === 0 ? "none" : "1px solid #f1ede8",
+                  background: i % 2 === 0 ? "#fff" : "#fdf9f6",
+                }}
+              >
+                <span
+                  className="font-hanken font-semibold text-[11px] tracking-[0.4px]"
+                  style={{ color: "#7c3820" }}
+                >
+                  {label}
+                </span>
+                <span
+                  className="font-hanken text-[13px] flex items-center gap-[8px]"
+                  style={{ color: "#1c1c19" }}
+                >
+                  {hex && (
+                    <span
+                      className="inline-block flex-shrink-0 rounded-[3px]"
+                      style={{
+                        width: 16,
+                        height: 16,
+                        backgroundColor: hex,
+                        border: "1px solid #dac1ba",
+                      }}
+                    />
+                  )}
+                  {value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditContrastOptionModal({ option, onClose, onUpdated }) {
+  const [form, setForm] = useState({
+    color_name: option.label || "",
+    color_hex: option.colorHex || "",
+    color_image: option.imageGid || "",
+    color_image_url: option.imageUrlStored || option.imageUrl || "",
+    visible: option.visible ? "true" : "false",
+    garment: option.garment || "",
+  });
+  const [imageUploading, setImageUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  function set(key, val) {
+    setForm((prev) => ({ ...prev, [key]: val }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.color_name.trim()) {
+      setError("Color name is required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const extraFields = Object.fromEntries(
+        Object.entries(option.rawFields ?? {}).filter(
+          ([k]) =>
+            ![
+              "color_name",
+              "color_hex",
+              "color_image",
+              "visible",
+              "garment",
+            ].includes(k),
+        ),
+      );
+      await updateContrastOption(option.id, {
+        ...extraFields,
+        color_name: form.color_name.trim(),
+        color_hex: form.color_hex || null,
+        color_image: form.color_image || null,
+        visible: form.visible,
+        garment: form.garment,
+      });
+      onUpdated(option.id, {
+        label: form.color_name.trim(),
+        visible: form.visible === "true",
+        colorHex: form.color_hex || null,
+        imageGid: form.color_image || null,
+        imageUrlStored: form.color_image_url || null,
+        imageUrl: form.color_image_url || null,
+        garment: form.garment,
+        rawFields: {
+          ...option.rawFields,
+          color_name: form.color_name.trim(),
+          color_hex: form.color_hex || null,
+          color_image: form.color_image || null,
+          visible: form.visible,
+          garment: form.garment,
+        },
+      });
+      clearStyleOptionsCache();
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls =
+    "w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-[#a45d41]";
+  const inputStyle = { border: "1px solid #dac1ba", color: "#1c1c19" };
+  const labelCls =
+    "font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[4px] block";
+  const labelStyle = { color: "#7c3820" };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.4)" }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto"
+        style={{
+          maxWidth: 520,
+          maxHeight: "90vh",
+          border: "1px solid #dac1ba",
+        }}
+      >
+        <div
+          className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0"
+          style={{ borderBottom: "1px solid #dac1ba" }}
+        >
+          <h2
+            className="font-garamond font-bold text-[22px]"
+            style={{ color: "#3c3c3c" }}
+          >
+            Edit Contrast Option
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80"
+            style={{ width: 30, height: 30, background: "#f1ede8" }}
+          >
+            <X size={14} style={{ color: "#7c3820" }} />
+          </button>
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="px-[20px] py-[16px] flex flex-col gap-[12px]"
+        >
+          <div>
+            <label className={labelCls} style={labelStyle}>
+              Color Image
+            </label>
+            <ImagePicker
+              currentUrl={form.color_image_url || null}
+              gid={form.color_image}
+              onUploaded={(gid, cdnUrl) => {
+                set("color_image", gid);
+                set("color_image_url", cdnUrl);
+              }}
+              onUploadChange={setImageUploading}
+            />
+          </div>
+
+          <div>
+            <label className={labelCls} style={labelStyle}>
+              Color Name <span style={{ color: "#dc2626" }}>*</span>
+            </label>
+            <input
+              className={inputCls}
+              style={inputStyle}
+              value={form.color_name}
+              onChange={(e) => set("color_name", e.target.value)}
+              placeholder="e.g. Blue"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-[10px]">
+            <div>
+              <label className={labelCls} style={labelStyle}>
+                Color Hex
+              </label>
+              <div className="flex items-center gap-[6px]">
+                <input
+                  type="color"
+                  className="rounded-[6px] cursor-pointer flex-shrink-0"
+                  style={{
+                    width: 38,
+                    height: 38,
+                    padding: 2,
+                    border: "1px solid #dac1ba",
+                  }}
+                  value={form.color_hex || "#ffffff"}
+                  onChange={(e) => set("color_hex", e.target.value)}
+                />
+                <input
+                  className={inputCls}
+                  style={inputStyle}
+                  value={form.color_hex}
+                  onChange={(e) => set("color_hex", e.target.value)}
+                  placeholder="#ffffff"
+                />
+              </div>
+            </div>
+            <div>
+              <label className={labelCls} style={labelStyle}>
+                Garment
+              </label>
+              <input
+                className={inputCls}
+                style={inputStyle}
+                value={form.garment}
+                onChange={(e) => set("garment", e.target.value)}
+                placeholder="e.g. Jacket"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-[8px] pt-[4px]">
+            <label className="flex items-center gap-[8px] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.visible === "true"}
+                onChange={(e) =>
+                  set("visible", e.target.checked ? "true" : "false")
+                }
+                className="w-[15px] h-[15px] cursor-pointer"
+                style={{ accentColor: "#a45d41" }}
+              />
+              <span
+                className="font-hanken font-semibold text-[12px]"
+                style={{ color: "#3c3c3c" }}
+              >
+                Visible
+              </span>
+            </label>
+          </div>
+
+          <p
+            className="font-hanken text-[12px] h-[16px]"
+            style={{ color: "#dc2626" }}
+          >
+            {error || ""}
+          </p>
+
+          <div
+            className="flex items-center justify-end gap-[8px] pt-[8px]"
+            style={{ borderTop: "1px solid #dac1ba" }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              className="font-hanken font-semibold text-[13px] h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80"
+              style={{ border: "1px solid #dac1ba", color: "#7c3820" }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving || imageUploading}
+              className="font-hanken font-semibold text-[13px] text-white h-[38px] px-[20px] rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: "#a45d41" }}
+            >
+              {saving
+                ? "Saving…"
+                : imageUploading
+                  ? "Uploading image…"
+                  : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function GarmentDropdown({ garments, selected, onSelect, loading }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -1474,17 +1803,16 @@ function GarmentDropdown({ garments, selected, onSelect, loading }) {
 
   return (
     <div ref={ref} className="relative w-full">
-      {/* Trigger — styled exactly like Figma filter input */}
       <button
         type="button"
         onClick={() => !loading && garments.length > 0 && setOpen((v) => !v)}
         className="flex items-center w-full h-[40px] rounded-[8px] pl-[13px] pr-[9px] py-[7px] bg-white cursor-pointer"
         style={{ border: "1px solid #dac1ba" }}
       >
-        <Filter
+        <ListFilter
           size={12}
           className="flex-shrink-0 mr-[8px]"
-          style={{ color: "#9b9b9b" }}
+          style={{ color: "#54433E" }}
         />
         <span
           className="flex-1 text-left text-[14px] font-hanken truncate"
@@ -1535,7 +1863,6 @@ function GarmentDropdown({ garments, selected, onSelect, loading }) {
   );
 }
 
-// ─── Toggle ────────────────────────────────────────────────────────────────
 function Toggle({ on, onChange }) {
   return (
     <button
@@ -1565,27 +1892,26 @@ function Toggle({ on, onChange }) {
   );
 }
 
-// ─── Option Card ───────────────────────────────────────────────────────────
 function OptionCard({ option, visible, onChange, onView, onEdit, onDelete }) {
   return (
     <div
-      className="bg-white flex items-center h-[64px] rounded-[8px] px-[11px] py-[12px]"
+      className="bg-white flex items-center h-[52px] md:h-[64px] rounded-[8px] px-[8px] md:px-[11px] py-[8px] md:py-[12px]"
       style={{ border: "1px solid #dac1ba" }}
     >
-      {/* Sort order badge — before image */}
-      <span
-        className="flex-shrink-0 flex items-center justify-center font-hanken font-bold text-[11px] rounded-[4px] mr-[8px]"
-        style={{
-          width: 24,
-          height: 24,
-          background: "#f1ede8",
-          color: "#a45d41",
-        }}
-      >
-        {option.sortOrder ?? "—"}
-      </span>
+      {!option.isContrastOption && (
+        <span
+          className="flex-shrink-0 flex items-center justify-center font-hanken font-bold text-[11px] rounded-[4px] mr-[8px]"
+          style={{
+            width: 24,
+            height: 24,
+            background: "#f1ede8",
+            color: "#a45d41",
+          }}
+        >
+          {option.sortOrder ?? "—"}
+        </span>
+      )}
 
-      {/* Image thumbnail */}
       <div
         className="flex-shrink-0 rounded-[8px] overflow-hidden flex items-center justify-center"
         style={{
@@ -1607,14 +1933,12 @@ function OptionCard({ option, visible, onChange, onView, onEdit, onDelete }) {
         )}
       </div>
 
-      {/* Name */}
       <div className="flex items-center flex-1 min-w-0 ml-[12px]">
-        <span className="font-hanken font-medium text-[16px] text-black leading-[24px] block truncate">
+        <span className="font-hanken font-medium text-[13px] md:text-[16px] text-black leading-[24px] block truncate">
           {option.label}
         </span>
       </div>
 
-      {/* Edit + Delete + ON/OFF + Toggle */}
       <div
         className="flex items-center gap-[8px] pl-[12px] ml-[8px] flex-shrink-0"
         style={{ borderLeft: "1px solid rgba(218,193,186,0.4)" }}
@@ -1667,7 +1991,6 @@ function OptionCard({ option, visible, onChange, onView, onEdit, onDelete }) {
   );
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────
 export default function StyleAdjustments() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [options, setOptions] = useState([]);
@@ -1707,8 +2030,9 @@ export default function StyleAdjustments() {
   }
 
   useEffect(() => {
-    fetchStyleOptions()
-      .then((data) => {
+    Promise.all([fetchStyleOptions(), fetchContrastOptions()])
+      .then(([styleData, contrastData]) => {
+        const data = [...styleData, ...contrastData];
         setOptions(data);
         if (data.length > 0) {
           const garments = [
@@ -1721,9 +2045,15 @@ export default function StyleAdjustments() {
               : (garments.find((g) => g.toLowerCase() === "jacket") ??
                 garments[0]);
           const urlCategory = searchParams.get("category");
+
           const cats = [
             ...new Set(
-              data.filter((o) => o.garment === first).map((o) => o.category),
+              data
+                .filter(
+                  (o) =>
+                    o.garment === first && o.category !== "contrast_option",
+                )
+                .map((o) => o.category),
             ),
           ];
           const firstCat =
@@ -1745,9 +2075,8 @@ export default function StyleAdjustments() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  // auto-sync CDN image URLs to Shopify 3s after options load
   useEffect(() => {
     if (!options.length) return;
     const timer = setTimeout(() => {
@@ -1783,7 +2112,6 @@ export default function StyleAdjustments() {
     return [...map.entries()]
       .map(([slug, info]) => ({ slug, ...info }))
       .sort((a, b) => a.sortOrder - b.sortOrder);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options, selectedGarment, overrides]);
 
   const categoryOptions = useMemo(
@@ -1899,7 +2227,7 @@ export default function StyleAdjustments() {
     };
     setOptions((prev) => [...prev, newOpt]);
     clearStyleOptionsCache();
-    // Navigate to the new option's category so it's visible immediately
+
     setSelectedCategory(cat);
   }
 
@@ -1907,7 +2235,7 @@ export default function StyleAdjustments() {
     setOptions((prev) =>
       prev.map((o) => (o.id === id ? { ...o, ...updatedFields } : o)),
     );
-    // Remove any pending visibility override for this option since visible was updated directly
+
     setOverrides((prev) => {
       if (!prev.has(id)) return prev;
       const next = new Map(prev);
@@ -1944,12 +2272,10 @@ export default function StyleAdjustments() {
 
   return (
     <DashboardLayout bgColor="#f4f1ed">
-      {/* Break out of page-content padding to make aside flush */}
       <div
         className="-mx-[20px] md:-mx-[28px] -mt-[20px] md:-mt-[28px] -mb-[20px] md:-mb-[28px] flex overflow-hidden relative"
         style={{ height: "calc(100vh - 64px)" }}
       >
-        {/* ── Mobile sidebar overlay backdrop ─────────────────────────────── */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 z-30 md:hidden"
@@ -1958,7 +2284,6 @@ export default function StyleAdjustments() {
           />
         )}
 
-        {/* ── Left aside ──────────────────────────────────────────────────── */}
         <aside
           className={`flex-shrink-0 transition-transform duration-300
             fixed z-40 top-[64px] md:relative md:z-auto md:top-auto md:translate-x-0
@@ -1973,7 +2298,6 @@ export default function StyleAdjustments() {
             overflow: "hidden",
           }}
         >
-          {/* Garment filter — exactly 64px tall (pt16 + h40 + pb8) */}
           <div
             className="px-[8px] pt-[16px] pb-[8px] relative"
             style={{ zIndex: 2 }}
@@ -1987,14 +2311,17 @@ export default function StyleAdjustments() {
             />
           </div>
 
-          {/* Category list — scrollable */}
           <div
+            className={
+              categoriesForGarment.length > 15
+                ? "style-cat-scroll-always"
+                : "style-cat-scroll-mobile"
+            }
             style={{
-              overflowY: "auto",
               overflowX: "hidden",
               flex: 1,
               minHeight: 0,
-              paddingBottom: 96,
+              paddingBottom: 120,
             }}
           >
             {loading ? (
@@ -2018,9 +2345,9 @@ export default function StyleAdjustments() {
                         active
                           ? {
                               background: "#fff",
-                              borderTop: "1px solid #dac1ba",
-                              borderBottom: "1px solid #dac1ba",
-                              borderLeft: "4px solid #a45d41",
+                              borderTop: "1px solid #A45D41",
+                              borderBottom: "1px solid #A45D41",
+                              borderLeft: "4px solid #A45D41",
                               paddingLeft: 20,
                               paddingRight: 16,
                               paddingTop: 13,
@@ -2035,7 +2362,7 @@ export default function StyleAdjustments() {
                       }
                     >
                       <span
-                        className="font-hanken font-semibold text-[12px] leading-[16px] truncate mr-[8px]"
+                        className="font-hanken font-semibold text-[12px] md:text-[14px] leading-[16px] md:leading-[18px] truncate mr-[8px]"
                         style={{ color: active ? "#1c1c19" : "#a45d41" }}
                       >
                         {cat.displayLabel}
@@ -2072,7 +2399,6 @@ export default function StyleAdjustments() {
           </div>
         </aside>
 
-        {/* ── Main content ─────────────────────────────────────────────────── */}
         <div
           ref={mainRef}
           className="flex-1 min-w-0 flex flex-col overflow-y-auto pb-[100px] scroll-hidden"
@@ -2094,9 +2420,7 @@ export default function StyleAdjustments() {
 
           {!loading && !error && selectedCategory && (
             <>
-              {/* Header */}
               <div className="px-[16px] md:px-[40px] pt-[16px] md:pt-[40px] pb-[16px] md:pb-[24px]">
-                {/* Mobile: sidebar toggle + breadcrumb row */}
                 <div className="flex items-center gap-[8px] mb-[8px]">
                   <button
                     type="button"
@@ -2128,7 +2452,7 @@ export default function StyleAdjustments() {
                     </span>
                   </div>
                 </div>
-                {/* Title + Add button */}
+
                 <div className="flex items-center justify-between gap-[12px]">
                   <h1
                     className="font-garamond font-bold text-[28px] md:text-[40px] leading-tight"
@@ -2137,10 +2461,11 @@ export default function StyleAdjustments() {
                     {categoryInfo?.displayLabel}
                   </h1>
                   {selectedGarment &&
-                    GARMENT_TO_STYLE_TYPE[selectedGarment] && (
+                    GARMENT_TO_STYLE_TYPE[selectedGarment] &&
+                    selectedCategory !== "contrast_option" && (
                       <button
                         onClick={() => setAddModalOpen(true)}
-                        className="flex items-center gap-[6px] font-hanken font-semibold text-[13px] md:text-[14px] uppercase text-white h-[40px] md:h-[44px] px-[12px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
+                        className="flex items-center gap-[4px] font-hanken font-semibold text-[11px] md:text-[14px] uppercase text-white h-[32px] md:h-[44px] px-[8px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
                         style={{ background: "#a45d41" }}
                       >
                         <Plus size={14} />
@@ -2157,54 +2482,50 @@ export default function StyleAdjustments() {
                 </p>
               </div>
 
-              {/* Sticky filter bar */}
               <div
-                className="sticky top-0 z-10 px-[16px] md:px-[24px] py-[12px] md:py-[20px] flex flex-col sm:flex-row sm:items-center gap-[8px] sm:gap-[12px]"
+                className="sticky top-0 z-10 px-[16px] md:px-[24px] py-[8px] md:py-[20px] flex flex-row items-center gap-[6px] md:gap-[12px]"
                 style={{
                   background: "rgba(253,249,244,0.9)",
                   backdropFilter: "blur(2px)",
                 }}
               >
                 <div
-                  className="flex items-center gap-[14px] h-[44px] md:h-[48px] rounded-[8px] overflow-hidden flex-1 pl-[14px] md:pl-[21px] pr-[12px] md:pr-[19px]"
+                  className="flex items-center gap-[8px] h-[34px] md:h-[48px] rounded-[8px] overflow-hidden flex-1 px-[10px] md:px-[21px]"
                   style={{
                     background: "rgba(255,255,255,0.5)",
                     border: "1px solid #d1c7bd",
                   }}
                 >
                   <Search
-                    size={16}
+                    size={14}
                     className="flex-shrink-0"
                     style={{ color: "#6b7280" }}
                   />
                   <input
                     type="text"
-                    placeholder="Filter options..."
+                    placeholder="Filter options in this category..."
                     value={optionFilter}
                     onChange={(e) => setOptionFilter(e.target.value)}
-                    className="flex-1 text-[14px] font-hanken font-medium outline-none bg-transparent"
+                    className="flex-1 text-[12px] md:text-[14px] font-hanken font-medium outline-none bg-transparent"
                     style={{ color: "#1c1c19" }}
                   />
                 </div>
-                <div className="flex items-center gap-[4px] flex-shrink-0 justify-end">
-                  <button
-                    onClick={showAll}
-                    className="font-hanken font-semibold text-[13px] md:text-[14px] text-white uppercase h-[40px] md:h-[44px] px-[12px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-1 sm:flex-none"
-                    style={{ background: "#a45d41" }}
-                  >
-                    Show All
-                  </button>
-                  <button
-                    onClick={hideAll}
-                    className="font-hanken font-semibold text-[13px] md:text-[14px] text-white uppercase h-[40px] md:h-[44px] px-[12px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-1 sm:flex-none"
-                    style={{ background: "#a45d41" }}
-                  >
-                    Hide All
-                  </button>
-                </div>
+                <button
+                  onClick={showAll}
+                  className="font-hanken font-semibold text-[11px] md:text-[14px] text-white uppercase h-[34px] md:h-[44px] px-[10px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
+                  style={{ background: "#a45d41" }}
+                >
+                  Show All
+                </button>
+                <button
+                  onClick={hideAll}
+                  className="font-hanken font-semibold text-[11px] md:text-[14px] text-white uppercase h-[34px] md:h-[44px] px-[10px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
+                  style={{ background: "#a45d41" }}
+                >
+                  Hide All
+                </button>
               </div>
 
-              {/* Options grid — 1 col mobile, 2 col sm+ */}
               <div className="px-[16px] md:px-[24px] pt-[16px] md:pt-[20px]">
                 {filteredOptions.length === 0 ? (
                   <p
@@ -2234,7 +2555,6 @@ export default function StyleAdjustments() {
 
           {!loading && !error && !selectedCategory && (
             <div className="flex flex-col items-center justify-center py-[60px] md:py-[100px] gap-[16px]">
-              {/* Mobile: show sidebar toggle when no category selected */}
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
@@ -2255,16 +2575,14 @@ export default function StyleAdjustments() {
         </div>
       </div>
 
-      {/* ── Fixed footer ─────────────────────────────────────────────────────── */}
       <div
-        className="fixed bottom-0 right-0 lg:left-[260px] left-0 z-40"
+        className="fixed bottom-0 right-0 left-0 lg:left-[540px] z-40"
         style={{
           background: "#fff",
           borderTop: "1px solid #dac1ba",
         }}
       >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-[6px] sm:gap-[8px] px-[16px] md:px-[40px] py-[8px] md:py-[10px]">
-          {/* Hidden count */}
           <div className="flex items-center gap-[8px]">
             <div
               className="flex items-center justify-center font-hanken font-medium text-[12px] rounded-full flex-shrink-0"
@@ -2285,7 +2603,6 @@ export default function StyleAdjustments() {
             </span>
           </div>
 
-          {/* Unsaved changes + save */}
           <div className="flex items-center gap-[10px] sm:justify-end">
             {saveError && (
               <span
@@ -2306,16 +2623,14 @@ export default function StyleAdjustments() {
             <button
               onClick={handleSave}
               disabled={saving || pendingCount === 0}
-              className="flex items-center gap-[8px] font-hanken font-semibold text-[12px] text-white text-center tracking-[0.6px] uppercase rounded-[8px] cursor-pointer transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-[6px] font-hanken font-semibold text-[11px] md:text-[12px] text-white text-center tracking-[0.6px] uppercase rounded-[8px] cursor-pointer transition-opacity disabled:opacity-50 disabled:cursor-not-allowed px-[12px] md:px-[20px]"
               style={{
                 background: "#a45d41",
-                height: 42,
-                minWidth: 140,
-                width: 175,
+                height: 34,
                 justifyContent: "center",
               }}
             >
-              <Save size={18} />
+              <Save size={14} />
               Save Changes
             </button>
           </div>
@@ -2329,25 +2644,42 @@ export default function StyleAdjustments() {
           onCreated={handleCreated}
         />
       )}
-      {viewingOption && selectedGarment && (
-        <ViewStyleOptionModal
-          option={viewingOption}
-          garment={selectedGarment}
-          onClose={() => setViewingOption(null)}
-          onEdit={(opt) => {
-            setViewingOption(null);
-            setEditingOption(opt);
-          }}
-        />
-      )}
-      {editingOption && selectedGarment && (
-        <EditStyleOptionModal
-          option={editingOption}
-          garment={selectedGarment}
-          onClose={() => setEditingOption(null)}
-          onUpdated={handleUpdated}
-        />
-      )}
+      {viewingOption &&
+        (viewingOption.isContrastOption ? (
+          <ViewContrastOptionModal
+            option={viewingOption}
+            onClose={() => setViewingOption(null)}
+            onEdit={(opt) => {
+              setViewingOption(null);
+              setEditingOption(opt);
+            }}
+          />
+        ) : (
+          <ViewStyleOptionModal
+            option={viewingOption}
+            garment={selectedGarment}
+            onClose={() => setViewingOption(null)}
+            onEdit={(opt) => {
+              setViewingOption(null);
+              setEditingOption(opt);
+            }}
+          />
+        ))}
+      {editingOption &&
+        (editingOption.isContrastOption ? (
+          <EditContrastOptionModal
+            option={editingOption}
+            onClose={() => setEditingOption(null)}
+            onUpdated={handleUpdated}
+          />
+        ) : (
+          <EditStyleOptionModal
+            option={editingOption}
+            garment={selectedGarment}
+            onClose={() => setEditingOption(null)}
+            onUpdated={handleUpdated}
+          />
+        ))}
       {deletingOption && (
         <DeleteConfirmModal
           option={deletingOption}

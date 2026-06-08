@@ -1,11 +1,9 @@
 export const config = { api: { bodyParser: false } };
 
 export default async function handler(req, res) {
-  // req.query.path = ['graphql.json'] for /api/shopify/graphql.json
   const segments = req.query.path;
   const pathPart = Array.isArray(segments) ? "/" + segments.join("/") : "/graphql.json";
 
-  // Preserve any query string (e.g. ?fields=...)
   const qs = req.url.includes("?") ? "?" + req.url.split("?").slice(1).join("?") : "";
 
   const url =
