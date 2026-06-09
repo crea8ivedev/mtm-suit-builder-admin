@@ -165,8 +165,8 @@
 }
 
 .gc-table-row {
-  border-left: 3px solid transparent;
-  transition: background-color 0.15s, border-color 0.15s;
+  box-shadow: inset 3px 0 0 transparent;
+  transition: background-color 0.15s, box-shadow 0.15s;
   cursor: pointer;
 }
 
@@ -175,7 +175,7 @@
 }
 
 .gc-table-row:hover {
-  border-left-color: var(--color-gc-primary);
+  box-shadow: inset 3px 0 0 var(--color-gc-primary);
   background: color-mix(in oklab, var(--color-gc-primary) 4%, transparent);
 }
 

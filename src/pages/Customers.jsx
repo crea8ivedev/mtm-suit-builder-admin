@@ -155,7 +155,7 @@ export default function Customers() {
         </button>
       </div>
 
-      <div className="flex items-center gap-[14px] h-[55px] px-[21px] rounded-[8px] mb-[20px] bg-white/50 border border-gc-border-input">
+      <div className="flex items-center gap-[14px] h-[55px] px-[21px] rounded-[8px] mb-[20px] bg-white/50 border border-gc-border-input md:mr-[-28px]">
         <Search size={17} className="text-gc-muted flex-shrink-0" />
         <input
           type="text"
@@ -167,7 +167,7 @@ export default function Customers() {
       </div>
 
       <div className="flex flex-col gap-[20px]">
-        <div className="bg-white rounded-[12px] overflow-hidden border border-gc-divider/30">
+        <div className="gc-table-container">
           {loading && <LoadingState />}
           {error && <ErrorState message={error} onRetry={retry} />}
 
