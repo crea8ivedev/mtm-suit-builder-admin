@@ -291,11 +291,7 @@ export default function Orders() {
                   <div className="relative">
                     <button
                       onClick={() => setEntriesOpen((v) => !v)}
-                      className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none"
-                      style={{
-                        border: "1px solid #dac1ba",
-                        background: "#fff",
-                      }}
+                      className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none border border-gc-border-warm bg-white"
                     >
                       {itemsPerPage}
                       <ChevronRight
@@ -304,14 +300,7 @@ export default function Orders() {
                       />
                     </button>
                     {entriesOpen && (
-                      <div
-                        className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md"
-                        style={{
-                          border: "1px solid #dac1ba",
-                          background: "#fff",
-                          minWidth: "100%",
-                        }}
-                      >
+                      <div className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md border border-gc-border-warm bg-white min-w-full">
                         {[10, 20, 40, 100].map((n) => (
                           <button
                             key={n}
@@ -320,15 +309,7 @@ export default function Orders() {
                               setCurrentPage(1);
                               setEntriesOpen(false);
                             }}
-                            className="w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors"
-                            style={{
-                              color: n === itemsPerPage ? "#a45d41" : "#3c3c3c",
-                              background:
-                                n === itemsPerPage
-                                  ? "rgba(164,93,65,0.06)"
-                                  : "transparent",
-                              fontWeight: n === itemsPerPage ? 600 : 400,
-                            }}
+                            className={`w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors ${n === itemsPerPage ? "text-gc-primary bg-gc-primary/[6%] font-semibold" : "text-gc-heading font-normal"}`}
                           >
                             {n}
                           </button>

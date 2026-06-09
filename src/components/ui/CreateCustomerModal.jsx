@@ -37,7 +37,7 @@ function GCInput({
       onChange={onChange}
       placeholder={placeholder}
       className={cn(
-        "font-hanken w-full h-[38px] px-[17px] py-[9px] bg-white rounded-[8px] text-[14px] text-[#1a1c1b] placeholder:text-[#6b7280] outline-none transition-colors",
+        "font-hanken w-full h-[38px] px-[17px] py-[9px] bg-white rounded-[8px] text-[14px] text-gc-near-black2 placeholder:text-gc-muted outline-none transition-colors",
         error
           ? "border border-red-400 focus:border-red-500"
           : "border border-[#d1c7bd] focus:border-[#a45d41]",
@@ -63,10 +63,7 @@ function SectionHeading({ num, title }) {
       <span className="font-garamond text-[18px] text-black leading-[27px]">
         {title}
       </span>
-      <div
-        className="flex-1 h-px"
-        style={{ backgroundColor: "rgba(207,196,197,0.3)" }}
-      />
+      <div className="flex-1 h-px bg-gc-section-divider/30" />
     </div>
   );
 }
@@ -117,7 +114,7 @@ function GCDropdown({
           error ? "border border-red-400" : "border border-[#d1c7bd]",
         )}
       >
-        <span className={selected ? "text-[#1a1c1b]" : "text-[#6b7280]"}>
+        <span className={selected ? "text-gc-near-black2" : "text-[#6b7280]"}>
           {selected ? selected.label : placeholder}
         </span>
         <div className="flex flex-col items-center gap-[2px] flex-shrink-0 ml-[8px]">
@@ -144,7 +141,7 @@ function GCDropdown({
               placeholder="Search…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="font-hanken w-full h-[30px] px-[10px] bg-[#f9f7f4] border border-[#e8e1d9] rounded-[6px] text-[13px] text-[#1a1c1b] placeholder:text-[#9ca3af] outline-none"
+              className="font-hanken w-full h-[30px] px-[10px] bg-[#f9f7f4] border border-[#e8e1d9] rounded-[6px] text-[13px] text-gc-near-black2 placeholder:text-[#9ca3af] outline-none"
             />
           </div>
           <div className="overflow-y-auto max-h-[200px]">
@@ -167,7 +164,7 @@ function GCDropdown({
                     value === item.value && "bg-[#fdf5f0]",
                   )}
                 >
-                  <span className="font-hanken text-[13px] text-[#1a1c1b] truncate">
+                  <span className="font-hanken text-[13px] text-gc-near-black2 truncate">
                     {item.label}
                   </span>
                 </button>
@@ -235,7 +232,7 @@ function PhoneField({ phoneIso, onPhoneIsoChange, value, onChange }) {
                   <span className="text-[18px] leading-none w-[22px] flex-shrink-0">
                     {c.flag}
                   </span>
-                  <span className="font-hanken text-[13px] text-[#1a1c1b] flex-1 truncate">
+                  <span className="font-hanken text-[13px] text-gc-near-black2 flex-1 truncate">
                     {c.name}
                   </span>
                   <span className="font-hanken text-[12px] text-[#9ca3af] flex-shrink-0">
@@ -250,7 +247,7 @@ function PhoneField({ phoneIso, onPhoneIsoChange, value, onChange }) {
 
       <div className="flex flex-1 items-center h-[38px] bg-white border border-[#d1c7bd] rounded-[8px] focus-within:border-[#a45d41] transition-colors overflow-hidden">
         {current && (
-          <span className="font-hanken text-[14px] text-[#1a1c1b] pl-[14px] pr-[2px] select-none whitespace-nowrap flex-shrink-0">
+          <span className="font-hanken text-[14px] text-gc-near-black2 pl-[14px] pr-[2px] select-none whitespace-nowrap flex-shrink-0">
             +{current.phonecode}
           </span>
         )}
@@ -259,7 +256,7 @@ function PhoneField({ phoneIso, onPhoneIsoChange, value, onChange }) {
           value={value}
           onChange={onChange}
           placeholder={current ? "Phone number" : "+-- Phone number"}
-          className="font-hanken flex-1 h-full px-[10px] bg-transparent text-[14px] text-[#1a1c1b] placeholder:text-[#6b7280] outline-none"
+          className="font-hanken flex-1 h-full px-[10px] bg-transparent text-[14px] text-gc-near-black2 placeholder:text-gc-muted outline-none"
         />
       </div>
     </div>
@@ -398,26 +395,12 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-[16px] sm:p-[24px]">
       <div
-        className="absolute inset-0"
-        style={{
-          backgroundColor: "rgba(10,10,10,0.6)",
-          backdropFilter: "blur(2px)",
-        }}
+        className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
         onClick={() => !saving && onClose()}
       />
 
-      <div
-        className="relative w-full sm:w-[672px] rounded-[12px] overflow-hidden flex flex-col max-h-full"
-        style={{
-          backgroundColor: "#fcf9f4",
-          boxShadow: "0px 25px 50px -12px rgba(0,0,0,0.25)",
-          maxHeight: "min(90vh, 800px)",
-        }}
-      >
-        <div
-          className="absolute top-0 right-0 w-[128px] h-[129px] pointer-events-none z-10 overflow-hidden"
-          style={{ opacity: 0.03, mixBlendMode: "multiply" }}
-        >
+      <div className="relative w-full sm:w-[672px] rounded-[12px] overflow-hidden flex flex-col max-h-full bg-gc-surface-warm shadow-2xl max-h-[min(90vh,800px)]">
+        <div className="absolute top-0 right-0 w-[128px] h-[129px] pointer-events-none z-10 overflow-hidden opacity-[0.03] mix-blend-multiply">
           <img
             src={WATERMARK}
             alt=""
@@ -426,10 +409,7 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
         </div>
 
         {/* Header */}
-        <div
-          className="flex items-start justify-between pb-[18px] pt-[22px] sm:pt-[30px] sm:pb-[21px] px-[20px] sm:px-[40px] relative z-20 flex-shrink-0"
-          style={{ borderBottom: "1px solid rgba(207,196,197,0.3)" }}
-        >
+        <div className="flex items-start justify-between pb-[18px] pt-[22px] sm:pt-[30px] sm:pb-[21px] px-[20px] sm:px-[40px] relative z-20 flex-shrink-0 border-b border-gc-section-divider/30">
           <div className="flex flex-col gap-[8px]">
             <span className="font-hanken text-[12px] font-semibold uppercase text-gc-primary tracking-wide">
               NEW ENTRY
@@ -441,7 +421,7 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
           <button
             onClick={onClose}
             disabled={saving}
-            className="mt-[4px] text-[#1a1c1b] hover:text-[#a45d41] transition-colors disabled:opacity-40"
+            className="mt-[4px] text-gc-near-black2 hover:text-gc-primary transition-colors disabled:opacity-40"
           >
             <X size={14} />
           </button>
@@ -642,13 +622,7 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex-shrink-0">
-          <div
-            className="flex items-center justify-end gap-[12px] sm:gap-[20px] px-[20px] sm:px-[40px] pb-[20px] pt-[16px] sm:pt-[21px]"
-            style={{
-              backgroundColor: "#f6f3ee",
-              borderTop: "1px solid rgba(207,196,197,0.3)",
-            }}
-          >
+          <div className="flex items-center justify-end gap-[12px] sm:gap-[20px] px-[20px] sm:px-[40px] pb-[20px] pt-[16px] sm:pt-[21px] bg-gc-modal-footer border-t border-gc-section-divider/30">
             <button
               type="button"
               onClick={onClose}

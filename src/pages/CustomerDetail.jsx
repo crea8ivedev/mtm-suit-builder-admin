@@ -332,10 +332,7 @@ export default function CustomerDetail() {
 
       {!loading && !error && customer && (
         <div className="flex flex-col gap-[40px]">
-          <div
-            className="bg-white rounded-[12px] p-[20px] sm:p-[33px] flex flex-col gap-[20px] sm:gap-[24px]"
-            style={{ border: "1px solid rgba(207,196,197,0.3)" }}
-          >
+          <div className="bg-white rounded-[12px] p-[20px] sm:p-[33px] flex flex-col gap-[20px] sm:gap-[24px] border border-gc-section-divider/30">
             <div className="flex items-start justify-between">
               <div className="flex flex-col gap-[7px]">
                 <h1 className="font-garamond text-[28px] sm:text-[40px] font-bold text-[#3c3c3c] leading-tight">
@@ -368,10 +365,7 @@ export default function CustomerDetail() {
               </div>
             </div>
 
-            <div
-              className="grid grid-cols-1 sm:grid-cols-3 gap-[20px] sm:gap-[32px] pt-[20px] sm:pt-[25px]"
-              style={{ borderTop: "1px solid rgba(207,196,197,0.4)" }}
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-[20px] sm:gap-[32px] pt-[20px] sm:pt-[25px] border-t border-gc-section-divider/40">
               {[
                 { label: "TOTAL ORDERS", value: orders.length },
                 { label: "TOTAL SPENT", value: totalSpent },
@@ -390,19 +384,13 @@ export default function CustomerDetail() {
           </div>
 
           <div className="flex flex-col gap-[24px]">
-            <div
-              className="flex flex-wrap items-center gap-[12px] pb-[17px]"
-              style={{ borderBottom: "1px solid rgba(0,0,0,0.1)" }}
-            >
-              <span className="font-garamond text-[20px] sm:text-[24px] font-medium text-[#1a1c1b]">
+            <div className="flex flex-wrap items-center gap-[12px] pb-[17px] border-b border-black/10">
+              <span className="font-garamond text-[20px] sm:text-[24px] font-medium text-gc-near-black2">
                 Orders
               </span>
             </div>
 
-            <div
-              className="bg-white rounded-[12px] overflow-hidden"
-              style={{ border: "1px solid rgba(207,196,197,0.3)" }}
-            >
+            <div className="bg-white rounded-[12px] overflow-hidden border border-gc-section-divider/30">
               {orders.length === 0 ? (
                 <div className="py-[48px] text-center font-hanken text-[14px] text-gc-text">
                   No orders yet.
@@ -412,11 +400,7 @@ export default function CustomerDetail() {
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr
-                          style={{
-                            borderBottom: "1px solid rgba(207,196,197,0.4)",
-                          }}
-                        >
+                        <tr className="border-b border-gc-section-divider/40">
                           {[
                             "ORDER NUMBER",
                             "DATE",
@@ -446,15 +430,7 @@ export default function CustomerDetail() {
                                   state: { fromCustomer: customerId },
                                 })
                               }
-                              className="cursor-pointer hover:bg-[rgba(164,93,65,0.04)] transition-colors"
-                              style={
-                                i > 0
-                                  ? {
-                                      borderTop:
-                                        "1px solid rgba(207,196,197,0.2)",
-                                    }
-                                  : {}
-                              }
+                              className={`cursor-pointer hover:bg-gc-primary/[4%] transition-colors${i > 0 ? " border-t border-gc-section-divider/20" : ""}`}
                             >
                               <td className="font-hanken text-[14px] font-semibold text-black px-[24px] py-[20px] whitespace-nowrap">
                                 {order.name}
@@ -505,11 +481,7 @@ export default function CustomerDetail() {
                         <div className="relative">
                           <button
                             onClick={() => setEntriesOpen((v) => !v)}
-                            className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none"
-                            style={{
-                              border: "1px solid #dac1ba",
-                              background: "#fff",
-                            }}
+                            className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none border border-gc-border-warm bg-white"
                           >
                             {ordersPerPage}
                             <ChevronRight
@@ -518,14 +490,7 @@ export default function CustomerDetail() {
                             />
                           </button>
                           {entriesOpen && (
-                            <div
-                              className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md"
-                              style={{
-                                border: "1px solid #dac1ba",
-                                background: "#fff",
-                                minWidth: "100%",
-                              }}
-                            >
+                            <div className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md border border-gc-border-warm bg-white min-w-full">
                               {[10, 20, 40, 100].map((n) => (
                                 <button
                                   key={n}
@@ -534,18 +499,7 @@ export default function CustomerDetail() {
                                     setCurrentPage(1);
                                     setEntriesOpen(false);
                                   }}
-                                  className="w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors"
-                                  style={{
-                                    color:
-                                      n === ordersPerPage
-                                        ? "#a45d41"
-                                        : "#3c3c3c",
-                                    background:
-                                      n === ordersPerPage
-                                        ? "rgba(164,93,65,0.06)"
-                                        : "transparent",
-                                    fontWeight: n === ordersPerPage ? 600 : 400,
-                                  }}
+                                  className={`w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors ${n === ordersPerPage ? "text-gc-primary bg-gc-primary/[6%] font-semibold" : "text-gc-heading font-normal"}`}
                                 >
                                   {n}
                                 </button>
@@ -640,16 +594,7 @@ export default function CustomerDetail() {
                   <button
                     key={name}
                     onClick={() => setActiveProfileTab(name)}
-                    className="font-hanken text-[13px] font-semibold px-[16px] py-[8px] rounded-[20px] whitespace-nowrap transition-all cursor-pointer"
-                    style={{
-                      backgroundColor:
-                        activeProfileTab === name ? "#a45d41" : "#f4f1ed",
-                      color: activeProfileTab === name ? "#ffffff" : "#6d6d6d",
-                      border:
-                        activeProfileTab === name
-                          ? "1px solid #a45d41"
-                          : "1px solid #d1c7bd",
-                    }}
+                    className={`font-hanken text-[13px] font-semibold px-[16px] py-[8px] rounded-[20px] whitespace-nowrap transition-all cursor-pointer ${activeProfileTab === name ? "bg-gc-primary text-white border border-gc-primary" : "bg-gc-bg-warm text-gc-muted border border-gc-border-input"}`}
                   >
                     {name}
                   </button>
@@ -692,12 +637,9 @@ export default function CustomerDetail() {
 
                   return (
                     <div key={entry.id} className="flex flex-col gap-[24px]">
-                      <div
-                        className="flex flex-wrap items-start sm:items-end justify-between gap-[12px] pb-[17px]"
-                        style={{ borderBottom: "1px solid rgba(0,0,0,0.1)" }}
-                      >
+                      <div className="flex flex-wrap items-start sm:items-end justify-between gap-[12px] pb-[17px] border-b border-black/10">
                         <div className="flex flex-col gap-[4px]">
-                          <span className="font-garamond text-[20px] sm:text-[24px] font-medium text-[#1a1c1b]">
+                          <span className="font-garamond text-[20px] sm:text-[24px] font-medium text-gc-near-black2">
                             {entry.productName}
                           </span>
                           <span className="font-hanken text-[12px] sm:text-[14px] font-semibold text-[#6d6d6d]">
@@ -744,10 +686,7 @@ export default function CustomerDetail() {
                         </div>
                       </div>
 
-                      <div
-                        className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 rounded-[12px] p-px gap-px"
-                        style={{ border: "1px solid rgba(207,196,197,0.4)" }}
-                      >
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 rounded-[12px] p-px gap-px border border-gc-section-divider/40">
                         {Object.entries(
                           isEditing ? editingValues : entry.measurements,
                         ).map(([key, val], idx) => {

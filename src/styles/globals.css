@@ -13,6 +13,7 @@
   /* ── GC Brand Colors ── */
   --color-gc-primary: #a45d41;
   --color-gc-primary-dark: #924932;
+  --color-gc-primary-deep: #7c3820;
   --color-gc-primary-num: #8c4633;
   --color-gc-primary-label: #6b705c;
 
@@ -21,15 +22,42 @@
   --color-gc-heading: #3c3c3c;
   --color-gc-text: #424656;
   --color-gc-muted: #6b7280;
+  --color-gc-label: #535353;
+  --color-gc-muted-warm: #9a8f89;
+  --color-gc-near-black: #1c1c19;
+  --color-gc-near-black2: #1a1c1b;
 
   /* ── GC Surfaces ── */
   --color-gc-bg: #f4f1ed;
+  --color-gc-bg-warm: #f1ede8;
+  --color-gc-bg-image: #f7f3ee;
+  --color-gc-modal-footer: #f6f3ee;
   --color-gc-surface: #fdfcfb;
+  --color-gc-surface-warm: #fcf9f4;
+  --color-gc-row-alt: #fdf9f6;
+  --color-gc-surface-neutral: #f4f4f2;
 
   /* ── GC Borders ── */
   --color-gc-border: #e5e0da;
   --color-gc-border-input: #d1c7bd;
   --color-gc-border-btn: #d6d6d6;
+  --color-gc-border-warm: #dac1ba;
+
+  /* ── GC Dividers ── */
+  --color-gc-divider: #c5c6cd;
+  --color-gc-topbar-divider: #c2c6d8;
+  --color-gc-section-divider: #cfc4c5;
+
+  /* ── GC Avatar ── */
+  --color-gc-avatar-gold: #775a19;
+
+  /* ── GC Warning ── */
+  --color-gc-warn-bg: #fef9c3;
+  --color-gc-warn-text: #854d0e;
+
+  /* ── GC Scrollbar ── */
+  --color-gc-scrollbar-track: #f0ebe6;
+  --color-gc-scrollbar-thumb: #c4a99e;
 
   /* Brand */
   --color-brand: #3b82f6;
@@ -81,7 +109,6 @@
   --color-gray-600: #475569;
   --color-gray-700: #334155;
   --color-gray-800: #1e293b;
-  --color-gray-900: #0f172a;
 
   /* Spacing scale */
   --spacing: 1px;

@@ -1,9 +1,7 @@
-/* Card */
 .card {
   @apply bg-card-bg rounded-xl border border-border shadow-card;
 }
 
-/* Form inputs */
 .input {
   @apply w-full px-[14px] py-[10px] rounded-lg border border-border bg-white text-14 text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition-all duration-200;
 }
@@ -12,7 +10,6 @@
   @apply block text-13 font-medium text-text-secondary mb-[6px];
 }
 
-/* Buttons */
 .btn-primary {
   @apply inline-flex items-center justify-center px-[16px] py-[10px] bg-brand-600 hover:bg-brand-700 text-white text-14 font-medium rounded-lg transition-colors duration-200 cursor-pointer border-0 outline-none;
 }
@@ -25,7 +22,6 @@
   @apply p-[7px] rounded-lg hover:bg-gray-100 text-text-muted hover:text-text-secondary transition-colors duration-150 cursor-pointer border-0 outline-none bg-transparent;
 }
 
-/* Data table */
 .table-wrapper {
   @apply w-full overflow-x-auto;
 }
@@ -51,7 +47,6 @@
 }
 
 
-/* Page titles */
 .gc-page-title {
   font-family: var(--font-garamond);
   font-weight: 700;
@@ -110,7 +105,6 @@
   background: var(--color-gc-primary-dark);
 }
 
-/* GC Search input */
 .gc-search {
   display: flex;
   align-items: center;
@@ -135,7 +129,6 @@
   color: var(--color-gc-muted);
 }
 
-/* GC Table container */
 .gc-table-container {
   background: var(--color-gc-surface);
   border: 1px solid var(--color-gc-border);
@@ -149,13 +142,11 @@
   }
 }
 
-/* GC Table header row */
 .gc-table-header-row {
-  background: rgba(164, 93, 65, 0.12);
+  background: color-mix(in oklab, var(--color-gc-primary) 12%, transparent);
   border-bottom: 1px solid var(--color-gc-primary);
 }
 
-/* GC Table header cell */
 .gc-th {
   padding: 14px 8px;
   text-align: left;
@@ -173,7 +164,6 @@
   }
 }
 
-/* GC Table body row */
 .gc-table-row {
   border-left: 3px solid transparent;
   transition: background-color 0.15s, border-color 0.15s;
@@ -181,15 +171,14 @@
 }
 
 .gc-table-row:not(:first-child) {
-  border-top: 1px solid rgba(194, 198, 216, 0.2);
+  border-top: 1px solid color-mix(in oklab, var(--color-gc-topbar-divider) 20%, transparent);
 }
 
 .gc-table-row:hover {
   border-left-color: var(--color-gc-primary);
-  background: rgba(164, 93, 65, 0.04);
+  background: color-mix(in oklab, var(--color-gc-primary) 4%, transparent);
 }
 
-/* GC Table body cell */
 .gc-td {
   padding: 12px 8px;
   font-family: var(--font-hanken);
@@ -204,7 +193,6 @@
   }
 }
 
-/* GC Order ID link */
 .gc-order-id {
   font-family: var(--font-hanken);
   font-size: 14px;
@@ -213,7 +201,6 @@
   white-space: nowrap;
 }
 
-/* GC Customer cell */
 .gc-customer-name {
   font-family: var(--font-hanken);
   font-size: 14px;
@@ -226,10 +213,9 @@
   font-size: 10px;
   font-style: italic;
   line-height: 15px;
-  color: rgba(66, 70, 86, 0.7);
+  color: color-mix(in oklab, var(--color-gc-text) 70%, transparent);
 }
 
-/* Status pill badges */
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -242,7 +228,6 @@
   letter-spacing: 0.05em;
 }
 
-/* Payment: Paid */
 .sp-paid,
 .sp-verified {
   background: #dcfce7;
@@ -286,7 +271,7 @@
   justify-content: center;
   padding: 3px 7px;
   border-radius: 4px;
-  background: rgba(146, 73, 50, 0.1);
+  background: color-mix(in oklab, var(--color-gc-primary-dark) 10%, transparent);
   color: var(--color-gc-primary-dark);
   font-family: var(--font-hanken);
   font-size: 10px;
@@ -302,8 +287,8 @@
   flex-direction: column;
   justify-content: center;
   height: 166px;
-  border: 1px solid rgba(194, 198, 216, 0.2);
-  box-shadow: 0px 1px 1px rgba(0, 0, 0, 0.05);
+  border: 1px solid color-mix(in oklab, var(--color-gc-topbar-divider) 20%, transparent);
+  box-shadow: var(--shadow-sm);
 }
 
 .gc-stat-icon {
@@ -314,7 +299,7 @@
   height: 30px;
   padding: 8px;
   border-radius: 8px;
-  background: rgba(146, 73, 50, 0.1);
+  background: color-mix(in oklab, var(--color-gc-primary-dark) 10%, transparent);
   border: 0.5px solid var(--color-gc-primary-dark);
   flex-shrink: 0;
   margin-bottom: 16px;
@@ -338,7 +323,6 @@
   margin-top: 2px;
 }
 
-/* GC Pagination */
 .gc-pagination-btn {
   width: 36px;
   height: 36px;
@@ -380,7 +364,11 @@
 }
 
 .gc-divider {
-  border-top: 1px solid rgba(194, 198, 216, 0.3);
+  border-top: 1px solid color-mix(in oklab, var(--color-gc-topbar-divider) 30%, transparent);
+}
+
+.gc-accent-primary {
+  accent-color: var(--color-gc-primary);
 }
 
 .style-cat-scroll-always {

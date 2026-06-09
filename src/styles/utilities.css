@@ -64,17 +64,17 @@
 }
 
 .category-sidebar-scroll::-webkit-scrollbar-track {
-  background: #f0ebe6;
+  background: var(--color-gc-scrollbar-track);
 }
 
 .category-sidebar-scroll::-webkit-scrollbar-thumb {
-  background: #c4a99e;
+  background: var(--color-gc-scrollbar-thumb);
   border-radius: 6px;
   min-height: 40px;
 }
 
 .category-sidebar-scroll::-webkit-scrollbar-thumb:hover {
-  background: #a45d41;
+  background: var(--color-gc-primary);
 }
 
 .scroll-hidden::-webkit-scrollbar {

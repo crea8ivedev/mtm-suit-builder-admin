@@ -42,14 +42,7 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
   };
 
   return (
-    <header
-      className="fixed top-0 right-0 left-0 lg:left-[256px] h-[64px] z-30 flex items-center justify-between pb-[16px] pt-[15px] px-[16px] sm:px-[24px] gap-[8px]"
-      style={{
-        backgroundColor: "#fdfcfb",
-        backdropFilter: "blur(6px)",
-        borderBottom: "1px solid rgba(194,198,216,0.3)",
-      }}
-    >
+    <header className="fixed top-0 right-0 left-0 lg:left-[256px] h-[64px] z-30 flex items-center justify-between pb-[16px] pt-[15px] px-[16px] sm:px-[24px] gap-[8px] bg-gc-surface backdrop-blur-[6px] border-b border-gc-topbar-divider/30">
       {/* Mobile hamburger */}
       <button
         onClick={onMenuClick}
@@ -76,10 +69,7 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
                   : "Back to orders"}
               </span>
             </button>
-            <div
-              className="hidden sm:block w-px h-[24px] flex-shrink-0"
-              style={{ backgroundColor: "#c5c6cd" }}
-            />
+            <div className="hidden sm:block w-px h-[24px] flex-shrink-0 bg-gc-divider" />
           </div>
         ) : isCustomerDetail ? (
           <div className="flex items-center gap-[16px] sm:gap-[32px]">
@@ -90,27 +80,21 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
               <ArrowLeft size={14} />
               <span className="hidden sm:inline">Back to customers</span>
             </button>
-            <div
-              className="hidden sm:block w-px h-[24px] flex-shrink-0"
-              style={{ backgroundColor: "#c5c6cd" }}
-            />
+            <div className="hidden sm:block w-px h-[24px] flex-shrink-0 bg-gc-divider" />
           </div>
         ) : isCustomersPage || isStyleAdjustmentsPage ? (
           <div />
         ) : (
-          <div
-            className="flex items-center w-full max-w-[351px] rounded-[12px] px-[12px] sm:px-[17px] py-[9px]"
-            style={{ backgroundColor: "#f4f1ed", border: "1px solid #d1c7bd" }}
-          >
+          <div className="flex items-center w-full max-w-[351px] rounded-[12px] px-[12px] sm:px-[17px] py-[9px] bg-gc-bg border border-gc-border-input">
             <Search size={17} className="text-[#6b7280] flex-shrink-0" />
             <input
               type="text"
+              aria-label="search"
               value={isSearchablePage ? searchValue : ""}
               onChange={isSearchablePage ? handleSearch : undefined}
               readOnly={!isSearchablePage}
               placeholder="Search orders..."
-              className="font-hanken flex-1 ml-[10px] bg-transparent text-[14px] font-medium text-gc-muted outline-none placeholder:text-gc-muted min-w-0"
-              style={{ cursor: isSearchablePage ? "text" : "default" }}
+              className={`font-hanken flex-1 ml-[10px] bg-transparent text-[14px] font-medium text-gc-muted outline-none placeholder:text-gc-muted min-w-0 ${isSearchablePage ? "cursor-text" : "cursor-default"}`}
             />
           </div>
         )}
@@ -132,10 +116,7 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
               />
             </button>
 
-            <div
-              className="hidden sm:block w-px h-[32px]"
-              style={{ backgroundColor: "rgba(194,198,216,0.3)" }}
-            />
+            <div className="hidden sm:block w-px h-[32px] bg-gc-topbar-divider/30" />
           </>
         )}
 
@@ -145,19 +126,13 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
               {adminName || "Admin"}
             </span>
             {adminEmail && (
-              <span className="font-hanken text-[10px] text-gc-text leading-normal whitespace-nowrap">
+              <span className="font-hanken text-[12px] text-gc-text leading-normal whitespace-nowrap">
                 {adminEmail}
               </span>
             )}
           </div>
-          <div
-            className="w-[36px] h-[36px] sm:w-[40px] sm:h-[40px] rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: "#924932" }}
-          >
-            <span
-              className="text-white text-[14px] sm:text-[16px] font-bold"
-              style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
-            >
+          <div className="w-[36px] h-[36px] sm:w-[40px] sm:h-[40px] rounded-full flex items-center justify-center flex-shrink-0 bg-gc-primary-dark">
+            <span className="font-hanken text-white text-[14px] sm:text-[16px] font-bold">
               {adminInitial}
             </span>
           </div>

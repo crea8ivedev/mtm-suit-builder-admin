@@ -53,18 +53,17 @@ export default function Sidebar({ isOpen, onClose }) {
 
       <aside
         className={cn(
-          "fixed left-0 top-0 h-screen w-[256px] flex flex-col z-50 transition-transform duration-300 ease-in-out rounded-br-[12px]",
+          "fixed left-0 top-0 h-screen w-[256px] flex flex-col z-50 transition-transform duration-300 ease-in-out rounded-br-[12px] bg-gc-primary",
           "lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full",
         )}
-        style={{ backgroundColor: "#a45d41" }}
       >
         {/* Brand */}
         <div className="px-[24px] pt-[32px] pb-[48px]">
           <div className="w-fit">
-            <p className="font-garamond text-white text-[24px] font-bold uppercase tracking-[2px] leading-tight">
+            <h1 className="font-garamond text-white text-[24px] font-bold uppercase tracking-[2px] leading-tight">
               GAGE COURT
-            </p>
+            </h1>
             <p className="font-garamond text-[#FFFFFFCC] text-[10px] font-bold uppercase tracking-[2px] leading-tight text-center">
               clothiers
             </p>

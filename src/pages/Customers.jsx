@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import {
@@ -11,22 +11,26 @@ import {
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
-import CreateCustomerModal from "../components/ui/CreateCustomerModal";
 import { useCustomers } from "../hooks/useCustomers";
 import { transformCustomer } from "../lib/shopify";
 
+const CreateCustomerModal = lazy(
+  () => import("../components/ui/CreateCustomerModal"),
+);
+
 const AVATAR_STYLES = [
   {
-    bg: "rgba(146,73,50,0.1)",
-    border: "rgba(146,73,50,0.2)",
-    color: "#924932",
+    containerCls: "bg-gc-primary-dark/10 border border-gc-primary-dark/20",
+    textCls: "text-gc-primary-dark",
   },
   {
-    bg: "rgba(119,90,25,0.1)",
-    border: "rgba(119,90,25,0.2)",
-    color: "#775a19",
+    containerCls: "bg-gc-avatar-gold/10 border border-gc-avatar-gold/20",
+    textCls: "text-gc-avatar-gold",
   },
-  { bg: "rgba(0,0,0,0.05)", border: "rgba(0,0,0,0.1)", color: "#1a1c1b" },
+  {
+    containerCls: "bg-black/5 border border-black/10",
+    textCls: "text-gc-near-black2",
+  },
 ];
 
 function getInitials(name) {
@@ -151,28 +155,19 @@ export default function Customers() {
         </button>
       </div>
 
-      <div
-        className="flex items-center gap-[14px] h-[55px] px-[21px] rounded-[8px] mb-[20px]"
-        style={{
-          backgroundColor: "rgba(255,255,255,0.5)",
-          border: "1px solid #d1c7bd",
-        }}
-      >
-        <Search size={17} className="text-[#6b7280] flex-shrink-0" />
+      <div className="flex items-center gap-[14px] h-[55px] px-[21px] rounded-[8px] mb-[20px] bg-white/50 border border-gc-border-input">
+        <Search size={17} className="text-gc-muted flex-shrink-0" />
         <input
           type="text"
           value={inlineSearch}
           onChange={(e) => setInlineSearch(e.target.value)}
           placeholder="Search by name, email, or phone..."
-          className="font-hanken flex-1 bg-transparent text-[14px] font-medium text-[#6b7280] outline-none placeholder:text-[#6b7280]"
+          className="font-hanken flex-1 bg-transparent text-[14px] font-medium text-gc-muted outline-none placeholder:text-gc-muted"
         />
       </div>
 
       <div className="flex flex-col gap-[20px]">
-        <div
-          className="bg-white rounded-[12px] overflow-hidden"
-          style={{ border: "1px solid rgba(197,198,205,0.3)" }}
-        >
+        <div className="bg-white rounded-[12px] overflow-hidden border border-gc-divider/30">
           {loading && <LoadingState />}
           {error && <ErrorState message={error} onRetry={retry} />}
 
@@ -213,25 +208,15 @@ export default function Customers() {
                         <tr
                           key={c.id}
                           onClick={() => navigate(`/customers/${c.numericId}`)}
-                          className="cursor-pointer hover:bg-[rgba(164,93,65,0.04)] transition-colors"
-                          style={
-                            i > 0
-                              ? { borderTop: "1px solid rgba(197,198,205,0.2)" }
-                              : {}
-                          }
+                          className={`cursor-pointer hover:bg-gc-primary/[4%] transition-colors${i > 0 ? " border-t border-gc-divider/20" : ""}`}
                         >
                           <td className="pl-[24px] py-[20px] pr-[16px]">
                             <div className="flex items-center gap-[16px]">
                               <div
-                                className="w-[40px] h-[40px] flex-shrink-0 flex items-center justify-center rounded-[3px]"
-                                style={{
-                                  backgroundColor: style.bg,
-                                  border: `1px solid ${style.border}`,
-                                }}
+                                className={`w-[40px] h-[40px] flex-shrink-0 flex items-center justify-center rounded-[3px] ${style.containerCls}`}
                               >
                                 <span
-                                  className="font-garamond text-[16px] font-normal text-center"
-                                  style={{ color: style.color }}
+                                  className={`font-garamond text-[16px] font-normal text-center ${style.textCls}`}
                                 >
                                   {initials}
                                 </span>
@@ -240,10 +225,7 @@ export default function Customers() {
                                 <span className="font-hanken text-[14px] font-bold text-black leading-tight">
                                   {c.name}
                                 </span>
-                                <span
-                                  className="font-hanken text-[10px] italic leading-[15px]"
-                                  style={{ color: "rgba(66,70,86,0.7)" }}
-                                >
+                                <span className="font-hanken text-[10px] italic leading-[15px] text-gc-text/70">
                                   ID: GC-{c.numericId?.slice(-4) || "—"}
                                 </span>
                               </div>
@@ -259,13 +241,7 @@ export default function Customers() {
                           </td>
 
                           <td className="px-[24px] py-[20px]">
-                            <span
-                              className="font-hanken inline-flex items-center px-[12px] py-[4px] rounded-[3px] text-[10px] font-semibold text-gc-primary-dark"
-                              style={{
-                                backgroundColor: "rgba(146,73,50,0.1)",
-                                border: "1px solid #924932",
-                              }}
-                            >
+                            <span className="font-hanken inline-flex items-center px-[12px] py-[4px] rounded-[3px] text-[10px] font-semibold text-gc-primary-dark bg-gc-primary-dark/10 border border-gc-primary-dark">
                               {String(c.numberOfOrders).padStart(2, "0")}
                             </span>
                           </td>
@@ -296,8 +272,7 @@ export default function Customers() {
               <div className="relative">
                 <button
                   onClick={() => setEntriesOpen((v) => !v)}
-                  className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none"
-                  style={{ border: "1px solid #dac1ba", background: "#fff" }}
+                  className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none border border-gc-border-warm bg-white"
                 >
                   {pageSize}
                   <ChevronRight
@@ -306,14 +281,7 @@ export default function Customers() {
                   />
                 </button>
                 {entriesOpen && (
-                  <div
-                    className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md"
-                    style={{
-                      border: "1px solid #dac1ba",
-                      background: "#fff",
-                      minWidth: "100%",
-                    }}
-                  >
+                  <div className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md border border-gc-border-warm bg-white min-w-full">
                     {[10, 20, 40, 100].map((n) => (
                       <button
                         key={n}
@@ -321,15 +289,7 @@ export default function Customers() {
                           changePageSize(n);
                           setEntriesOpen(false);
                         }}
-                        className="w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors"
-                        style={{
-                          color: n === pageSize ? "#a45d41" : "#3c3c3c",
-                          background:
-                            n === pageSize
-                              ? "rgba(164,93,65,0.06)"
-                              : "transparent",
-                          fontWeight: n === pageSize ? 600 : 400,
-                        }}
+                        className={`w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors ${n === pageSize ? "text-gc-primary bg-gc-primary/[6%] font-semibold" : "text-gc-heading font-normal"}`}
                       >
                         {n}
                       </button>
@@ -380,11 +340,13 @@ export default function Customers() {
         )}
       </div>
 
-      <CreateCustomerModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onCreated={handleCreated}
-      />
+      <Suspense fallback={null}>
+        <CreateCustomerModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onCreated={handleCreated}
+        />
+      </Suspense>
     </DashboardLayout>
   );
 }

@@ -83,13 +83,7 @@ export default function Dashboard() {
       </div>
 
       <div className="gc-table-container">
-        <div
-          className="gc-divider flex items-center justify-between px-[20px] py-[16px]"
-          style={{
-            borderTop: "none",
-            borderBottom: "1px solid rgba(194,198,216,0.3)",
-          }}
-        >
+        <div className="border-b border-gc-topbar-divider/30 flex items-center justify-between px-[20px] py-[16px]">
           <div>
             <h3 className="font-hanken text-[16px] font-semibold text-gc-dark">
               Recent Orders

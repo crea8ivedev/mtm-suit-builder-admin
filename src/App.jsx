@@ -1,12 +1,15 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Orders from "./pages/Orders";
-import OrderDetail from "./pages/OrderDetail";
-import CreateOrder from "./pages/CreateOrder";
-import Customers from "./pages/Customers";
-import CustomerDetail from "./pages/CustomerDetail";
-import StyleAdjustments from "./pages/StyleAdjustments";
+import LoadingState from "./components/ui/LoadingState";
+
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Orders = lazy(() => import("./pages/Orders"));
+const OrderDetail = lazy(() => import("./pages/OrderDetail"));
+const CreateOrder = lazy(() => import("./pages/CreateOrder"));
+const Customers = lazy(() => import("./pages/Customers"));
+const CustomerDetail = lazy(() => import("./pages/CustomerDetail"));
+const StyleAdjustments = lazy(() => import("./pages/StyleAdjustments"));
 
 function PrivateRoute({ children }) {
   const isAuth = localStorage.getItem("suit_admin_auth") === "true";
@@ -16,67 +19,69 @@ function PrivateRoute({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/dashboard"
-          element={
-            <PrivateRoute>
-              <Dashboard />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/orders"
-          element={
-            <PrivateRoute>
-              <Orders />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/orders/new"
-          element={
-            <PrivateRoute>
-              <CreateOrder />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/orders/:orderId"
-          element={
-            <PrivateRoute>
-              <OrderDetail />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/customers"
-          element={
-            <PrivateRoute>
-              <Customers />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/customers/:customerId"
-          element={
-            <PrivateRoute>
-              <CustomerDetail />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/kuttailor"
-          element={
-            <PrivateRoute>
-              <StyleAdjustments />
-            </PrivateRoute>
-          }
-        />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+      <Suspense fallback={<LoadingState />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute>
+                <Dashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/orders"
+            element={
+              <PrivateRoute>
+                <Orders />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/orders/new"
+            element={
+              <PrivateRoute>
+                <CreateOrder />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/orders/:orderId"
+            element={
+              <PrivateRoute>
+                <OrderDetail />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/customers"
+            element={
+              <PrivateRoute>
+                <Customers />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/customers/:customerId"
+            element={
+              <PrivateRoute>
+                <CustomerDetail />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/kuttailor"
+            element={
+              <PrivateRoute>
+                <StyleAdjustments />
+              </PrivateRoute>
+            }
+          />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

@@ -66,10 +66,7 @@ function categorize(customAttributes = []) {
 
 function SectionLabel({ children }) {
   return (
-    <p
-      className="font-hanken text-[12px] font-medium tracking-[2.4px] uppercase"
-      style={{ color: "#929292" }}
-    >
+    <p className="font-hanken text-[12px] font-medium tracking-[2.4px] uppercase text-[#929292]">
       {children}
     </p>
   );
@@ -78,53 +75,45 @@ function SectionLabel({ children }) {
 function GCCard({ children, className = "" }) {
   return (
     <div
-      className={`bg-white rounded-[12px] p-[25px] ${className}`}
-      style={{
-        border: "1px solid #c5c6cd",
-        boxShadow: "0px 1px 1px rgba(0,0,0,0.05)",
-      }}
+      className={`bg-white rounded-[12px] p-[25px] border border-gc-divider shadow-sm ${className}`}
     >
       {children}
     </div>
   );
 }
 
+const PAYMENT_BADGE_CLS = {
+  paid: "bg-emerald-50 text-emerald-700",
+  pending: "bg-amber-50 text-amber-700",
+  failed: "bg-red-100 text-red-600",
+};
+
 function PaymentBadge({ status }) {
   const s = (status ?? "").toLowerCase();
-  const styles = {
-    paid: { bg: "#ecfdf5", text: "#047857" },
-    pending: { bg: "#fef3c7", text: "#b45309" },
-    failed: { bg: "#fee2e2", text: "#dc2626" },
-  };
-  const { bg, text } = styles[s] || styles.pending;
+  const cls = PAYMENT_BADGE_CLS[s] || PAYMENT_BADGE_CLS.pending;
   return (
     <span
-      className="font-hanken inline-flex items-center px-[16px] py-[6px] rounded-full text-[12px] font-semibold uppercase"
-      style={{ backgroundColor: bg, color: text }}
+      className={`font-hanken inline-flex items-center px-[16px] py-[6px] rounded-full text-[12px] font-semibold uppercase ${cls}`}
     >
       {s.charAt(0).toUpperCase() + s.slice(1)}
     </span>
   );
 }
 
+const SUPPLIER_PILL_CLS = {
+  verified: "bg-green-100 text-green-700",
+  submitted: "bg-blue-100 text-blue-700",
+  pending: "bg-amber-50 text-amber-700",
+  failed: "bg-red-100 text-red-600",
+  processing: "bg-slate-100 text-slate-700",
+};
+
 function SupplierPill({ status }) {
   const s = (status ?? "").toLowerCase();
-  const styles = {
-    verified: { bg: "#dcfce7", text: "#15803d" },
-    submitted: { bg: "#dbeafe", text: "#1d4ed8" },
-    pending: { bg: "#fef3c7", text: "#b45309" },
-    failed: { bg: "#fee2e2", text: "#dc2626" },
-    processing: { bg: "#f1f5f9", text: "#334155" },
-  };
-  const { bg, text } = styles[s] || styles.pending;
+  const cls = SUPPLIER_PILL_CLS[s] || SUPPLIER_PILL_CLS.pending;
   return (
     <span
-      className="font-hanken inline-flex items-center px-[9px] py-[2px] rounded-full text-[10px] font-semibold uppercase"
-      style={{
-        backgroundColor: bg,
-        color: text,
-        boxShadow: "0 0 0 0.8px rgba(22,163,74,0.2)",
-      }}
+      className={`font-hanken inline-flex items-center px-[9px] py-[2px] rounded-full text-[10px] font-semibold uppercase shadow-[0_0_0_0.8px_rgba(22,163,74,0.2)] ${cls}`}
     >
       {s.charAt(0).toUpperCase() + s.slice(1)}
     </span>
@@ -176,8 +165,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
             type="button"
             onClick={() => !isProcessing && setDropdownOpen((o) => !o)}
             disabled={isProcessing}
-            className="font-hanken w-full flex items-center justify-between gap-[8px] px-[17px] py-[9px] rounded-[8px] text-[14px] font-semibold tracking-[0.7px] text-[#1a1c1b] bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{ border: "1px solid #d1c7bd" }}
+            className="font-hanken w-full flex items-center justify-between gap-[8px] px-[17px] py-[9px] rounded-[8px] text-[14px] font-semibold tracking-[0.7px] text-gc-near-black2 bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed border border-gc-border-input"
           >
             <span>{selectedLabel}</span>
             <ChevronDown
@@ -186,8 +174,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
             />
           </button>
           <div
-            className={`absolute left-0 right-0 bottom-full mb-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden transition-all duration-200 origin-bottom ${dropdownOpen ? "opacity-100 scale-y-100 pointer-events-auto" : "opacity-0 scale-y-95 pointer-events-none"}`}
-            style={{ border: "1px solid #d1c7bd" }}
+            className={`absolute left-0 right-0 bottom-full mb-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden transition-all duration-200 origin-bottom border border-gc-border-input ${dropdownOpen ? "opacity-100 scale-y-100 pointer-events-auto" : "opacity-0 scale-y-95 pointer-events-none"}`}
           >
             <ul className="max-h-[220px] overflow-y-auto py-[4px]">
               <li>
@@ -197,7 +184,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
                     setSelectedId("");
                     setDropdownOpen(false);
                   }}
-                  className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-[#424656] hover:bg-[#f4f1ed] flex items-center justify-between cursor-pointer"
+                  className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-[#424656] hover:bg-gc-bg flex items-center justify-between cursor-pointer"
                 >
                   — Choose supplier —
                   {!selectedId && (
@@ -213,7 +200,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
                       setSelectedId(s.id);
                       setDropdownOpen(false);
                     }}
-                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-[#1a1c1b] hover:bg-[#f4f1ed] flex items-center justify-between cursor-pointer"
+                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[14px] text-gc-near-black2 hover:bg-gc-bg flex items-center justify-between cursor-pointer"
                   >
                     {s.name}
                     {selectedId === s.id && (
@@ -230,8 +217,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
           <button
             onClick={() => retry(selectedId)}
             disabled={!selectedId || isProcessing}
-            className="flex items-center justify-center w-[35px] rounded-[8px] text-[#1a1c1b] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ border: "1px solid #000" }}
+            className="flex items-center justify-center w-[35px] rounded-[8px] text-gc-near-black2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border border-black"
           >
             <RotateCw
               size={14}
@@ -242,8 +228,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
           <button
             onClick={() => submit(selectedId)}
             disabled={!selectedId || isProcessing || isSubmitted}
-            className="flex items-center justify-center w-[35px] rounded-[8px] text-[#1a1c1b] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ border: "1px solid #000" }}
+            className="flex items-center justify-center w-[35px] rounded-[8px] text-gc-near-black2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border border-black"
           >
             <RotateCw
               size={14}
@@ -254,10 +239,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
       </div>
 
       {isSubmitted && supplierSubmittedAt && (
-        <p
-          className="font-hanken text-[12px] mt-[10px]"
-          style={{ color: "#44474c" }}
-        >
+        <p className="font-hanken text-[12px] mt-[10px] text-[#44474c]">
           Sent on {formatDate(supplierSubmittedAt)}
         </p>
       )}
@@ -277,26 +259,16 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
 
 function AttrGrid({ items }) {
   return (
-    <div
-      className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
-      style={{
-        borderLeft: "1px solid rgba(197,198,205,0.3)",
-        borderTop: "1px solid rgba(197,198,205,0.3)",
-      }}
-    >
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 border-l border-t border-gc-divider/30">
       {items.map(({ key, value }) => (
         <div
           key={key}
-          className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[14px] min-w-0 overflow-hidden"
-          style={{
-            borderRight: "1px solid rgba(197,198,205,0.3)",
-            borderBottom: "1px solid rgba(197,198,205,0.3)",
-          }}
+          className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[14px] min-w-0 overflow-hidden border-r border-b border-gc-divider/30"
         >
           <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
             {key}
           </span>
-          <span className="font-hanken text-[12px] sm:text-[16px] font-medium text-[#1a1c1b] leading-[20px] sm:leading-[26px] break-words w-full">
+          <span className="font-hanken text-[12px] sm:text-[16px] font-medium text-gc-near-black2 leading-[20px] sm:leading-[26px] break-words w-full">
             {value || "—"}
           </span>
         </div>
@@ -345,30 +317,17 @@ export default function OrderDetail() {
       {!loading && !error && order && (
         <div className="space-y-[20px]">
           {(isFailed || supplierError) && (
-            <div
-              className="flex flex-wrap items-start justify-between gap-[16px] pl-[20px] sm:pl-[28px] pr-[16px] sm:pr-[24px] py-[20px] sm:py-[24px] rounded-[4px]"
-              style={{
-                backgroundColor: "#ffdad6",
-                borderLeft: "4px solid #ba1a1a",
-              }}
-            >
+            <div className="flex flex-wrap items-start justify-between gap-[16px] pl-[20px] sm:pl-[28px] pr-[16px] sm:pr-[24px] py-[20px] sm:py-[24px] rounded-[4px] bg-red-100 border-l-4 border-l-red-800">
               <div className="flex gap-[16px] items-start">
                 <AlertCircle
                   size={20}
-                  className="flex-shrink-0 mt-[2px]"
-                  style={{ color: "#93000a" }}
+                  className="flex-shrink-0 mt-[2px] text-red-900"
                 />
                 <div className="flex flex-col gap-[4px]">
-                  <p
-                    className="font-hanken text-[14px] font-semibold tracking-[0.7px] uppercase"
-                    style={{ color: "#93000a" }}
-                  >
+                  <p className="font-hanken text-[14px] font-semibold tracking-[0.7px] uppercase text-red-900">
                     SUBMISSION FAILED: KUTETAILOR
                   </p>
-                  <p
-                    className="font-hanken text-[16px] opacity-80"
-                    style={{ color: "#93000a" }}
-                  >
+                  <p className="font-hanken text-[16px] opacity-80 text-red-900">
                     {order.name}:{" "}
                     {supplierError || "Submission failed. Please retry."}
                   </p>
@@ -376,8 +335,7 @@ export default function OrderDetail() {
               </div>
               <button
                 onClick={refetch}
-                className="font-hanken flex items-center gap-[8px] px-[20px] py-[8px] rounded-[8px] text-[12px] font-medium tracking-[1.2px] uppercase text-white"
-                style={{ backgroundColor: "#ba1a1a" }}
+                className="font-hanken flex items-center gap-[8px] px-[20px] py-[8px] rounded-[8px] text-[12px] font-medium tracking-[1.2px] uppercase text-white bg-red-700"
               >
                 <RotateCw size={12} />
                 RETRY SYNC
@@ -385,13 +343,7 @@ export default function OrderDetail() {
             </div>
           )}
 
-          <div
-            className="bg-white rounded-[12px] p-[20px] sm:p-[33px]"
-            style={{
-              border: "1px solid #c5c6cd",
-              boxShadow: "0px 1px 1px rgba(0,0,0,0.05)",
-            }}
-          >
+          <div className="bg-white rounded-[12px] p-[20px] sm:p-[33px] border border-gc-divider shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-[16px]">
               <div className="flex flex-wrap items-start gap-[16px] sm:gap-[24px]">
                 <div className="flex flex-col gap-[8px]">
@@ -408,16 +360,13 @@ export default function OrderDetail() {
                   </div>
                 </div>
 
-                <div
-                  className="hidden sm:block w-px h-[48px] flex-shrink-0 mt-[14px]"
-                  style={{ backgroundColor: "#c5c6cd" }}
-                />
+                <div className="hidden sm:block w-px h-[48px] flex-shrink-0 mt-[14px] bg-gc-divider" />
                 <div className="flex gap-[24px] sm:gap-[48px] items-start">
                   <div className="flex flex-col gap-[3px] mt-[14px]">
                     <span className="font-hanken text-[10px] tracking-[1px] uppercase text-[#44474c]">
                       TOTAL AMOUNT
                     </span>
-                    <span className="font-garamond text-[20px] sm:text-[24px] text-[#1a1c1b] leading-[32px]">
+                    <span className="font-garamond text-[20px] sm:text-[24px] text-gc-near-black2 leading-[32px]">
                       {formatCurrency(order.totalPriceSet)}
                     </span>
                   </div>
@@ -425,7 +374,7 @@ export default function OrderDetail() {
                     <span className="font-hanken text-[10px] tracking-[1px] uppercase text-[#44474c]">
                       ITEMS
                     </span>
-                    <span className="font-garamond text-[20px] sm:text-[24px] text-[#1a1c1b] leading-[32px]">
+                    <span className="font-garamond text-[20px] sm:text-[24px] text-gc-near-black2 leading-[32px]">
                       {lineItems.length}{" "}
                       {lineItems.length === 1 ? "Item" : "Items"}
                     </span>
@@ -472,10 +421,7 @@ export default function OrderDetail() {
                     </p>
                   )}
                   {order.customer.id && (
-                    <p
-                      className="font-hanken text-[14px] font-semibold tracking-[0.7px] mt-[4px]"
-                      style={{ color: "#a45d41" }}
-                    >
+                    <p className="font-hanken text-[14px] font-semibold tracking-[0.7px] mt-[4px] text-gc-primary">
                       CLIENT ID: #{order.customer.id.split("/").pop()}
                     </p>
                   )}
@@ -491,9 +437,7 @@ export default function OrderDetail() {
                     </div>
                   )}
                   {order.shippingAddress && order.billingAddress && (
-                    <div
-                      style={{ borderTop: "1px solid rgba(197,198,205,0.3)" }}
-                    />
+                    <div className="border-t border-gc-divider/30" />
                   )}
                   {order.billingAddress && (
                     <div className="flex flex-col gap-[12px]">
@@ -520,18 +464,9 @@ export default function OrderDetail() {
 
                 return (
                   <div key={item.id} className="flex flex-col gap-[20px]">
-                    <div
-                      className="bg-white rounded-[12px] overflow-hidden"
-                      style={{
-                        border: "1px solid #c5c6cd",
-                        boxShadow: "0px 1px 1px rgba(0,0,0,0.05)",
-                      }}
-                    >
-                      <div
-                        className="flex items-center justify-between px-[24px] py-[12px]"
-                        style={{ backgroundColor: "#f2e9e5" }}
-                      >
-                        <span className="font-hanken text-[14px] font-semibold tracking-[1.4px] uppercase text-[#1a1c1b]">
+                    <div className="bg-white rounded-[12px] overflow-hidden border border-gc-divider shadow-sm">
+                      <div className="flex items-center justify-between px-[24px] py-[12px] bg-gc-bg-warm">
+                        <span className="font-hanken text-[14px] font-semibold tracking-[1.4px] uppercase text-gc-near-black2">
                           ORDER ITEMS
                           {lineItems.length > 1 ? ` · ${idx + 1}` : ""}
                         </span>
@@ -545,13 +480,10 @@ export default function OrderDetail() {
                       <div className="p-[24px] flex flex-col gap-[24px]">
                         <div className="flex flex-col gap-[8px]">
                           <div className="flex items-start justify-between">
-                            <span className="font-garamond text-[24px] font-medium text-[#1a1c1b] leading-[31px]">
+                            <span className="font-garamond text-[24px] font-medium text-gc-near-black2 leading-[31px]">
                               {item.title}
                             </span>
-                            <span
-                              className="font-hanken text-[16px] font-semibold"
-                              style={{ color: "#a45d41" }}
-                            >
+                            <span className="font-hanken text-[16px] font-semibold text-gc-primary">
                               {item.discountedTotalSet
                                 ? formatCurrency(item.discountedTotalSet)
                                 : "—"}
@@ -574,12 +506,7 @@ export default function OrderDetail() {
                               order.totalPriceSet?.shopMoney?.currencyCode ||
                               "USD";
                             return (
-                              <div
-                                className="flex flex-col gap-[6px] mt-[8px] pt-[10px]"
-                                style={{
-                                  borderTop: "1px solid rgba(197,198,205,0.4)",
-                                }}
-                              >
+                              <div className="flex flex-col gap-[6px] mt-[8px] pt-[10px] border-t border-gc-divider/40">
                                 {upchargeEntries.map((ua) => {
                                   const category = ua.key.slice(
                                     "_upcharge_".length,
@@ -607,10 +534,7 @@ export default function OrderDetail() {
                                         {category}
                                         {selection ? `: ${selection}` : ""}
                                       </span>
-                                      <span
-                                        className="font-hanken text-[13px] font-semibold"
-                                        style={{ color: "#a45d41" }}
-                                      >
+                                      <span className="font-hanken text-[13px] font-semibold text-gc-primary">
                                         +{formatted}
                                       </span>
                                     </div>
@@ -620,15 +544,9 @@ export default function OrderDetail() {
                             );
                           })()}
 
-                          <div
-                            className="flex flex-col gap-[13px] p-[17px] rounded-[8px] mt-[4px]"
-                            style={{
-                              backgroundColor: "#f4f4f2",
-                              border: "1px solid rgba(197,198,205,0.5)",
-                            }}
-                          >
+                          <div className="flex flex-col gap-[13px] p-[17px] rounded-[8px] mt-[4px] bg-gc-surface-neutral border border-gc-divider/50">
                             <div className="flex items-center gap-[8px]">
-                              <span className="font-hanken text-[12px] font-medium uppercase text-[#535353] w-[52px]">
+                              <span className="font-hanken text-[12px] font-medium uppercase text-gc-label w-[52px]">
                                 SUPPLIER
                               </span>
                               <SupplierPill
@@ -639,9 +557,9 @@ export default function OrderDetail() {
                               <div className="flex items-center gap-[8px]">
                                 <CalendarCheck2
                                   size={13}
-                                  style={{ color: "#1a1c1b" }}
+                                  className="text-gc-near-black2"
                                 />
-                                <span className="font-hanken text-[14px] font-medium text-[#1a1c1b]">
+                                <span className="font-hanken text-[14px] font-medium text-gc-near-black2">
                                   {formatDate(supplierSubmittedAt)}
                                 </span>
                               </div>
@@ -664,25 +582,16 @@ export default function OrderDetail() {
                               <span className="font-hanken text-[14px] text-[#44474c]">
                                 {label}
                               </span>
-                              <span className="font-hanken text-[14px] text-[#1a1c1b]">
+                              <span className="font-hanken text-[14px] text-gc-near-black2">
                                 {value ? formatCurrency(value) : "—"}
                               </span>
                             </div>
                           ))}
-                          <div
-                            className="flex items-center justify-between pt-[9px]"
-                            style={{ borderTop: "1px solid #c5c6cd" }}
-                          >
-                            <span
-                              className="font-garamond text-[18px] font-bold"
-                              style={{ color: "#a45d41" }}
-                            >
+                          <div className="flex items-center justify-between pt-[9px] border-t border-gc-divider">
+                            <span className="font-garamond text-[18px] font-bold text-gc-primary">
                               Total
                             </span>
-                            <span
-                              className="font-garamond text-[18px] font-bold"
-                              style={{ color: "#a45d41" }}
-                            >
+                            <span className="font-garamond text-[18px] font-bold text-gc-primary">
                               {formatCurrency(order.totalPriceSet)}
                             </span>
                           </div>
@@ -696,8 +605,8 @@ export default function OrderDetail() {
               {allAttributes.length > 0 && (
                 <GCCard className="flex flex-col gap-[24px]">
                   <div className="flex items-center gap-[8px]">
-                    <ListChecks size={20} style={{ color: "#A45D41" }} />
-                    <span className="font-garamond text-[24px] font-medium text-[#1a1c1b] leading-[31px]">
+                    <ListChecks size={20} className="text-gc-primary" />
+                    <span className="font-garamond text-[24px] font-medium text-gc-near-black2 leading-[31px]">
                       Measurements
                     </span>
                   </div>
@@ -718,7 +627,7 @@ function AddressLines({ address }) {
     .filter(Boolean)
     .join(", ");
   return (
-    <div className="font-hanken text-[14px] text-[#1a1c1b] leading-[22.75px]">
+    <div className="font-hanken text-[14px] text-gc-near-black2 leading-[22.75px]">
       {name && <p>{name}</p>}
       {address.address1 && <p>{address.address1}</p>}
       {address.address2 && <p>{address.address2}</p>}

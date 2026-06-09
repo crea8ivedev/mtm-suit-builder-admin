@@ -174,30 +174,11 @@ function ImagePicker({ currentUrl, gid, onUploaded, onUploadChange }) {
 
   return (
     <div className="flex items-center gap-[12px]">
-      <div
-        className="flex-shrink-0 rounded-[6px] overflow-hidden flex items-center justify-center"
-        style={{
-          width: 56,
-          height: 56,
-          border: "1px solid #dac1ba",
-          background: "#f7f3ee",
-        }}
-      >
+      <div className="flex-shrink-0 rounded-[6px] overflow-hidden flex items-center justify-center w-40 h-40 border border-gc-border-warm bg-gc-bg-image">
         {displayUrl ? (
-          <img
-            src={displayUrl}
-            alt=""
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
+          <img src={displayUrl} alt="" className="w-full h-full object-cover" />
         ) : (
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              background: "#dac1ba",
-              borderRadius: 4,
-            }}
-          />
+          <div className="w-32 h-32 bg-gc-border-warm rounded" />
         )}
       </div>
       <div className="flex flex-col gap-[4px]">
@@ -205,24 +186,17 @@ function ImagePicker({ currentUrl, gid, onUploaded, onUploadChange }) {
           type="button"
           disabled={uploading}
           onClick={() => inputRef.current?.click()}
-          className="font-hanken font-semibold text-[12px] h-[32px] px-[12px] rounded-[6px] cursor-pointer hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ border: "1px solid #dac1ba", color: "#7c3820" }}
+          className="font-hanken font-semibold text-[12px] h-[32px] px-[12px] rounded-[6px] cursor-pointer hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed border border-gc-border-warm text-gc-primary-deep"
         >
           {uploading ? "Uploading…" : gid ? "Change Image" : "Select Image"}
         </button>
         {gid && !uploading && (
-          <span
-            className="font-hanken text-[10px] truncate"
-            style={{ color: "#9a8f89", maxWidth: 200 }}
-          >
+          <span className="font-hanken text-[10px] truncate text-gc-muted-warm max-w-[200px]">
             {gid.split("/").pop()}
           </span>
         )}
         {uploadError && (
-          <span
-            className="font-hanken text-[11px]"
-            style={{ color: "#dc2626" }}
-          >
+          <span className="font-hanken text-[11px] text-failed">
             {uploadError}
           </span>
         )}
@@ -352,45 +326,28 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
   }
 
   const inputCls =
-    "w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-[#a45d41]";
-  const inputStyle = { border: "1px solid #dac1ba", color: "#1c1c19" };
+    "w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-gc-primary border border-gc-border-warm text-gc-near-black";
   const labelCls =
-    "font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[4px] block";
-  const labelStyle = { color: "#7c3820" };
+    "font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[4px] block text-gc-primary-deep";
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.4)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto"
-        style={{
-          maxWidth: 520,
-          maxHeight: "90vh",
-          border: "1px solid #dac1ba",
-        }}
-      >
-        <div
-          className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0"
-          style={{ borderBottom: "1px solid #dac1ba" }}
-        >
-          <h2
-            className="font-garamond font-bold text-[22px]"
-            style={{ color: "#3c3c3c" }}
-          >
+      <div className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto max-w-[520px] max-h-[90vh] border border-gc-border-warm">
+        <div className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0 border-b border-gc-border-warm">
+          <h2 className="font-garamond font-bold text-[22px] text-gc-heading">
             Add {garment} Option
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80"
-            style={{ width: 30, height: 30, background: "#f1ede8" }}
+            className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 w-[30px] h-[30px] bg-gc-bg-warm"
           >
-            <X size={14} style={{ color: "#7c3820" }} />
+            <X size={14} className="text-gc-primary-deep" />
           </button>
         </div>
 
@@ -399,12 +356,11 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
           className="px-[20px] py-[16px] flex flex-col gap-[12px]"
         >
           <div>
-            <label className={labelCls} style={labelStyle}>
-              Label <span style={{ color: "#dc2626" }}>*</span>
+            <label className={labelCls}>
+              Label <span className="text-failed">*</span>
             </label>
             <input
               className={inputCls}
-              style={inputStyle}
               value={form.label}
               onChange={(e) => set("label", e.target.value)}
               placeholder="e.g. Half Canvas"
@@ -413,12 +369,11 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
 
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Category <span style={{ color: "#dc2626" }}>*</span>
+              <label className={labelCls}>
+                Category <span className="text-failed">*</span>
               </label>
               <input
                 className={inputCls}
-                style={inputStyle}
                 value={form.category}
                 onChange={(e) => set("category", e.target.value)}
                 onBlur={(e) =>
@@ -428,12 +383,11 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
               />
             </div>
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Display Label <span style={{ color: "#dc2626" }}>*</span>
+              <label className={labelCls}>
+                Display Label <span className="text-failed">*</span>
               </label>
               <input
                 className={inputCls}
-                style={inputStyle}
                 value={form.display_label}
                 onChange={(e) => set("display_label", e.target.value)}
                 placeholder="e.g. Canvas"
@@ -443,28 +397,22 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
 
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Upcharge ($)
-              </label>
+              <label className={labelCls}>Upcharge ($)</label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 className={inputCls}
-                style={inputStyle}
                 value={form.upcharge}
                 onChange={(e) => set("upcharge", e.target.value)}
               />
             </div>
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Sort Order
-              </label>
+              <label className={labelCls}>Sort Order</label>
               <input
                 type="number"
                 min="0"
                 className={inputCls}
-                style={inputStyle}
                 value={form.sort_order}
                 onChange={(e) => set("sort_order", e.target.value)}
               />
@@ -474,24 +422,18 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
           {/* Kutetailor Code + Conditional Hide */}
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Kutetailor Code
-              </label>
+              <label className={labelCls}>Kutetailor Code</label>
               <input
                 className={inputCls}
-                style={inputStyle}
                 value={form.kutetailer_code}
                 onChange={(e) => set("kutetailer_code", e.target.value)}
                 placeholder="e.g. 000B"
               />
             </div>
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Conditional Hide
-              </label>
+              <label className={labelCls}>Conditional Hide</label>
               <input
                 className={inputCls}
-                style={inputStyle}
                 value={form.conditional_hide}
                 onChange={(e) => set("conditional_hide", e.target.value)}
                 placeholder="Optional"
@@ -500,9 +442,7 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
           </div>
 
           <div>
-            <label className={labelCls} style={labelStyle}>
-              Image
-            </label>
+            <label className={labelCls}>Image</label>
             <ImagePicker
               currentUrl={form.image_url || null}
               gid={form.image}
@@ -535,9 +475,7 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
                   const t = inputTypeFor(def.type?.name);
                   return (
                     <div key={def.key}>
-                      <label className={labelCls} style={labelStyle}>
-                        {def.name}
-                      </label>
+                      <label className={labelCls}>{def.name}</label>
                       <input
                         type={t}
                         step={
@@ -546,7 +484,6 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
                             : undefined
                         }
                         className={inputCls}
-                        style={inputStyle}
                         value={form[def.key] ?? ""}
                         onChange={(e) => set(def.key, e.target.value)}
                         placeholder={def.name}
@@ -561,13 +498,10 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
             .filter((d) => inputTypeFor(d.type?.name) === "textarea")
             .map((def) => (
               <div key={def.key}>
-                <label className={labelCls} style={labelStyle}>
-                  {def.name}
-                </label>
+                <label className={labelCls}>{def.name}</label>
                 <textarea
                   rows={3}
-                  className="w-full rounded-[6px] px-[10px] py-[8px] font-hanken text-[13px] outline-none focus:border-[#a45d41] resize-y"
-                  style={{ border: "1px solid #dac1ba", color: "#1c1c19" }}
+                  className="w-full rounded-[6px] px-[10px] py-[8px] font-hanken text-[13px] outline-none focus:border-gc-primary border border-gc-border-warm text-gc-near-black resize-y"
                   value={form[def.key] ?? ""}
                   onChange={(e) => set(def.key, e.target.value)}
                   placeholder={def.name}
@@ -579,9 +513,7 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
             .filter((d) => inputTypeFor(d.type?.name) === "file")
             .map((def) => (
               <div key={def.key}>
-                <label className={labelCls} style={labelStyle}>
-                  {def.name}
-                </label>
+                <label className={labelCls}>{def.name}</label>
                 <ImagePicker
                   currentUrl={form[`${def.key}_url`] || null}
                   gid={form[def.key] ?? ""}
@@ -601,13 +533,9 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
                 checked
                 disabled
                 readOnly
-                className="w-[15px] h-[15px]"
-                style={{ accentColor: "#a45d41", opacity: 1 }}
+                className="w-[15px] h-[15px] gc-accent-primary"
               />
-              <span
-                className="font-hanken font-semibold text-[12px]"
-                style={{ color: "#3c3c3c" }}
-              >
+              <span className="font-hanken font-semibold text-[12px] text-gc-heading">
                 Visible
               </span>
             </label>
@@ -618,13 +546,9 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
                 onChange={(e) =>
                   set("is_default", e.target.checked ? "true" : "false")
                 }
-                className="w-[15px] h-[15px] cursor-pointer"
-                style={{ accentColor: "#a45d41" }}
+                className="w-[15px] h-[15px] cursor-pointer gc-accent-primary"
               />
-              <span
-                className="font-hanken font-semibold text-[12px]"
-                style={{ color: "#3c3c3c" }}
-              >
+              <span className="font-hanken font-semibold text-[12px] text-gc-heading">
                 Is Default
               </span>
             </label>
@@ -641,43 +565,31 @@ function AddStyleOptionModal({ garment, garmentOptions, onClose, onCreated }) {
                     onChange={(e) =>
                       set(def.key, e.target.checked ? "true" : "false")
                     }
-                    className="w-[15px] h-[15px] cursor-pointer"
-                    style={{ accentColor: "#a45d41" }}
+                    className="w-[15px] h-[15px] cursor-pointer gc-accent-primary"
                   />
-                  <span
-                    className="font-hanken font-semibold text-[12px]"
-                    style={{ color: "#3c3c3c" }}
-                  >
+                  <span className="font-hanken font-semibold text-[12px] text-gc-heading">
                     {def.name}
                   </span>
                 </label>
               ))}
           </div>
 
-          <p
-            className="font-hanken text-[12px] h-[16px]"
-            style={{ color: "#dc2626" }}
-          >
+          <p className="font-hanken text-[12px] h-[16px] text-failed">
             {error || ""}
           </p>
 
-          <div
-            className="flex items-center justify-end gap-[8px] pt-[8px]"
-            style={{ borderTop: "1px solid #dac1ba" }}
-          >
+          <div className="flex items-center justify-end gap-[8px] pt-[8px] border-t border-gc-border-warm">
             <button
               type="button"
               onClick={onClose}
-              className="font-hanken font-semibold text-[13px] h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80"
-              style={{ border: "1px solid #dac1ba", color: "#7c3820" }}
+              className="font-hanken font-semibold text-[13px] h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80 border border-gc-border-warm text-gc-primary-deep"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving || imageUploading}
-              className="font-hanken font-semibold text-[13px] text-white h-[38px] px-[20px] rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: "#a45d41" }}
+              className="font-hanken font-semibold text-[13px] text-white h-[38px] px-[20px] rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed bg-gc-primary"
             >
               {saving
                 ? "Creating…"
@@ -713,41 +625,25 @@ function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
       value: v != null && v !== "" ? String(v) : "—",
     }));
 
-  const labelCls = "font-hanken font-semibold text-[11px] tracking-[0.4px]";
-  const valCls = "font-hanken text-[13px]";
+  const labelCls =
+    "font-hanken font-semibold text-[11px] tracking-[0.4px] text-gc-primary-deep";
+  const valCls = "font-hanken text-[13px] text-gc-near-black";
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.4)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto"
-        style={{
-          maxWidth: 480,
-          maxHeight: "90vh",
-          border: "1px solid #dac1ba",
-        }}
-      >
+      <div className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto max-w-[480px] max-h-[90vh] border border-gc-border-warm">
         {/* Header */}
-        <div
-          className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0"
-          style={{ borderBottom: "1px solid #dac1ba" }}
-        >
+        <div className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0 border-b border-gc-border-warm">
           <div>
-            <p
-              className="font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[2px]"
-              style={{ color: "#a45d41" }}
-            >
+            <p className="font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[2px] text-gc-primary">
               {garment} · {option.category}
             </p>
-            <h2
-              className="font-garamond font-bold text-[22px]"
-              style={{ color: "#3c3c3c" }}
-            >
+            <h2 className="font-garamond font-bold text-[22px] text-gc-heading">
               {option.label}
             </h2>
           </div>
@@ -758,8 +654,7 @@ function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
                 onClose();
                 onEdit(option);
               }}
-              className="flex items-center gap-[5px] font-hanken font-semibold text-[12px] h-[30px] px-[10px] rounded-[6px] cursor-pointer hover:opacity-80"
-              style={{ border: "1px solid #dac1ba", color: "#7c3820" }}
+              className="flex items-center gap-[5px] font-hanken font-semibold text-[12px] h-[30px] px-[10px] rounded-[6px] cursor-pointer hover:opacity-80 border border-gc-border-warm text-gc-primary-deep"
             >
               <Pencil size={11} />
               Edit
@@ -767,10 +662,9 @@ function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80"
-              style={{ width: 30, height: 30, background: "#f1ede8" }}
+              className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 w-[30px] h-[30px] bg-gc-bg-warm"
             >
-              <X size={14} style={{ color: "#7c3820" }} />
+              <X size={14} className="text-gc-primary-deep" />
             </button>
           </div>
         </div>
@@ -781,51 +675,32 @@ function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
               <img
                 src={option.imageUrl}
                 alt={option.label}
-                className="rounded-[8px] object-cover"
-                style={{ width: 80, height: 80, border: "1px solid #dac1ba" }}
+                className="rounded-[8px] object-cover w-[80px] h-[80px] border border-gc-border-warm"
               />
             </div>
           )}
 
           <div className="flex flex-wrap gap-[8px]">
             <span
-              className="font-hanken font-semibold text-[11px] px-[10px] py-[4px] rounded-full"
-              style={{
-                background: option.visible ? "#dcfce7" : "#f1ede8",
-                color: option.visible ? "#166534" : "#7c3820",
-              }}
+              className={`font-hanken font-semibold text-[11px] px-[10px] py-[4px] rounded-full ${option.visible ? "bg-green-100 text-green-800" : "bg-gc-bg-warm text-gc-primary-deep"}`}
             >
               {option.visible ? "Visible" : "Hidden"}
             </span>
             {option.isDefault && (
-              <span
-                className="font-hanken font-semibold text-[11px] px-[10px] py-[4px] rounded-full"
-                style={{ background: "#fef9c3", color: "#854d0e" }}
-              >
+              <span className="font-hanken font-semibold text-[11px] px-[10px] py-[4px] rounded-full bg-gc-warn-bg text-gc-warn-text">
                 Default
               </span>
             )}
           </div>
 
-          <div
-            className="rounded-[8px] overflow-hidden"
-            style={{ border: "1px solid #dac1ba" }}
-          >
+          <div className="rounded-[8px] overflow-hidden border border-gc-border-warm">
             {[...rows, ...extraRows].map(({ label, value }, i) => (
               <div
                 key={label}
-                className="grid grid-cols-2 gap-[12px] px-[14px] py-[10px]"
-                style={{
-                  borderTop: i === 0 ? "none" : "1px solid #f1ede8",
-                  background: i % 2 === 0 ? "#fff" : "#fdf9f6",
-                }}
+                className={`grid grid-cols-2 gap-[12px] px-[14px] py-[10px] ${i > 0 ? "border-t border-gc-bg-warm" : ""} ${i % 2 !== 0 ? "bg-gc-row-alt" : "bg-white"}`}
               >
-                <span className={labelCls} style={{ color: "#7c3820" }}>
-                  {label}
-                </span>
-                <span className={valCls} style={{ color: "#1c1c19" }}>
-                  {value}
-                </span>
+                <span className={labelCls}>{label}</span>
+                <span className={valCls}>{value}</span>
               </div>
             ))}
           </div>
@@ -970,36 +845,20 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
   }
 
   const inputCls =
-    "w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-[#a45d41]";
-  const inputStyle = { border: "1px solid #dac1ba", color: "#1c1c19" };
+    "w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-gc-primary border border-gc-border-warm text-gc-near-black";
   const labelCls =
-    "font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[4px] block";
-  const labelStyle = { color: "#7c3820" };
+    "font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[4px] block text-gc-primary-deep";
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.4)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto"
-        style={{
-          maxWidth: 520,
-          maxHeight: "90vh",
-          border: "1px solid #dac1ba",
-        }}
-      >
-        <div
-          className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0"
-          style={{ borderBottom: "1px solid #dac1ba" }}
-        >
-          <h2
-            className="font-garamond font-bold text-[18px] sm:text-[22px]"
-            style={{ color: "#3c3c3c" }}
-          >
+      <div className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto max-w-[520px] max-h-[90vh] border border-gc-border-warm">
+        <div className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0 border-b border-gc-border-warm">
+          <h2 className="font-garamond font-bold text-[18px] sm:text-[22px] text-gc-heading">
             Edit {garment} Option
           </h2>
           <div className="flex items-center gap-[8px]">
@@ -1008,8 +867,7 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
                 href={shopifyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-[4px] font-hanken font-semibold text-[10px] sm:text-[12px] h-[26px] sm:h-[30px] px-[8px] sm:px-[10px] rounded-[6px] cursor-pointer hover:opacity-80"
-                style={{ border: "1px solid #dac1ba", color: "#7c3820" }}
+                className="flex items-center gap-[4px] font-hanken font-semibold text-[10px] sm:text-[12px] h-[26px] sm:h-[30px] px-[8px] sm:px-[10px] rounded-[6px] cursor-pointer hover:opacity-80 border border-gc-border-warm text-gc-primary-deep"
               >
                 <ExternalLink size={10} />
                 Open in Shopify
@@ -1018,10 +876,9 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80"
-              style={{ width: 30, height: 30, background: "#f1ede8" }}
+              className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 w-[30px] h-[30px] bg-gc-bg-warm"
             >
-              <X size={14} style={{ color: "#7c3820" }} />
+              <X size={14} className="text-gc-primary-deep" />
             </button>
           </div>
         </div>
@@ -1031,12 +888,11 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
           className="px-[20px] py-[16px] flex flex-col gap-[12px]"
         >
           <div>
-            <label className={labelCls} style={labelStyle}>
-              Label <span style={{ color: "#dc2626" }}>*</span>
+            <label className={labelCls}>
+              Label <span className="text-failed">*</span>
             </label>
             <input
               className={inputCls}
-              style={inputStyle}
               value={form.label}
               onChange={(e) => set("label", e.target.value)}
             />
@@ -1044,12 +900,11 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
 
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Category <span style={{ color: "#dc2626" }}>*</span>
+              <label className={labelCls}>
+                Category <span className="text-failed">*</span>
               </label>
               <input
                 className={inputCls}
-                style={inputStyle}
                 value={form.category}
                 onChange={(e) => set("category", e.target.value)}
                 onBlur={(e) =>
@@ -1058,12 +913,11 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
               />
             </div>
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Display Label <span style={{ color: "#dc2626" }}>*</span>
+              <label className={labelCls}>
+                Display Label <span className="text-failed">*</span>
               </label>
               <input
                 className={inputCls}
-                style={inputStyle}
                 value={form.display_label}
                 onChange={(e) => set("display_label", e.target.value)}
               />
@@ -1072,28 +926,22 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
 
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Upcharge ($)
-              </label>
+              <label className={labelCls}>Upcharge ($)</label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 className={inputCls}
-                style={inputStyle}
                 value={form.upcharge}
                 onChange={(e) => set("upcharge", e.target.value)}
               />
             </div>
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Sort Order
-              </label>
+              <label className={labelCls}>Sort Order</label>
               <input
                 type="number"
                 min="0"
                 className={inputCls}
-                style={inputStyle}
                 value={form.sort_order}
                 onChange={(e) => set("sort_order", e.target.value)}
               />
@@ -1102,23 +950,17 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
 
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Kutetailor Code
-              </label>
+              <label className={labelCls}>Kutetailor Code</label>
               <input
                 className={inputCls}
-                style={inputStyle}
                 value={form.kutetailer_code}
                 onChange={(e) => set("kutetailer_code", e.target.value)}
               />
             </div>
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Conditional Hide
-              </label>
+              <label className={labelCls}>Conditional Hide</label>
               <input
                 className={inputCls}
-                style={inputStyle}
                 value={form.conditional_hide}
                 onChange={(e) => set("conditional_hide", e.target.value)}
               />
@@ -1126,9 +968,7 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
           </div>
 
           <div>
-            <label className={labelCls} style={labelStyle}>
-              Image
-            </label>
+            <label className={labelCls}>Image</label>
             <ImagePicker
               currentUrl={form.image_url || option.imageUrl || null}
               gid={form.image}
@@ -1161,9 +1001,7 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
                   const t = inputTypeFor(def.type?.name);
                   return (
                     <div key={def.key}>
-                      <label className={labelCls} style={labelStyle}>
-                        {def.name}
-                      </label>
+                      <label className={labelCls}>{def.name}</label>
                       <input
                         type={t}
                         step={
@@ -1172,7 +1010,6 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
                             : undefined
                         }
                         className={inputCls}
-                        style={inputStyle}
                         value={form[def.key] ?? ""}
                         onChange={(e) => set(def.key, e.target.value)}
                       />
@@ -1186,13 +1023,10 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
             .filter((d) => inputTypeFor(d.type?.name) === "textarea")
             .map((def) => (
               <div key={def.key}>
-                <label className={labelCls} style={labelStyle}>
-                  {def.name}
-                </label>
+                <label className={labelCls}>{def.name}</label>
                 <textarea
                   rows={3}
-                  className="w-full rounded-[6px] px-[10px] py-[8px] font-hanken text-[13px] outline-none focus:border-[#a45d41] resize-y"
-                  style={{ border: "1px solid #dac1ba", color: "#1c1c19" }}
+                  className="w-full rounded-[6px] px-[10px] py-[8px] font-hanken text-[13px] outline-none focus:border-gc-primary border border-gc-border-warm text-gc-near-black resize-y"
                   value={form[def.key] ?? ""}
                   onChange={(e) => set(def.key, e.target.value)}
                 />
@@ -1203,9 +1037,7 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
             .filter((d) => inputTypeFor(d.type?.name) === "file")
             .map((def) => (
               <div key={def.key}>
-                <label className={labelCls} style={labelStyle}>
-                  {def.name}
-                </label>
+                <label className={labelCls}>{def.name}</label>
                 <ImagePicker
                   currentUrl={form[`${def.key}_url`] || null}
                   gid={form[def.key] ?? ""}
@@ -1226,13 +1058,9 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
                 onChange={(e) =>
                   set("visible", e.target.checked ? "true" : "false")
                 }
-                className="w-[15px] h-[15px] cursor-pointer"
-                style={{ accentColor: "#a45d41" }}
+                className="w-[15px] h-[15px] cursor-pointer gc-accent-primary"
               />
-              <span
-                className="font-hanken font-semibold text-[12px]"
-                style={{ color: "#3c3c3c" }}
-              >
+              <span className="font-hanken font-semibold text-[12px] text-gc-heading">
                 Visible
               </span>
             </label>
@@ -1243,13 +1071,9 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
                 onChange={(e) =>
                   set("is_default", e.target.checked ? "true" : "false")
                 }
-                className="w-[15px] h-[15px] cursor-pointer"
-                style={{ accentColor: "#a45d41" }}
+                className="w-[15px] h-[15px] cursor-pointer gc-accent-primary"
               />
-              <span
-                className="font-hanken font-semibold text-[12px]"
-                style={{ color: "#3c3c3c" }}
-              >
+              <span className="font-hanken font-semibold text-[12px] text-gc-heading">
                 Is Default
               </span>
             </label>
@@ -1266,43 +1090,31 @@ function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
                     onChange={(e) =>
                       set(def.key, e.target.checked ? "true" : "false")
                     }
-                    className="w-[15px] h-[15px] cursor-pointer"
-                    style={{ accentColor: "#a45d41" }}
+                    className="w-[15px] h-[15px] cursor-pointer gc-accent-primary"
                   />
-                  <span
-                    className="font-hanken font-semibold text-[12px]"
-                    style={{ color: "#3c3c3c" }}
-                  >
+                  <span className="font-hanken font-semibold text-[12px] text-gc-heading">
                     {def.name}
                   </span>
                 </label>
               ))}
           </div>
 
-          <p
-            className="font-hanken text-[12px] h-[16px]"
-            style={{ color: "#dc2626" }}
-          >
+          <p className="font-hanken text-[12px] h-[16px] text-failed">
             {error || ""}
           </p>
 
-          <div
-            className="flex items-center justify-end gap-[8px] pt-[8px]"
-            style={{ borderTop: "1px solid #dac1ba" }}
-          >
+          <div className="flex items-center justify-end gap-[8px] pt-[8px] border-t border-gc-border-warm">
             <button
               type="button"
               onClick={onClose}
-              className="font-hanken font-semibold text-[13px] h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80"
-              style={{ border: "1px solid #dac1ba", color: "#7c3820" }}
+              className="font-hanken font-semibold text-[13px] h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80 border border-gc-border-warm text-gc-primary-deep"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving || imageUploading}
-              className="font-hanken font-semibold text-[13px] text-white h-[38px] px-[20px] rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: "#a45d41" }}
+              className="font-hanken font-semibold text-[13px] text-white h-[38px] px-[20px] rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed bg-gc-primary"
             >
               {saving
                 ? "Saving…"
@@ -1336,28 +1148,18 @@ function DeleteConfirmModal({ option, onClose, onDeleted }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.4)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="relative bg-white rounded-[12px] w-full mx-[16px] p-[24px] flex flex-col gap-[16px]"
-        style={{ maxWidth: 420, border: "1px solid #dac1ba" }}
-      >
+      <div className="relative bg-white rounded-[12px] w-full mx-[16px] p-[24px] flex flex-col gap-[16px] max-w-[420px] border border-gc-border-warm">
         <div className="flex items-start justify-between gap-[12px]">
           <div>
-            <h2
-              className="font-garamond font-bold text-[20px] leading-tight"
-              style={{ color: "#3c3c3c" }}
-            >
+            <h2 className="font-garamond font-bold text-[20px] leading-tight text-gc-heading">
               Delete Option
             </h2>
-            <p
-              className="font-hanken text-[13px] mt-[6px] leading-[1.5]"
-              style={{ color: "#7c3820" }}
-            >
+            <p className="font-hanken text-[13px] mt-[6px] leading-[1.5] text-gc-primary-deep">
               Are you sure you want to delete{" "}
               <strong>&ldquo;{option.label}&rdquo;</strong>? This will
               permanently remove it from Shopify and cannot be undone.
@@ -1366,29 +1168,22 @@ function DeleteConfirmModal({ option, onClose, onDeleted }) {
           <button
             type="button"
             onClick={onClose}
-            className="flex-shrink-0 flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80"
-            style={{ width: 30, height: 30, background: "#f1ede8" }}
+            className="flex-shrink-0 flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 w-[30px] h-[30px] bg-gc-bg-warm"
           >
-            <X size={14} style={{ color: "#7c3820" }} />
+            <X size={14} className="text-gc-primary-deep" />
           </button>
         </div>
 
         {error && (
-          <p className="font-hanken text-[12px]" style={{ color: "#dc2626" }}>
-            {error}
-          </p>
+          <p className="font-hanken text-[12px] text-failed">{error}</p>
         )}
 
-        <div
-          className="flex items-center justify-end gap-[8px]"
-          style={{ borderTop: "1px solid #dac1ba", paddingTop: 12 }}
-        >
+        <div className="flex items-center justify-end gap-[8px] border-t border-gc-border-warm pt-[12px]">
           <button
             type="button"
             onClick={onClose}
             disabled={deleting}
-            className="font-hanken font-semibold text-[13px] h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80 disabled:opacity-50"
-            style={{ border: "1px solid #dac1ba", color: "#7c3820" }}
+            className="font-hanken font-semibold text-[13px] h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80 disabled:opacity-50 border border-gc-border-warm text-gc-primary-deep"
           >
             Cancel
           </button>
@@ -1396,8 +1191,7 @@ function DeleteConfirmModal({ option, onClose, onDeleted }) {
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="font-hanken font-semibold text-[13px] text-white h-[38px] px-[20px] rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: "#c0392b" }}
+            className="font-hanken font-semibold text-[13px] text-white h-[38px] px-[20px] rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed bg-red-700"
           >
             {deleting ? "Deleting…" : "Delete"}
           </button>
@@ -1410,35 +1204,18 @@ function DeleteConfirmModal({ option, onClose, onDeleted }) {
 function ViewContrastOptionModal({ option, onClose, onEdit }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.4)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto"
-        style={{
-          maxWidth: 480,
-          maxHeight: "90vh",
-          border: "1px solid #dac1ba",
-        }}
-      >
-        <div
-          className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0"
-          style={{ borderBottom: "1px solid #dac1ba" }}
-        >
+      <div className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto max-w-[480px] max-h-[90vh] border border-gc-border-warm">
+        <div className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0 border-b border-gc-border-warm">
           <div>
-            <p
-              className="font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[2px]"
-              style={{ color: "#a45d41" }}
-            >
+            <p className="font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[2px] text-gc-primary">
               {option.garment} · Contrast Option
             </p>
-            <h2
-              className="font-garamond font-bold text-[22px]"
-              style={{ color: "#3c3c3c" }}
-            >
+            <h2 className="font-garamond font-bold text-[22px] text-gc-heading">
               {option.label}
             </h2>
           </div>
@@ -1449,8 +1226,7 @@ function ViewContrastOptionModal({ option, onClose, onEdit }) {
                 onClose();
                 onEdit(option);
               }}
-              className="flex items-center gap-[5px] font-hanken font-semibold text-[12px] h-[30px] px-[10px] rounded-[6px] cursor-pointer hover:opacity-80"
-              style={{ border: "1px solid #dac1ba", color: "#7c3820" }}
+              className="flex items-center gap-[5px] font-hanken font-semibold text-[12px] h-[30px] px-[10px] rounded-[6px] cursor-pointer hover:opacity-80 border border-gc-border-warm text-gc-primary-deep"
             >
               <Pencil size={11} />
               Edit
@@ -1458,10 +1234,9 @@ function ViewContrastOptionModal({ option, onClose, onEdit }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80"
-              style={{ width: 30, height: 30, background: "#f1ede8" }}
+              className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 w-[30px] h-[30px] bg-gc-bg-warm"
             >
-              <X size={14} style={{ color: "#7c3820" }} />
+              <X size={14} className="text-gc-primary-deep" />
             </button>
           </div>
         </div>
@@ -1472,28 +1247,20 @@ function ViewContrastOptionModal({ option, onClose, onEdit }) {
               <img
                 src={option.imageUrl}
                 alt={option.label}
-                className="rounded-[8px] object-cover"
-                style={{ width: 80, height: 80, border: "1px solid #dac1ba" }}
+                className="rounded-[8px] object-cover w-[80px] h-[80px] border border-gc-border-warm"
               />
             </div>
           )}
 
           <div className="flex flex-wrap gap-[8px]">
             <span
-              className="font-hanken font-semibold text-[11px] px-[10px] py-[4px] rounded-full"
-              style={{
-                background: option.visible ? "#dcfce7" : "#f1ede8",
-                color: option.visible ? "#166534" : "#7c3820",
-              }}
+              className={`font-hanken font-semibold text-[11px] px-[10px] py-[4px] rounded-full ${option.visible ? "bg-green-100 text-green-800" : "bg-gc-bg-warm text-gc-primary-deep"}`}
             >
               {option.visible ? "Visible" : "Hidden"}
             </span>
           </div>
 
-          <div
-            className="rounded-[8px] overflow-hidden"
-            style={{ border: "1px solid #dac1ba" }}
-          >
+          <div className="rounded-[8px] overflow-hidden border border-gc-border-warm">
             {[
               { label: "Color Name", value: option.label || "—" },
               {
@@ -1505,31 +1272,16 @@ function ViewContrastOptionModal({ option, onClose, onEdit }) {
             ].map(({ label, value, hex }, i) => (
               <div
                 key={label}
-                className="grid grid-cols-2 gap-[12px] px-[14px] py-[10px]"
-                style={{
-                  borderTop: i === 0 ? "none" : "1px solid #f1ede8",
-                  background: i % 2 === 0 ? "#fff" : "#fdf9f6",
-                }}
+                className={`grid grid-cols-2 gap-[12px] px-[14px] py-[10px] ${i > 0 ? "border-t border-gc-bg-warm" : ""} ${i % 2 !== 0 ? "bg-gc-row-alt" : "bg-white"}`}
               >
-                <span
-                  className="font-hanken font-semibold text-[11px] tracking-[0.4px]"
-                  style={{ color: "#7c3820" }}
-                >
+                <span className="font-hanken font-semibold text-[11px] tracking-[0.4px] text-gc-primary-deep">
                   {label}
                 </span>
-                <span
-                  className="font-hanken text-[13px] flex items-center gap-[8px]"
-                  style={{ color: "#1c1c19" }}
-                >
+                <span className="font-hanken text-[13px] flex items-center gap-[8px] text-gc-near-black">
                   {hex && (
                     <span
-                      className="inline-block flex-shrink-0 rounded-[3px]"
-                      style={{
-                        width: 16,
-                        height: 16,
-                        backgroundColor: hex,
-                        border: "1px solid #dac1ba",
-                      }}
+                      className="inline-block flex-shrink-0 rounded-[3px] w-[16px] h-[16px] border border-gc-border-warm"
+                      style={{ backgroundColor: hex }}
                     />
                   )}
                   {value}
@@ -1616,45 +1368,28 @@ function EditContrastOptionModal({ option, onClose, onUpdated }) {
   }
 
   const inputCls =
-    "w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-[#a45d41]";
-  const inputStyle = { border: "1px solid #dac1ba", color: "#1c1c19" };
+    "w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-gc-primary border border-gc-border-warm text-gc-near-black";
   const labelCls =
-    "font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[4px] block";
-  const labelStyle = { color: "#7c3820" };
+    "font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[4px] block text-gc-primary-deep";
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.4)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto"
-        style={{
-          maxWidth: 520,
-          maxHeight: "90vh",
-          border: "1px solid #dac1ba",
-        }}
-      >
-        <div
-          className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0"
-          style={{ borderBottom: "1px solid #dac1ba" }}
-        >
-          <h2
-            className="font-garamond font-bold text-[22px]"
-            style={{ color: "#3c3c3c" }}
-          >
+      <div className="relative bg-white rounded-[12px] w-full mx-[16px] overflow-y-auto max-w-[520px] max-h-[90vh] border border-gc-border-warm">
+        <div className="flex items-center justify-between px-[20px] py-[16px] flex-shrink-0 border-b border-gc-border-warm">
+          <h2 className="font-garamond font-bold text-[22px] text-gc-heading">
             Edit Contrast Option
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80"
-            style={{ width: 30, height: 30, background: "#f1ede8" }}
+            className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 w-[30px] h-[30px] bg-gc-bg-warm"
           >
-            <X size={14} style={{ color: "#7c3820" }} />
+            <X size={14} className="text-gc-primary-deep" />
           </button>
         </div>
 
@@ -1663,9 +1398,7 @@ function EditContrastOptionModal({ option, onClose, onUpdated }) {
           className="px-[20px] py-[16px] flex flex-col gap-[12px]"
         >
           <div>
-            <label className={labelCls} style={labelStyle}>
-              Color Image
-            </label>
+            <label className={labelCls}>Color Image</label>
             <ImagePicker
               currentUrl={form.color_image_url || null}
               gid={form.color_image}
@@ -1678,12 +1411,11 @@ function EditContrastOptionModal({ option, onClose, onUpdated }) {
           </div>
 
           <div>
-            <label className={labelCls} style={labelStyle}>
-              Color Name <span style={{ color: "#dc2626" }}>*</span>
+            <label className={labelCls}>
+              Color Name <span className="text-failed">*</span>
             </label>
             <input
               className={inputCls}
-              style={inputStyle}
               value={form.color_name}
               onChange={(e) => set("color_name", e.target.value)}
               placeholder="e.g. Blue"
@@ -1692,25 +1424,16 @@ function EditContrastOptionModal({ option, onClose, onUpdated }) {
 
           <div className="grid grid-cols-2 gap-[10px]">
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Color Hex
-              </label>
+              <label className={labelCls}>Color Hex</label>
               <div className="flex items-center gap-[6px]">
                 <input
                   type="color"
-                  className="rounded-[6px] cursor-pointer flex-shrink-0"
-                  style={{
-                    width: 38,
-                    height: 38,
-                    padding: 2,
-                    border: "1px solid #dac1ba",
-                  }}
+                  className="rounded-[6px] cursor-pointer flex-shrink-0 w-[38px] h-[38px] p-[2px] border border-gc-border-warm"
                   value={form.color_hex || "#ffffff"}
                   onChange={(e) => set("color_hex", e.target.value)}
                 />
                 <input
                   className={inputCls}
-                  style={inputStyle}
                   value={form.color_hex}
                   onChange={(e) => set("color_hex", e.target.value)}
                   placeholder="#ffffff"
@@ -1718,12 +1441,9 @@ function EditContrastOptionModal({ option, onClose, onUpdated }) {
               </div>
             </div>
             <div>
-              <label className={labelCls} style={labelStyle}>
-                Garment
-              </label>
+              <label className={labelCls}>Garment</label>
               <input
                 className={inputCls}
-                style={inputStyle}
                 value={form.garment}
                 onChange={(e) => set("garment", e.target.value)}
                 placeholder="e.g. Jacket"
@@ -1739,42 +1459,30 @@ function EditContrastOptionModal({ option, onClose, onUpdated }) {
                 onChange={(e) =>
                   set("visible", e.target.checked ? "true" : "false")
                 }
-                className="w-[15px] h-[15px] cursor-pointer"
-                style={{ accentColor: "#a45d41" }}
+                className="w-[15px] h-[15px] cursor-pointer gc-accent-primary"
               />
-              <span
-                className="font-hanken font-semibold text-[12px]"
-                style={{ color: "#3c3c3c" }}
-              >
+              <span className="font-hanken font-semibold text-[12px] text-gc-heading">
                 Visible
               </span>
             </label>
           </div>
 
-          <p
-            className="font-hanken text-[12px] h-[16px]"
-            style={{ color: "#dc2626" }}
-          >
+          <p className="font-hanken text-[12px] h-[16px] text-failed">
             {error || ""}
           </p>
 
-          <div
-            className="flex items-center justify-end gap-[8px] pt-[8px]"
-            style={{ borderTop: "1px solid #dac1ba" }}
-          >
+          <div className="flex items-center justify-end gap-[8px] pt-[8px] border-t border-gc-border-warm">
             <button
               type="button"
               onClick={onClose}
-              className="font-hanken font-semibold text-[13px] h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80"
-              style={{ border: "1px solid #dac1ba", color: "#7c3820" }}
+              className="font-hanken font-semibold text-[13px] h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80 border border-gc-border-warm text-gc-primary-deep"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving || imageUploading}
-              className="font-hanken font-semibold text-[13px] text-white h-[38px] px-[20px] rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: "#a45d41" }}
+              className="font-hanken font-semibold text-[13px] text-white h-[38px] px-[20px] rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed bg-gc-primary"
             >
               {saving
                 ? "Saving…"
@@ -1806,39 +1514,26 @@ function GarmentDropdown({ garments, selected, onSelect, loading }) {
       <button
         type="button"
         onClick={() => !loading && garments.length > 0 && setOpen((v) => !v)}
-        className="flex items-center w-full h-[40px] rounded-[8px] pl-[13px] pr-[9px] py-[7px] bg-white cursor-pointer"
-        style={{ border: "1px solid #dac1ba" }}
+        className="flex items-center w-full h-[40px] rounded-[8px] pl-[13px] pr-[9px] py-[7px] bg-white cursor-pointer border border-gc-border-warm"
       >
         <ListFilter
           size={12}
-          className="flex-shrink-0 mr-[8px]"
-          style={{ color: "#54433E" }}
+          className="flex-shrink-0 mr-[8px] text-gc-primary-deep"
         />
         <span
-          className="flex-1 text-left text-[14px] font-hanken truncate"
-          style={{ color: selected ? "#1c1c19" : "#9b9b9b" }}
+          className={`flex-1 text-left text-[14px] font-hanken truncate ${selected ? "text-gc-near-black" : "text-gc-muted-warm"}`}
         >
           {loading ? "Loading…" : selected || "Filter garments..."}
         </span>
         <ChevronDown
           size={12}
-          className="flex-shrink-0 transition-transform"
-          style={{
-            color: "#9b9b9b",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-          }}
+          className={`flex-shrink-0 transition-transform text-gc-muted-warm ${open ? "rotate-180" : "rotate-0"}`}
         />
       </button>
 
       {/* Dropdown list */}
       {open && (
-        <div
-          className="absolute top-full left-0 right-0 z-50 mt-[4px] bg-white rounded-[8px] overflow-hidden"
-          style={{
-            border: "1px solid #dac1ba",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-          }}
-        >
+        <div className="absolute top-full left-0 right-0 z-50 mt-[4px] bg-white rounded-[8px] overflow-hidden border border-gc-border-warm shadow-md">
           {garments.map((g) => (
             <button
               key={g}
@@ -1847,12 +1542,7 @@ function GarmentDropdown({ garments, selected, onSelect, loading }) {
                 onSelect(g);
                 setOpen(false);
               }}
-              className="w-full text-left px-[13px] py-[10px] font-hanken text-[14px] transition-colors cursor-pointer"
-              style={{
-                color: selected === g ? "#a45d41" : "#1c1c19",
-                backgroundColor: selected === g ? "#fdf5f0" : "transparent",
-                fontWeight: selected === g ? 600 : 400,
-              }}
+              className={`w-full text-left px-[13px] py-[10px] font-hanken text-[14px] transition-colors cursor-pointer ${selected === g ? "text-gc-primary bg-gc-primary/[6%] font-semibold" : "text-gc-near-black font-normal"}`}
             >
               {g}
             </button>
@@ -1871,22 +1561,15 @@ function Toggle({ on, onChange }) {
         e.stopPropagation();
         onChange(!on);
       }}
-      className="relative flex-shrink-0 focus:outline-none cursor-pointer"
-      style={{ width: 40, height: 20, borderRadius: 12 }}
+      className="relative flex-shrink-0 focus:outline-none cursor-pointer w-[40px] h-[20px] rounded-[12px]"
       aria-checked={on}
       role="switch"
     >
       <span
-        className="absolute inset-0 rounded-[12px] transition-colors"
-        style={{ backgroundColor: on ? "#7c3820" : "#dac1ba" }}
+        className={`absolute inset-0 rounded-[12px] transition-colors ${on ? "bg-gc-primary-deep" : "bg-gc-border-warm"}`}
       />
       <span
-        className="absolute top-[2px] w-[16px] h-[16px] bg-white rounded-full transition-transform"
-        style={{
-          left: 2,
-          transform: on ? "translateX(20px)" : "translateX(0)",
-          boxShadow: "0px 1px 2px rgba(0,0,0,0.05)",
-        }}
+        className={`absolute top-[2px] left-[2px] w-[16px] h-[16px] bg-white rounded-full transition-transform shadow-sm ${on ? "translate-x-[20px]" : "translate-x-0"}`}
       />
     </button>
   );
@@ -1894,42 +1577,22 @@ function Toggle({ on, onChange }) {
 
 function OptionCard({ option, visible, onChange, onView, onEdit, onDelete }) {
   return (
-    <div
-      className="bg-white flex items-center h-[52px] md:h-[64px] rounded-[8px] px-[8px] md:px-[11px] py-[8px] md:py-[12px]"
-      style={{ border: "1px solid #dac1ba" }}
-    >
+    <div className="bg-white flex items-center h-[52px] md:h-[64px] rounded-[8px] px-[8px] md:px-[11px] py-[8px] md:py-[12px] border border-gc-border-warm">
       {!option.isContrastOption && (
-        <span
-          className="flex-shrink-0 flex items-center justify-center font-hanken font-bold text-[11px] rounded-[4px] mr-[8px]"
-          style={{
-            width: 24,
-            height: 24,
-            background: "#f1ede8",
-            color: "#a45d41",
-          }}
-        >
+        <span className="flex-shrink-0 flex items-center justify-center font-hanken font-bold text-[11px] rounded-[4px] mr-[8px] w-[24px] h-[24px] bg-gc-bg-warm text-gc-primary">
           {option.sortOrder ?? "—"}
         </span>
       )}
 
-      <div
-        className="flex-shrink-0 rounded-[8px] overflow-hidden flex items-center justify-center"
-        style={{
-          width: 40,
-          height: 40,
-          border: "1px solid #dac1ba",
-          background: "#fff",
-        }}
-      >
+      <div className="flex-shrink-0 rounded-[8px] overflow-hidden flex items-center justify-center w-[40px] h-[40px] border border-gc-border-warm bg-white">
         {option.imageUrl ? (
           <img
             src={option.imageUrl}
             alt={option.label}
-            className="object-cover pointer-events-none"
-            style={{ width: 30, height: 30 }}
+            className="object-cover pointer-events-none w-[30px] h-[30px]"
           />
         ) : (
-          <div className="w-[30px] h-[30px] bg-[#f0ebe6] rounded-sm" />
+          <div className="w-[30px] h-[30px] bg-gc-scrollbar-track rounded-sm" />
         )}
       </div>
 
@@ -1939,21 +1602,17 @@ function OptionCard({ option, visible, onChange, onView, onEdit, onDelete }) {
         </span>
       </div>
 
-      <div
-        className="flex items-center gap-[8px] pl-[12px] ml-[8px] flex-shrink-0"
-        style={{ borderLeft: "1px solid rgba(218,193,186,0.4)" }}
-      >
+      <div className="flex items-center gap-[8px] pl-[12px] ml-[8px] flex-shrink-0 border-l border-gc-border-warm/40">
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onView(option);
           }}
-          className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 flex-shrink-0"
-          style={{ width: 28, height: 28, background: "#f1ede8" }}
+          className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 flex-shrink-0 w-[28px] h-[28px] bg-gc-bg-warm"
           title="View option"
         >
-          <Eye size={12} style={{ color: "#7c3820" }} />
+          <Eye size={12} className="text-gc-primary-deep" />
         </button>
         <button
           type="button"
@@ -1961,11 +1620,10 @@ function OptionCard({ option, visible, onChange, onView, onEdit, onDelete }) {
             e.stopPropagation();
             onEdit(option);
           }}
-          className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 flex-shrink-0"
-          style={{ width: 28, height: 28, background: "#f1ede8" }}
+          className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 flex-shrink-0 w-[28px] h-[28px] bg-gc-bg-warm"
           title="Edit option"
         >
-          <Pencil size={12} style={{ color: "#7c3820" }} />
+          <Pencil size={12} className="text-gc-primary-deep" />
         </button>
         <button
           type="button"
@@ -1973,16 +1631,12 @@ function OptionCard({ option, visible, onChange, onView, onEdit, onDelete }) {
             e.stopPropagation();
             onDelete(option);
           }}
-          className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 flex-shrink-0"
-          style={{ width: 28, height: 28, background: "#fef2f2" }}
+          className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 flex-shrink-0 w-[28px] h-[28px] bg-red-50"
           title="Delete option"
         >
-          <Trash2 size={12} style={{ color: "#c0392b" }} />
+          <Trash2 size={12} className="text-red-700" />
         </button>
-        <span
-          className="font-hanken font-semibold text-[12px] tracking-[0.6px] w-[24px] text-right"
-          style={{ color: "#7c3820" }}
-        >
+        <span className="font-hanken font-semibold text-[12px] tracking-[0.6px] w-[24px] text-right text-gc-primary-deep">
           {visible ? "ON" : "OFF"}
         </span>
         <Toggle on={visible} onChange={onChange} />
@@ -2272,35 +1926,21 @@ export default function StyleAdjustments() {
 
   return (
     <DashboardLayout bgColor="#f4f1ed">
-      <div
-        className="-mx-[20px] md:-mx-[28px] -mt-[20px] md:-mt-[28px] -mb-[20px] md:-mb-[28px] flex overflow-hidden relative"
-        style={{ height: "calc(100vh - 64px)" }}
-      >
+      <div className="-mx-[20px] md:-mx-[28px] -mt-[20px] md:-mt-[28px] -mb-[20px] md:-mb-[28px] flex overflow-hidden relative h-[calc(100vh-64px)]">
         {sidebarOpen && (
           <div
-            className="fixed inset-0 z-30 md:hidden"
-            style={{ background: "rgba(0,0,0,0.3)" }}
+            className="fixed inset-0 z-30 md:hidden bg-black/30"
             onClick={() => setSidebarOpen(false)}
           />
         )}
 
         <aside
-          className={`flex-shrink-0 transition-transform duration-300
+          className={`flex-shrink-0 transition-transform duration-300 w-[280px] h-[calc(100vh-64px)] bg-gc-bg-image border-r border-gc-border-warm flex flex-col overflow-hidden
             fixed z-40 top-[64px] md:relative md:z-auto md:top-auto md:translate-x-0
             ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
-          style={{
-            width: 280,
-            height: "calc(100vh - 64px)",
-            background: "#f7f3ee",
-            borderRight: "1px solid #dac1ba",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          }}
         >
           <div
-            className="px-[8px] pt-[16px] pb-[8px] relative"
-            style={{ zIndex: 2 }}
+            className="px-[8px] pt-[16px] pb-[8px] relative z-[2]"
             id="aside-dropdown"
           >
             <GarmentDropdown
@@ -2312,20 +1952,14 @@ export default function StyleAdjustments() {
           </div>
 
           <div
-            className={
+            className={`overflow-x-hidden flex-1 min-h-0 pb-[120px] ${
               categoriesForGarment.length > 15
                 ? "style-cat-scroll-always"
                 : "style-cat-scroll-mobile"
-            }
-            style={{
-              overflowX: "hidden",
-              flex: 1,
-              minHeight: 0,
-              paddingBottom: 120,
-            }}
+            }`}
           >
             {loading ? (
-              <p className="px-[16px] text-[12px]" style={{ color: "#9a8f89" }}>
+              <p className="px-[16px] text-[12px] text-gc-muted-warm">
                 Loading…
               </p>
             ) : (
@@ -2340,53 +1974,23 @@ export default function StyleAdjustments() {
                         setOptionFilter("");
                         setSidebarOpen(false);
                       }}
-                      className="flex items-center justify-between w-full text-left transition-colors cursor-pointer"
-                      style={
+                      className={`flex items-center justify-between w-full text-left transition-colors cursor-pointer ${
                         active
-                          ? {
-                              background: "#fff",
-                              borderTop: "1px solid #A45D41",
-                              borderBottom: "1px solid #A45D41",
-                              borderLeft: "4px solid #A45D41",
-                              paddingLeft: 20,
-                              paddingRight: 16,
-                              paddingTop: 13,
-                              paddingBottom: 13,
-                            }
-                          : {
-                              paddingLeft: 16,
-                              paddingRight: 16,
-                              paddingTop: 12,
-                              paddingBottom: 12,
-                            }
-                      }
+                          ? "bg-white border-t border-b border-gc-primary border-l-[4px] pl-[20px] pr-[16px] py-[13px]"
+                          : "px-[16px] py-[12px]"
+                      }`}
                     >
                       <span
-                        className="font-hanken font-semibold text-[12px] md:text-[14px] leading-[16px] md:leading-[18px] truncate mr-[8px]"
-                        style={{ color: active ? "#1c1c19" : "#a45d41" }}
+                        className={`font-hanken font-semibold text-[12px] md:text-[14px] leading-[16px] md:leading-[18px] truncate mr-[8px] ${active ? "text-gc-near-black" : "text-gc-primary"}`}
                       >
                         {cat.displayLabel}
                       </span>
                       <div className="flex items-center gap-[8px] flex-shrink-0">
                         {active && (
-                          <div
-                            className="rounded-[12px] flex-shrink-0"
-                            style={{
-                              width: 6,
-                              height: 6,
-                              background: "#a45d41",
-                            }}
-                          />
+                          <div className="w-[6px] h-[6px] rounded-[12px] flex-shrink-0 bg-gc-primary" />
                         )}
                         <div
-                          className="flex items-center justify-center font-hanken font-medium text-[12px]"
-                          style={{
-                            background: "#f1ede8",
-                            color: "#a45d41",
-                            borderRadius: active ? 2 : "0px 2px 2px 2px",
-                            width: 40,
-                            height: 20,
-                          }}
+                          className={`flex items-center justify-center font-hanken font-medium text-[12px] w-[40px] h-[20px] bg-gc-bg-warm text-gc-primary ${active ? "rounded-[2px]" : "rounded-[0px_2px_2px_2px]"}`}
                         >
                           {cat.visible}/{cat.total}
                         </div>
@@ -2410,10 +2014,7 @@ export default function StyleAdjustments() {
           )}
 
           {error && (
-            <div
-              className="p-[20px] md:p-[40px] text-[14px]"
-              style={{ color: "#dc2626" }}
-            >
+            <div className="p-[20px] md:p-[40px] text-[14px] text-failed">
               {error}
             </div>
           )}
@@ -2425,39 +2026,24 @@ export default function StyleAdjustments() {
                   <button
                     type="button"
                     onClick={() => setSidebarOpen(true)}
-                    className="md:hidden flex-shrink-0 flex items-center justify-center rounded-[6px] cursor-pointer"
-                    style={{
-                      width: 32,
-                      height: 32,
-                      background: "#f1ede8",
-                      border: "1px solid #dac1ba",
-                    }}
+                    className="md:hidden flex-shrink-0 flex items-center justify-center rounded-[6px] cursor-pointer w-[32px] h-[32px] bg-gc-bg-warm border border-gc-border-warm"
                     aria-label="Open categories"
                   >
-                    <Filter size={14} style={{ color: "#a45d41" }} />
+                    <Filter size={14} className="text-gc-primary" />
                   </button>
                   <div className="flex items-center gap-[4px]">
-                    <span
-                      className="font-hanken font-medium text-[11px] leading-[14px]"
-                      style={{ color: "#a45d41" }}
-                    >
+                    <span className="font-hanken font-medium text-[11px] leading-[14px] text-gc-primary">
                       {selectedGarment}
                     </span>
-                    <ChevronRight size={10} style={{ color: "#a45d41" }} />
-                    <span
-                      className="font-hanken font-medium text-[11px] leading-[14px]"
-                      style={{ color: "#1c1c19" }}
-                    >
+                    <ChevronRight size={10} className="text-gc-primary" />
+                    <span className="font-hanken font-medium text-[11px] leading-[14px] text-gc-near-black">
                       {categoryInfo?.displayLabel}
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-[12px]">
-                  <h1
-                    className="font-garamond font-bold text-[28px] md:text-[40px] leading-tight"
-                    style={{ color: "#3c3c3c" }}
-                  >
+                  <h1 className="font-garamond font-bold text-[28px] md:text-[40px] leading-tight text-gc-heading">
                     {categoryInfo?.displayLabel}
                   </h1>
                   {selectedGarment &&
@@ -2465,62 +2051,39 @@ export default function StyleAdjustments() {
                     selectedCategory !== "contrast_option" && (
                       <button
                         onClick={() => setAddModalOpen(true)}
-                        className="flex items-center gap-[4px] font-hanken font-semibold text-[11px] md:text-[14px] uppercase text-white h-[32px] md:h-[44px] px-[8px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
-                        style={{ background: "#a45d41" }}
+                        className="flex items-center gap-[4px] font-hanken font-semibold text-[11px] md:text-[14px] uppercase text-white h-[32px] md:h-[44px] px-[8px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0 bg-gc-primary"
                       >
                         <Plus size={14} />
                         {selectedGarment}
                       </button>
                     )}
                 </div>
-                <p
-                  className="font-hanken font-semibold text-[13px] md:text-[14px] leading-[16px] mt-[2px]"
-                  style={{ color: "#a45d41" }}
-                >
+                <p className="font-hanken font-semibold text-[13px] md:text-[14px] leading-[16px] mt-[2px] text-gc-primary">
                   Total: {categoryOptions.length} options | Visible:{" "}
                   {catVisible}
                 </p>
               </div>
 
-              <div
-                className="sticky top-0 z-10 px-[16px] md:px-[24px] py-[8px] md:py-[20px] flex flex-row items-center gap-[6px] md:gap-[12px]"
-                style={{
-                  background: "rgba(253,249,244,0.9)",
-                  backdropFilter: "blur(2px)",
-                }}
-              >
-                <div
-                  className="flex items-center gap-[8px] h-[34px] md:h-[48px] rounded-[8px] overflow-hidden flex-1 px-[10px] md:px-[21px]"
-                  style={{
-                    background: "rgba(255,255,255,0.5)",
-                    border: "1px solid #d1c7bd",
-                  }}
-                >
-                  <Search
-                    size={14}
-                    className="flex-shrink-0"
-                    style={{ color: "#6b7280" }}
-                  />
+              <div className="sticky top-0 z-10 px-[16px] md:px-[24px] py-[8px] md:py-[20px] flex flex-row items-center gap-[6px] md:gap-[12px] bg-gc-surface-warm/90 backdrop-blur-[2px]">
+                <div className="flex items-center gap-[8px] h-[34px] md:h-[48px] rounded-[8px] overflow-hidden flex-1 px-[10px] md:px-[21px] bg-white/50 border border-gc-border-input">
+                  <Search size={14} className="flex-shrink-0 text-gc-muted" />
                   <input
                     type="text"
                     placeholder="Filter options in this category..."
                     value={optionFilter}
                     onChange={(e) => setOptionFilter(e.target.value)}
-                    className="flex-1 text-[12px] md:text-[14px] font-hanken font-medium outline-none bg-transparent"
-                    style={{ color: "#1c1c19" }}
+                    className="flex-1 text-[12px] md:text-[14px] font-hanken font-medium outline-none bg-transparent text-gc-near-black"
                   />
                 </div>
                 <button
                   onClick={showAll}
-                  className="font-hanken font-semibold text-[11px] md:text-[14px] text-white uppercase h-[34px] md:h-[44px] px-[10px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
-                  style={{ background: "#a45d41" }}
+                  className="font-hanken font-semibold text-[11px] md:text-[14px] text-white uppercase h-[34px] md:h-[44px] px-[10px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0 bg-gc-primary"
                 >
                   Show All
                 </button>
                 <button
                   onClick={hideAll}
-                  className="font-hanken font-semibold text-[11px] md:text-[14px] text-white uppercase h-[34px] md:h-[44px] px-[10px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
-                  style={{ background: "#a45d41" }}
+                  className="font-hanken font-semibold text-[11px] md:text-[14px] text-white uppercase h-[34px] md:h-[44px] px-[10px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0 bg-gc-primary"
                 >
                   Hide All
                 </button>
@@ -2528,10 +2091,7 @@ export default function StyleAdjustments() {
 
               <div className="px-[16px] md:px-[24px] pt-[16px] md:pt-[20px]">
                 {filteredOptions.length === 0 ? (
-                  <p
-                    className="font-hanken text-[13px] py-[40px] text-center"
-                    style={{ color: "#9a8f89" }}
-                  >
+                  <p className="font-hanken text-[13px] py-[40px] text-center text-gc-muted-warm">
                     No options match your filter.
                   </p>
                 ) : (
@@ -2558,16 +2118,12 @@ export default function StyleAdjustments() {
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className="md:hidden flex items-center gap-[8px] font-hanken font-semibold text-[14px] text-white uppercase h-[44px] px-[20px] rounded-[8px] cursor-pointer"
-                style={{ background: "#a45d41" }}
+                className="md:hidden flex items-center gap-[8px] font-hanken font-semibold text-[14px] text-white uppercase h-[44px] px-[20px] rounded-[8px] cursor-pointer bg-gc-primary"
               >
                 <Filter size={14} />
                 Browse Categories
               </button>
-              <p
-                className="font-hanken text-[14px]"
-                style={{ color: "#a89f99" }}
-              >
+              <p className="font-hanken text-[14px] text-gc-scrollbar-thumb">
                 Select a category to view its options
               </p>
             </div>
@@ -2575,60 +2131,32 @@ export default function StyleAdjustments() {
         </div>
       </div>
 
-      <div
-        className="fixed bottom-0 right-0 left-0 lg:left-[540px] z-40"
-        style={{
-          background: "#fff",
-          borderTop: "1px solid #dac1ba",
-        }}
-      >
+      <div className="fixed bottom-0 right-0 left-0 lg:left-[540px] z-40 bg-white border-t border-gc-border-warm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-[6px] sm:gap-[8px] px-[16px] md:px-[40px] py-[8px] md:py-[10px]">
           <div className="flex items-center gap-[8px]">
-            <div
-              className="flex items-center justify-center font-hanken font-medium text-[12px] rounded-full flex-shrink-0"
-              style={{
-                width: 26,
-                height: 26,
-                background: "#f1ede8",
-                color: "#a45d41",
-              }}
-            >
+            <div className="flex items-center justify-center font-hanken font-medium text-[12px] rounded-full flex-shrink-0 w-[26px] h-[26px] bg-gc-bg-warm text-gc-primary">
               {String(totalHidden).padStart(2, "0")}
             </div>
-            <span
-              className="font-hanken font-semibold text-[13px] md:text-[16px]"
-              style={{ color: "#a45d41" }}
-            >
+            <span className="font-hanken font-semibold text-[13px] md:text-[16px] text-gc-primary">
               options hidden across the catalog.
             </span>
           </div>
 
           <div className="flex items-center gap-[10px] sm:justify-end">
             {saveError && (
-              <span
-                className="font-hanken text-[12px]"
-                style={{ color: "#dc2626" }}
-              >
+              <span className="font-hanken text-[12px] text-failed">
                 {saveError}
               </span>
             )}
             {pendingCount > 0 && !saving && (
-              <span
-                className="font-hanken font-medium text-[12px] text-center leading-[16px]"
-                style={{ color: "#a45d41" }}
-              >
+              <span className="font-hanken font-medium text-[12px] text-center leading-[16px] text-gc-primary">
                 {pendingCount} unsaved change{pendingCount !== 1 ? "s" : ""}
               </span>
             )}
             <button
               onClick={handleSave}
               disabled={saving || pendingCount === 0}
-              className="flex items-center gap-[6px] font-hanken font-semibold text-[11px] md:text-[12px] text-white text-center tracking-[0.6px] uppercase rounded-[8px] cursor-pointer transition-opacity disabled:opacity-50 disabled:cursor-not-allowed px-[12px] md:px-[20px]"
-              style={{
-                background: "#a45d41",
-                height: 34,
-                justifyContent: "center",
-              }}
+              className="flex items-center justify-center gap-[6px] font-hanken font-semibold text-[11px] md:text-[12px] text-white text-center tracking-[0.6px] uppercase rounded-[8px] cursor-pointer transition-opacity disabled:opacity-50 disabled:cursor-not-allowed px-[12px] md:px-[20px] h-[34px] bg-gc-primary"
             >
               <Save size={14} />
               Save Changes

@@ -279,10 +279,7 @@ function StepIndicator({ currentStep }) {
     { num: "03", label: "MEASUREMENTS & DETAILS" },
   ];
   return (
-    <div
-      className="flex flex-wrap items-center gap-[24px] sm:gap-[48px] pb-[25px]"
-      style={{ borderBottom: "1px solid rgba(207,196,197,0.3)" }}
-    >
+    <div className="flex flex-wrap items-center gap-[24px] sm:gap-[48px] pb-[25px] border-b border-gc-section-divider/30">
       {steps.map((step, idx) => {
         const active = idx + 1 <= currentStep;
         return (
@@ -294,10 +291,7 @@ function StepIndicator({ currentStep }) {
             )}
           >
             {active ? (
-              <div
-                className="flex items-center justify-center rounded-full size-[32px] flex-shrink-0"
-                style={{ backgroundColor: "#a45d41" }}
-              >
+              <div className="flex items-center justify-center rounded-full size-[32px] flex-shrink-0 bg-gc-primary">
                 <span className="font-hanken text-[14px] font-medium text-white tracking-[0.6px]">
                   {step.num}
                 </span>
@@ -364,13 +358,10 @@ function OrdersBadge({ count }) {
       </span>
     );
   const many = count >= 2;
-  const bg = many ? "rgba(119,90,25,0.1)" : "rgba(207,196,197,0.2)";
-  const col = many ? "#775a19" : "#4c4546";
   const label = count === 1 ? "1 ORDER" : `${count} ORDERS`;
   return (
     <span
-      className="font-hanken text-[10px] font-medium tracking-[0.8px] uppercase px-[6px] py-[3px] rounded-[4px]"
-      style={{ background: bg, color: col }}
+      className={`font-hanken text-[10px] font-medium tracking-[0.8px] uppercase px-[6px] py-[3px] rounded-[4px] ${many ? "bg-gc-avatar-gold/10 text-gc-avatar-gold" : "bg-gc-section-divider/20 text-[#4c4546]"}`}
     >
       {label}
     </span>
@@ -425,10 +416,7 @@ function CustomerSelector({ value, onChange }) {
   if (value) {
     const color = avatarColor(0);
     return (
-      <div
-        className="flex items-center gap-[16px] px-[16px] py-[16px] bg-white rounded-[8px]"
-        style={{ border: "1px solid #d1c7bd" }}
-      >
+      <div className="flex items-center gap-[16px] px-[16px] py-[16px] bg-white rounded-[8px] border border-gc-border-input">
         <div
           className="w-[48px] h-[48px] rounded-full flex items-center justify-center flex-shrink-0"
           style={{
@@ -458,7 +446,7 @@ function CustomerSelector({ value, onChange }) {
         </div>
         <button
           onClick={() => onChange(null)}
-          className="text-[#1a1c1b] hover:text-[#a45d41] transition-colors cursor-pointer p-[6px] rounded-[6px] hover:bg-[rgba(164,93,65,0.08)]"
+          className="text-gc-near-black2 hover:text-gc-primary transition-colors cursor-pointer p-[6px] rounded-[6px] hover:bg-[rgba(164,93,65,0.08)]"
           title="Change customer"
         >
           <X size={14} />
@@ -469,10 +457,7 @@ function CustomerSelector({ value, onChange }) {
 
   return (
     <div ref={ref} className="relative">
-      <div
-        className="flex items-center h-[60px] bg-white rounded-[8px] px-[17px] gap-[10px] overflow-hidden"
-        style={{ border: "1px solid #d1c7bd" }}
-      >
+      <div className="flex items-center h-[60px] bg-white rounded-[8px] px-[17px] gap-[10px] overflow-hidden border border-gc-border-input">
         <Search size={16} className="text-[#6b7280] flex-shrink-0" />
         <input
           type="text"
@@ -480,14 +465,11 @@ function CustomerSelector({ value, onChange }) {
           value={search}
           onChange={handleSearchChange}
           onFocus={handleFocus}
-          className="flex-1 font-hanken text-[14px] text-[#1a1c1b] placeholder:text-[#6b7280] outline-none bg-transparent"
+          className="flex-1 font-hanken text-[14px] text-gc-near-black2 placeholder:text-gc-muted outline-none bg-transparent"
         />
       </div>
       {open && (
-        <div
-          className="absolute top-full left-0 right-0 z-[100] mt-[4px] bg-white rounded-[8px] shadow-xl flex flex-col overflow-hidden"
-          style={{ border: "1px solid #d1c7bd", maxHeight: "min(458px, 60vh)" }}
-        >
+        <div className="absolute top-full left-0 right-0 z-[100] mt-[4px] bg-white rounded-[8px] shadow-xl flex flex-col overflow-hidden border border-gc-border-input max-h-[min(458px,60vh)]">
           <div className="overflow-y-auto flex-1 px-px pt-[9px]">
             {resultsLoading ? (
               <div className="font-hanken p-[16px] text-[14px] text-[#6b7280] text-center">
@@ -508,8 +490,7 @@ function CustomerSelector({ value, onChange }) {
                       setOpen(false);
                       setSearch("");
                     }}
-                    className="w-full flex items-center justify-between px-[12px] sm:px-[16px] py-[12px] sm:py-[16px] text-left transition-colors cursor-pointer hover:bg-[#f4f1ed]"
-                    style={{ borderBottom: "1px solid rgba(207,196,197,0.1)" }}
+                    className="w-full flex items-center justify-between px-[12px] sm:px-[16px] py-[12px] sm:py-[16px] text-left transition-colors cursor-pointer hover:bg-gc-bg-warm border-b border-gc-section-divider/10"
                   >
                     <div className="flex items-center gap-[10px] sm:gap-[16px] min-w-0">
                       <div
@@ -552,8 +533,7 @@ function CustomerSelector({ value, onChange }) {
                 state: { autoCreateModal: true, returnTo: "/orders/new" },
               });
             }}
-            className="w-full flex items-center justify-center gap-[8px] h-[44px] flex-shrink-0 cursor-pointer transition-opacity hover:opacity-90 rounded-bl-[8px] rounded-br-[8px]"
-            style={{ backgroundColor: "#a45d41" }}
+            className="w-full flex items-center justify-center gap-[8px] h-[44px] flex-shrink-0 cursor-pointer transition-opacity hover:opacity-90 rounded-bl-[8px] rounded-br-[8px] bg-gc-primary"
           >
             <Plus size={11} color="white" />
             <span className="font-hanken text-[14px] font-semibold text-white uppercase tracking-[0.5px]">
@@ -608,10 +588,7 @@ function AttributeEditor({
 
   if (attributes.length === 0) {
     return (
-      <div
-        className="bg-white rounded-[12px] px-[31px] py-[24px]"
-        style={{ border: "1px solid #c5c6cd" }}
-      >
+      <div className="bg-white rounded-[12px] px-[31px] py-[24px] border border-gc-divider">
         <p className="font-hanken text-[14px] text-[#6b7280]">
           No fields loaded for this product.
         </p>
@@ -620,22 +597,13 @@ function AttributeEditor({
   }
 
   return (
-    <div
-      className="bg-white rounded-[12px] p-[31px] flex flex-col gap-[48px]"
-      style={{ border: "1px solid #c5c6cd" }}
-    >
+    <div className="bg-white rounded-[12px] p-[31px] flex flex-col gap-[48px] border border-gc-divider">
       {general.length > 0 && (
         <div className="flex flex-col gap-[16px]">
-          <div
-            className="flex items-center justify-between pb-[9px]"
-            style={{ borderBottom: "1px solid rgba(146,73,50,0.2)" }}
-          >
+          <div className="flex items-center justify-between pb-[9px] border-b border-gc-primary-dark/20">
             <div className="flex items-center gap-[13px]">
-              <div
-                className="w-[3px] h-[20px] rounded-sm"
-                style={{ backgroundColor: "#a45d41" }}
-              />
-              <h3 className="font-garamond text-[20px] sm:text-[28px] font-semibold text-[#a45d41]">
+              <div className="w-[3px] h-[20px] rounded-sm bg-gc-primary" />
+              <h3 className="font-garamond text-[20px] sm:text-[28px] font-semibold text-gc-primary">
                 Details
               </h3>
             </div>
@@ -658,8 +626,7 @@ function AttributeEditor({
                     attributes.find((a) => a.key === originalKey)?.value || ""
                   }
                   onChange={(e) => updateAttr(originalKey, e.target.value)}
-                  className="w-full h-[36px] sm:h-[40px] bg-white rounded-[8px] px-[8px] sm:px-[13px] font-garamond text-[14px] sm:text-[18px] text-[#1c1c19] outline-none transition-colors sm:absolute sm:top-[20px]"
-                  style={{ border: "1px solid rgba(207,196,197,0.8)" }}
+                  className="w-full h-[36px] sm:h-[40px] bg-white rounded-[8px] px-[8px] sm:px-[13px] font-garamond text-[14px] sm:text-[18px] text-[#1c1c19] outline-none transition-colors sm:absolute sm:top-[20px] border border-gc-section-divider/80"
                 />
               </div>
             ))}
@@ -671,15 +638,9 @@ function AttributeEditor({
         if (!sec.items.length) return null;
         return (
           <div key={sec.label} className="flex flex-col gap-[16px]">
-            <div
-              className="flex items-center justify-between pb-[9px]"
-              style={{ borderBottom: "1px solid rgba(146,73,50,0.2)" }}
-            >
+            <div className="flex items-center justify-between pb-[9px] border-b border-gc-primary-dark/20">
               <div className="flex items-center gap-[13px]">
-                <div
-                  className="w-[3px] h-[20px] rounded-sm"
-                  style={{ backgroundColor: "#a45d41" }}
-                />
+                <div className="w-[3px] h-[20px] rounded-sm bg-gc-primary" />
                 <h3 className="font-garamond text-[20px] sm:text-[28px] font-semibold text-[#a45d41]">
                   {sec.label} Measurements
                 </h3>
@@ -721,20 +682,13 @@ function AttributeEditor({
                       value={val}
                       onChange={(e) => updateAttr(originalKey, e.target.value)}
                       className={cn(
-                        "w-full h-[36px] sm:h-[40px] bg-white rounded-[8px] px-[8px] sm:px-[13px] font-garamond text-[14px] sm:text-[18px] outline-none transition-colors sm:absolute sm:top-[20px]",
+                        "w-full h-[36px] sm:h-[40px] bg-white rounded-[8px] px-[8px] sm:px-[13px] font-garamond text-[14px] sm:text-[18px] outline-none transition-colors sm:absolute sm:top-[20px] border",
                         isValid
-                          ? "text-green-700"
+                          ? "text-green-700 border-green-500"
                           : isInvalid
-                            ? "text-red-500"
-                            : "text-[#1c1c19]",
+                            ? "text-red-500 border-red-400"
+                            : "text-[#1c1c19] border-gc-section-divider/80",
                       )}
-                      style={{
-                        border: isValid
-                          ? "1px solid #22c55e"
-                          : isInvalid
-                            ? "1px solid #f87171"
-                            : "1px solid rgba(207,196,197,0.8)",
-                      }}
                     />
                     <p
                       className={cn(
@@ -803,11 +757,10 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="font-hanken w-full flex items-center justify-between gap-[6px] px-[10px] py-[9px] rounded-[8px] text-[12px] sm:text-[13px] font-medium text-[#1a1c1b] bg-white cursor-pointer"
-          style={{ border: "1px solid #d1c7bd" }}
+          className="font-hanken w-full flex items-center justify-between gap-[6px] px-[10px] py-[9px] rounded-[8px] text-[12px] sm:text-[13px] font-medium text-gc-near-black2 bg-white cursor-pointer border border-gc-border-input"
         >
           <span
-            className={`truncate ${selectedLabel ? "text-[#1a1c1b]" : "text-[#9ca3af]"}`}
+            className={`truncate ${selectedLabel ? "text-gc-near-black2" : "text-[#9ca3af]"}`}
           >
             {selectedLabel || "— Select —"}
           </span>
@@ -818,10 +771,7 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
         </button>
 
         {open && (
-          <div
-            className="absolute left-0 right-0 top-full mt-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden"
-            style={{ border: "1px solid #d1c7bd" }}
-          >
+          <div className="absolute left-0 right-0 top-full mt-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden border border-gc-border-input">
             <ul className="max-h-[200px] overflow-y-auto py-[4px]">
               <li>
                 <button
@@ -830,12 +780,10 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
                     onSelect("");
                     setOpen(false);
                   }}
-                  className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-[#9ca3af] hover:bg-[#f4f1ed] flex items-center justify-between cursor-pointer"
+                  className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-[#9ca3af] hover:bg-gc-bg flex items-center justify-between cursor-pointer"
                 >
                   — Select —
-                  {!selected && (
-                    <Check size={12} style={{ color: "#a45d41" }} />
-                  )}
+                  {!selected && <Check size={12} className="text-gc-primary" />}
                 </button>
               </li>
               {opts.map((opt) => (
@@ -846,18 +794,12 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
                       onSelect(opt.label);
                       setOpen(false);
                     }}
-                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-[#1a1c1b] hover:bg-[#f4f1ed] flex items-center justify-between gap-[8px] cursor-pointer"
+                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-gc-near-black2 hover:bg-gc-bg flex items-center justify-between gap-[8px] cursor-pointer"
                   >
                     <span className="flex items-center gap-[6px] min-w-0">
                       <span className="truncate">{opt.label}</span>
                       {opt.upcharge > 0 && (
-                        <span
-                          className="font-hanken text-[10px] font-semibold flex-shrink-0 px-[5px] py-[1px] rounded-[4px]"
-                          style={{
-                            backgroundColor: "rgba(164,93,65,0.08)",
-                            color: "#a45d41",
-                          }}
-                        >
+                        <span className="font-hanken text-[10px] font-semibold flex-shrink-0 px-[5px] py-[1px] rounded-[4px] bg-gc-primary/[8%] text-gc-primary">
                           +{opt.upcharge}
                         </span>
                       )}
@@ -865,8 +807,7 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
                     {selected === opt.label && (
                       <Check
                         size={12}
-                        style={{ color: "#a45d41" }}
-                        className="flex-shrink-0"
+                        className="flex-shrink-0 text-gc-primary"
                       />
                     )}
                   </button>
@@ -899,10 +840,7 @@ function StyleOptionsSection({ styleOptions, selections, onChange, loading }) {
 
   if (loading) {
     return (
-      <div
-        className="bg-white rounded-[12px] p-[31px]"
-        style={{ border: "1px solid #c5c6cd" }}
-      >
+      <div className="bg-white rounded-[12px] p-[31px] border border-gc-divider">
         <LoadingState message="Loading style options…" />
       </div>
     );
@@ -910,20 +848,11 @@ function StyleOptionsSection({ styleOptions, selections, onChange, loading }) {
   if (!categories.length) return null;
 
   return (
-    <div
-      className="bg-white rounded-[12px] p-[31px] flex flex-col gap-[32px]"
-      style={{ border: "1px solid #c5c6cd" }}
-    >
-      <div
-        className="flex items-center justify-between pb-[9px]"
-        style={{ borderBottom: "1px solid rgba(146,73,50,0.2)" }}
-      >
+    <div className="bg-white rounded-[12px] p-[31px] flex flex-col gap-[32px] border border-gc-divider">
+      <div className="flex items-center justify-between pb-[9px] border-b border-gc-primary-dark/20">
         <div className="flex items-center gap-[13px]">
-          <div
-            className="w-[3px] h-[20px] rounded-sm"
-            style={{ backgroundColor: "#a45d41" }}
-          />
-          <h3 className="font-garamond text-[20px] sm:text-[28px] font-semibold text-[#a45d41]">
+          <div className="w-[3px] h-[20px] rounded-sm bg-gc-primary" />
+          <h3 className="font-garamond text-[20px] sm:text-[28px] font-semibold text-gc-primary">
             Style Options
           </h3>
         </div>
@@ -1426,23 +1355,10 @@ export default function CreateOrder() {
       <img
         src="/watermark-tailor.png"
         alt=""
-        className="fixed pointer-events-none select-none"
-        style={{
-          bottom: -110,
-          right: 0,
-          width: 360,
-          height: 360,
-          opacity: 0.06,
-          transform: "rotate(12deg)",
-          transformOrigin: "bottom right",
-          zIndex: 1,
-        }}
+        className="fixed pointer-events-none select-none bottom-[-110px] right-0 w-[360px] h-[360px] opacity-[0.06] rotate-12 origin-bottom-right z-[1]"
       />
 
-      <div
-        className="relative flex flex-col gap-[40px] pb-[80px]"
-        style={{ zIndex: 2 }}
-      >
+      <div className="relative flex flex-col gap-[40px] pb-[80px] z-[2]">
         <div className="flex flex-col gap-[4px]">
           <h1 className="font-garamond text-[28px] sm:text-[40px] font-bold text-[#3c3c3c] leading-tight">
             Create New Order
@@ -1497,12 +1413,7 @@ export default function CreateOrder() {
                       onClick={() =>
                         setSelectedProduct(isSelected ? null : product)
                       }
-                      className="flex flex-col items-start gap-[16px] sm:gap-[30px] p-[14px] sm:p-[22px] rounded-[8px] text-left transition-all cursor-pointer bg-white w-full"
-                      style={{
-                        border: isSelected
-                          ? "2px solid #1c1c19"
-                          : "1px solid rgba(207,196,197,0.3)",
-                      }}
+                      className={`flex flex-col items-start gap-[16px] sm:gap-[30px] p-[14px] sm:p-[22px] rounded-[8px] text-left transition-all cursor-pointer bg-white w-full ${isSelected ? "border-2 border-gc-near-black" : "border border-gc-section-divider/30"}`}
                     >
                       <div className="flex items-center justify-between w-full gap-[8px]">
                         <span className="font-hanken text-[12px] font-bold tracking-[0.6px] uppercase text-[#1c1c19] leading-tight">
@@ -1521,13 +1432,7 @@ export default function CreateOrder() {
                           </span>
                         )}
                         {pastCount > 0 && (
-                          <span
-                            className="font-hanken text-[10px] font-semibold px-[12px] py-[4px] rounded-full self-start tracking-[0.9px]"
-                            style={{
-                              backgroundColor: "#f0ede8",
-                              color: "#4c4546",
-                            }}
-                          >
+                          <span className="font-hanken text-[10px] font-semibold px-[12px] py-[4px] rounded-full self-start tracking-[0.9px] bg-gc-bg-image text-[#4c4546]">
                             {pastCount} past order{pastCount !== 1 ? "s" : ""}
                           </span>
                         )}
@@ -1544,11 +1449,8 @@ export default function CreateOrder() {
           selectedProduct &&
           pastOrdersForProduct.length > 0 && (
             <div className="flex flex-col gap-[16px]">
-              <div
-                className="flex flex-wrap items-center gap-[8px] pb-[17px]"
-                style={{ borderBottom: "1px solid rgba(207,196,197,0.3)" }}
-              >
-                <History size={16} style={{ color: "#A45D41" }} />
+              <div className="flex flex-wrap items-center gap-[8px] pb-[17px] border-b border-gc-section-divider/30">
+                <History size={16} className="text-gc-primary" />
                 <span className="font-garamond text-[14px] font-medium uppercase text-[#A45D41]">
                   Use Past Order as Template
                 </span>
@@ -1563,15 +1465,9 @@ export default function CreateOrder() {
                   className={cn(
                     "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
                     !selectedTemplate
-                      ? "text-white"
-                      : "text-[#6b7280] bg-white hover:bg-[rgba(164,93,65,0.04)]",
+                      ? "text-white border border-gc-primary bg-gc-primary"
+                      : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
                   )}
-                  style={{
-                    border: !selectedTemplate
-                      ? "1px solid #a45d41"
-                      : "1px solid #d1c7bd",
-                    backgroundColor: !selectedTemplate ? "#a45d41" : undefined,
-                  }}
                 >
                   <Plus size={13} />
                   New
@@ -1618,22 +1514,12 @@ export default function CreateOrder() {
                     className={cn(
                       "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
                       selectedTemplate === o.orderId
-                        ? "text-[#a45d41]"
-                        : "text-[#44474c] bg-white hover:bg-[rgba(164,93,65,0.04)]",
+                        ? "text-gc-primary border border-gc-primary bg-gc-primary/[6%]"
+                        : "text-[#44474c] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
                     )}
-                    style={{
-                      border:
-                        selectedTemplate === o.orderId
-                          ? "1px solid #a45d41"
-                          : "1px solid #d1c7bd",
-                      backgroundColor:
-                        selectedTemplate === o.orderId
-                          ? "rgba(164,93,65,0.06)"
-                          : undefined,
-                    }}
                   >
                     {selectedTemplate === o.orderId && (
-                      <CheckCircle2 size={13} style={{ color: "#a45d41" }} />
+                      <CheckCircle2 size={13} className="text-gc-primary" />
                     )}
                     {o.orderId}
                     <span className="text-[11px] text-[#9ca3af]">{o.date}</span>
@@ -1646,25 +1532,16 @@ export default function CreateOrder() {
         {/* ── Measurements + Details ── */}
         {selectedCustomer && selectedProduct && (
           <>
-            <div
-              className="bg-[#FFFFFF]/40 rounded-[12px] p-[31px]"
-              style={{ border: "1px solid #d1c7bd" }}
-            >
-              <h2 className="font-garamond text-[28px] font-semibold text-[#a45d41] mb-[20px]">
+            <div className="bg-white/40 rounded-[12px] p-[31px] border border-gc-border-input">
+              <h2 className="font-garamond text-[28px] font-semibold text-gc-primary mb-[20px]">
                 Price (store currency)
               </h2>
-              <div
-                className="w-full"
-                style={{ borderTop: "1px solid rgba(207,196,197,0.3)" }}
-              >
+              <div className="w-full border-t border-gc-section-divider/30">
                 <div className="max-w-[200px] mt-[20px]">
                   <label className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide block mb-[7px]">
                     Price
                   </label>
-                  <div
-                    className="bg-white rounded-[4px] h-[48px] flex items-center px-[8px] overflow-hidden"
-                    style={{ border: "1px solid #ddd6cf" }}
-                  >
+                  <div className="bg-white rounded-[4px] h-[48px] flex items-center px-[8px] overflow-hidden border border-gc-scrollbar-thumb/60">
                     <input
                       type="number"
                       value={price}
@@ -1689,17 +1566,11 @@ export default function CreateOrder() {
             )}
 
             {fieldsLoading ? (
-              <div
-                className="bg-white rounded-[12px] p-[31px]"
-                style={{ border: "1px solid #c5c6cd" }}
-              >
+              <div className="bg-white rounded-[12px] p-[31px] border border-gc-divider">
                 <LoadingState message="Loading product fields…" />
               </div>
             ) : attributes.length === 0 ? (
-              <div
-                className="bg-white rounded-[12px] px-[31px] py-[24px]"
-                style={{ border: "1px solid #c5c6cd" }}
-              >
+              <div className="bg-white rounded-[12px] px-[31px] py-[24px] border border-gc-divider">
                 <p className="font-hanken text-[14px] text-[#6b7280]">
                   No fields loaded for this product.
                 </p>
@@ -1716,12 +1587,12 @@ export default function CreateOrder() {
             {/* Note */}
             <div className="p-[31px]">
               <div className="flex items-center gap-[8px] mb-[20px]">
-                <FileText size={18} style={{ color: "#a45d41" }} />
+                <FileText size={18} className="text-gc-primary" />
                 <h2 className="font-garamond text-[28px] font-semibold text-[#a45d41]">
                   Order Note
                 </h2>
               </div>
-              <div style={{ borderTop: "1px solid #92493233" }}>
+              <div className="border-t border-gc-primary-dark/20">
                 <label className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide block mt-[16px] mb-[8px]">
                   Notes
                 </label>
@@ -1730,20 +1601,13 @@ export default function CreateOrder() {
                   onChange={(e) => setNote(e.target.value)}
                   rows={4}
                   placeholder="Add a note for this order..."
-                  className="font-hanken w-full bg-white px-[14px] py-[12px] rounded-[10px] text-[14px] text-[#1a1c1b] placeholder:text-[#6b7280] outline-none resize-none transition-colors"
-                  style={{ border: "1px solid #d1c7bd" }}
+                  className="font-hanken w-full bg-white px-[14px] py-[12px] rounded-[10px] text-[14px] text-gc-near-black2 placeholder:text-gc-muted outline-none resize-none transition-colors border border-gc-border-input"
                 />
               </div>
             </div>
 
             {hasMissingMeasurements && (
-              <div
-                className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px]"
-                style={{
-                  backgroundColor: "#fef2f2",
-                  border: "1px solid #fecaca",
-                }}
-              >
+              <div className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px] bg-red-50 border border-red-200">
                 <AlertCircle
                   size={16}
                   className="text-red-500 flex-shrink-0 mt-[1px]"
@@ -1756,13 +1620,7 @@ export default function CreateOrder() {
             )}
 
             {!measurementsValid && (
-              <div
-                className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px]"
-                style={{
-                  backgroundColor: "#fffbeb",
-                  border: "1px solid #fde68a",
-                }}
-              >
+              <div className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px] bg-amber-50 border border-amber-200">
                 <AlertCircle
                   size={16}
                   className="text-amber-500 flex-shrink-0 mt-[1px]"
@@ -1775,13 +1633,7 @@ export default function CreateOrder() {
             )}
 
             {submitError && (
-              <div
-                className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px]"
-                style={{
-                  backgroundColor: "#fef2f2",
-                  border: "1px solid #fecaca",
-                }}
-              >
+              <div className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px] bg-red-50 border border-red-200">
                 <AlertCircle
                   size={16}
                   className="text-red-500 flex-shrink-0 mt-[1px]"
@@ -1800,8 +1652,7 @@ export default function CreateOrder() {
             <div className="flex flex-wrap items-center justify-end gap-[12px] pb-[8px]">
               <Link
                 to="/orders"
-                className="font-hanken flex items-center gap-[6px] text-[14px] font-medium text-black uppercase px-[20px] py-[11px] rounded-[8px] hover:opacity-70 transition-opacity"
-                style={{ border: "1px solid #D6D6D6" }}
+                className="font-hanken flex items-center gap-[6px] text-[14px] font-medium text-black uppercase px-[20px] py-[11px] rounded-[8px] hover:opacity-70 transition-opacity border border-gray-300"
               >
                 <X size={14} />
                 Cancel
@@ -1809,8 +1660,7 @@ export default function CreateOrder() {
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                className="font-hanken flex items-center gap-[8px] h-[44px] px-[20px] rounded-[8px] text-white text-[14px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                style={{ backgroundColor: canSubmit ? "#a45d41" : "#a45d41" }}
+                className="font-hanken flex items-center gap-[8px] h-[44px] px-[20px] rounded-[8px] text-white text-[14px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer bg-gc-primary"
               >
                 {submitting ? (
                   <>
