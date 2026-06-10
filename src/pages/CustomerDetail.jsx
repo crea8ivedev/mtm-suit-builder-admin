@@ -8,6 +8,8 @@ import {
   Pencil,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
@@ -21,8 +23,125 @@ import {
   fetchShirtRanges,
   fetchTrouserRanges,
   fetchJacketRanges,
+  fetchJacketMeasurementFields,
+  fetchTrouserMeasurementFields,
+  fetchVestMeasurementFields,
+  fetchShirtMeasurementFields,
+  fetchStyleOptions,
+  fetchContrastOptions,
   setCustomerProductsMetafield,
 } from "../lib/shopify";
+
+const INLINE_KEYS = new Set(["fabric", "size type"]);
+
+function resolveLabel(rawKey, labelMap) {
+  if (labelMap[rawKey]) return labelMap[rawKey];
+  if (rawKey.includes(" - ")) return rawKey.split(" - ").slice(1).join(" - ");
+  return rawKey;
+}
+
+function categorize(measurements = {}, labelMap = {}) {
+  const measurementKeys = new Set(Object.keys(labelMap));
+  const options = [];
+  const measureList = [];
+  for (const [rawKey, val] of Object.entries(measurements)) {
+    if (rawKey.startsWith("_")) continue;
+    const key = resolveLabel(rawKey, labelMap);
+    const value = val?.endsWith('"') ? val.slice(0, -1) : (val ?? "");
+    if (INLINE_KEYS.has(key.toLowerCase())) continue;
+    const entry = { rawKey, key, value };
+    if (measurementKeys.has(rawKey)) {
+      measureList.push(entry);
+    } else {
+      options.push(entry);
+    }
+  }
+  return { options, measurements: measureList };
+}
+
+function StyleOptionDropdown({ label, opts, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    function handler(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+  return (
+    <div
+      ref={ref}
+      className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[14px] min-w-0 overflow-visible border-r border-b border-gc-section-divider/40 relative"
+    >
+      <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
+        {label}
+      </span>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="font-hanken w-full flex items-center justify-between gap-[4px] mt-[4px] text-[12px] sm:text-[14px] font-medium text-gc-near-black2 bg-gc-bg-warm rounded-[6px] px-[8px] py-[4px] border border-gc-border-input cursor-pointer"
+      >
+        <span
+          className={`truncate ${value ? "text-gc-near-black2" : "text-[#9ca3af]"}`}
+        >
+          {value || "— Select —"}
+        </span>
+        <ChevronDown
+          size={12}
+          className={`flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-[2px] z-50 bg-white rounded-[8px] shadow-lg border border-gc-border-input min-w-[160px]">
+          <ul className="max-h-[200px] overflow-y-auto py-[4px]">
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+                className="font-hanken w-full text-left px-[12px] py-[8px] text-[12px] text-[#9ca3af] hover:bg-gc-bg flex items-center justify-between cursor-pointer"
+              >
+                — Select —
+                {!value && <Check size={11} className="text-gc-primary" />}
+              </button>
+            </li>
+            {opts.map((opt) => (
+              <li key={opt.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.label);
+                    setOpen(false);
+                  }}
+                  className="font-hanken w-full text-left px-[12px] py-[8px] text-[12px] text-gc-near-black2 hover:bg-gc-bg flex items-center justify-between gap-[6px] cursor-pointer"
+                >
+                  <span className="flex items-center gap-[6px] min-w-0">
+                    <span className="truncate">{opt.label}</span>
+                    {opt.upcharge > 0 && (
+                      <span className="font-hanken text-[10px] font-semibold flex-shrink-0 px-[5px] py-[1px] rounded-[4px] bg-gc-primary/[8%] text-gc-primary">
+                        +{opt.upcharge}
+                      </span>
+                    )}
+                  </span>
+                  {value === opt.label && (
+                    <Check
+                      size={11}
+                      className="flex-shrink-0 text-gc-primary"
+                    />
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 import { cn } from "../utils/cn";
 
 const PAYMENT_BADGE = {
@@ -133,6 +252,9 @@ export default function CustomerDetail() {
   const [shirtMap, setShirtMap] = useState({});
   const [trouserMap, setTrouserMap] = useState({});
   const [jacketMap, setJacketMap] = useState({});
+  const [labelMap, setLabelMap] = useState({});
+  const [styleOptions, setStyleOptions] = useState([]);
+  const [contrastOptions, setContrastOptions] = useState([]);
   const profiles = useMemo(() => buildMeasurementProfiles(orders), [orders]);
 
   useEffect(() => {
@@ -165,6 +287,26 @@ export default function CustomerDetail() {
       .then((d) => {
         if (d) setJacketMap(d);
       })
+      .catch(() => {});
+    Promise.all([
+      fetchJacketMeasurementFields(),
+      fetchTrouserMeasurementFields(),
+      fetchVestMeasurementFields(),
+      fetchShirtMeasurementFields(),
+    ])
+      .then(([jacket, trouser, vest, shirt]) => {
+        const map = {};
+        for (const f of [...jacket, ...trouser, ...vest, ...shirt]) {
+          if (f.key && f.label) map[f.key] = f.label;
+        }
+        setLabelMap(map);
+      })
+      .catch(() => {});
+    fetchStyleOptions()
+      .then(setStyleOptions)
+      .catch(() => {});
+    fetchContrastOptions()
+      .then(setContrastOptions)
       .catch(() => {});
   }, []);
 
@@ -686,97 +828,191 @@ export default function CustomerDetail() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 rounded-[12px] p-px gap-px border border-gc-section-divider/40">
-                        {Object.entries(
-                          isEditing ? editingValues : entry.measurements,
-                        ).map(([key, val], idx) => {
-                          const metaEntry = isVest
-                            ? getRangeForKey(vestMap, key)
-                            : isShirt
-                              ? getRangeForKey(shirtMap, key)
-                              : isTrouser
-                                ? getRangeForKey(trouserMap, key)
-                                : isJacket
-                                  ? getRangeForKey(jacketMap, key)
-                                  : null;
-                          const displayKey = metaEntry ? metaEntry.label : key;
-                          const isSizeType = key.toLowerCase() === "size type";
-                          const range =
-                            metaEntry ?? getRangeForKey(RANGES, key);
-                          const isTouched = touchedFields.has(key);
-                          const numVal = parseFloat(val);
-                          const hasRange = !!range;
-                          const isValid =
-                            isTouched &&
-                            hasRange &&
-                            !isNaN(numVal) &&
-                            numVal >= range.min &&
-                            numVal <= range.max;
-                          const isInvalid =
-                            isTouched &&
-                            hasRange &&
-                            !isNaN(numVal) &&
-                            (numVal < range.min || numVal > range.max);
-                          const isFirst = idx === 0;
+                      {(() => {
+                        const source = isEditing
+                          ? editingValues
+                          : entry.measurements;
+                        const { options, measurements: measureList } =
+                          categorize(source, labelMap);
 
-                          return (
-                            <div
-                              key={key}
-                              className={cn(
-                                "bg-white flex flex-col p-[10px] sm:p-[20px] h-[90px] sm:h-[120px] overflow-hidden",
-                                isFirst && "rounded-tl-[12px]",
-                              )}
-                            >
-                              <span className="font-hanken text-[8px] sm:text-[10px] font-semibold uppercase tracking-[0.5px] text-[#7e7576] leading-[10px] sm:leading-[12px] break-words">
-                                {displayKey}
-                              </span>
-                              {isEditing && !isSizeType ? (
-                                <input
-                                  type="text"
-                                  value={val}
-                                  onChange={(e) =>
-                                    handleProfileMeasurementChange(
-                                      key,
-                                      e.target.value,
-                                    )
-                                  }
-                                  className={cn(
-                                    "font-garamond mt-[3px] w-full text-[16px] sm:text-[20px] text-black bg-transparent outline-none border-b",
-                                    isValid
-                                      ? "border-green-500 text-green-700"
-                                      : isInvalid
-                                        ? "border-red-400 text-red-600"
-                                        : "border-[#d1c7bd]",
-                                  )}
-                                />
-                              ) : (
-                                <span className="font-garamond text-[14px] sm:text-[22px] text-black leading-[18px] sm:leading-[30px] mt-[3px]">
-                                  {val}
+                        return (
+                          <div className="flex flex-col gap-[20px]">
+                            {/* Style Options */}
+                            {options.length > 0 && (
+                              <div className="flex flex-col gap-[10px]">
+                                <span className="font-hanken text-[10px] font-semibold uppercase tracking-[1.2px] text-[#929292]">
+                                  Style Options
                                 </span>
-                              )}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 border-l border-t border-gc-section-divider/40">
+                                  {options.map(({ rawKey, key, value }) => {
+                                    const currentVal = isEditing
+                                      ? (editingValues[rawKey] ?? value)
+                                      : value;
+                                    // parse "Garment - Category" to find dropdown opts
+                                    const parts = rawKey.split(" - ");
+                                    const garment =
+                                      parts.length >= 2 ? parts[0] : null;
+                                    const category =
+                                      parts.length >= 2
+                                        ? parts.slice(1).join(" - ")
+                                        : null;
+                                    const allStyleOpts = [
+                                      ...styleOptions,
+                                      ...contrastOptions,
+                                    ];
+                                    const dropdownOpts =
+                                      garment && category
+                                        ? allStyleOpts.filter(
+                                            (o) =>
+                                              o.garment === garment &&
+                                              o.category === category,
+                                          )
+                                        : [];
 
-                              {isEditing && range ? (
-                                <span
-                                  className={cn(
-                                    "font-hanken text-[9px] mt-auto",
-                                    isValid
-                                      ? "text-green-600"
-                                      : isInvalid
-                                        ? "text-red-500"
-                                        : "text-[#7e7576]",
+                                    if (isEditing && dropdownOpts.length > 0) {
+                                      return (
+                                        <StyleOptionDropdown
+                                          key={rawKey}
+                                          label={key}
+                                          opts={dropdownOpts}
+                                          value={currentVal}
+                                          onChange={(val) =>
+                                            handleProfileMeasurementChange(
+                                              rawKey,
+                                              val,
+                                            )
+                                          }
+                                        />
+                                      );
+                                    }
+                                    return (
+                                      <div
+                                        key={rawKey}
+                                        className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[14px] min-w-0 overflow-hidden border-r border-b border-gc-section-divider/40"
+                                      >
+                                        <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
+                                          {key}
+                                        </span>
+                                        <span className="font-hanken text-[12px] sm:text-[16px] font-medium text-gc-near-black2 leading-[20px] sm:leading-[26px] break-words w-full">
+                                          {currentVal || "—"}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Measurements */}
+                            {measureList.length > 0 && (
+                              <div className="flex flex-col gap-[10px]">
+                                <span className="font-hanken text-[10px] font-semibold uppercase tracking-[1.2px] text-[#929292]">
+                                  Measurements
+                                </span>
+                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 rounded-[12px] p-px gap-px border border-gc-section-divider/40">
+                                  {measureList.map(
+                                    (
+                                      { rawKey, key, value: displayVal },
+                                      idx,
+                                    ) => {
+                                      const val = isEditing
+                                        ? (editingValues[rawKey] ?? displayVal)
+                                        : displayVal;
+                                      const metaEntry = isVest
+                                        ? getRangeForKey(vestMap, rawKey)
+                                        : isShirt
+                                          ? getRangeForKey(shirtMap, rawKey)
+                                          : isTrouser
+                                            ? getRangeForKey(trouserMap, rawKey)
+                                            : isJacket
+                                              ? getRangeForKey(
+                                                  jacketMap,
+                                                  rawKey,
+                                                )
+                                              : null;
+                                      const range =
+                                        metaEntry ??
+                                        getRangeForKey(RANGES, rawKey);
+                                      const isTouched =
+                                        touchedFields.has(rawKey);
+                                      const numVal = parseFloat(val);
+                                      const hasRange = !!range;
+                                      const isValid =
+                                        isTouched &&
+                                        hasRange &&
+                                        !isNaN(numVal) &&
+                                        numVal >= range.min &&
+                                        numVal <= range.max;
+                                      const isInvalid =
+                                        isTouched &&
+                                        hasRange &&
+                                        !isNaN(numVal) &&
+                                        (numVal < range.min ||
+                                          numVal > range.max);
+
+                                      return (
+                                        <div
+                                          key={rawKey}
+                                          className={cn(
+                                            "bg-white flex flex-col p-[10px] sm:p-[20px] h-[90px] sm:h-[120px] overflow-hidden",
+                                            idx === 0 && "rounded-tl-[12px]",
+                                          )}
+                                        >
+                                          <span className="font-hanken text-[8px] sm:text-[10px] font-semibold uppercase tracking-[0.5px] text-[#7e7576] leading-[10px] sm:leading-[12px] break-words">
+                                            {key}
+                                          </span>
+                                          {isEditing ? (
+                                            <input
+                                              type="text"
+                                              value={val}
+                                              onChange={(e) =>
+                                                handleProfileMeasurementChange(
+                                                  rawKey,
+                                                  e.target.value,
+                                                )
+                                              }
+                                              className={cn(
+                                                "font-garamond mt-[3px] w-full text-[16px] sm:text-[20px] text-black bg-transparent outline-none border-b",
+                                                isValid
+                                                  ? "border-green-500 text-green-700"
+                                                  : isInvalid
+                                                    ? "border-red-400 text-red-600"
+                                                    : "border-[#d1c7bd]",
+                                              )}
+                                            />
+                                          ) : (
+                                            <span className="font-garamond text-[14px] sm:text-[22px] text-black leading-[18px] sm:leading-[30px] mt-[3px]">
+                                              {val}
+                                            </span>
+                                          )}
+                                          {isEditing && range ? (
+                                            <span
+                                              className={cn(
+                                                "font-hanken text-[9px] mt-auto",
+                                                isValid
+                                                  ? "text-green-600"
+                                                  : isInvalid
+                                                    ? "text-red-500"
+                                                    : "text-[#7e7576]",
+                                              )}
+                                            >
+                                              {range.min}–{range.max}
+                                            </span>
+                                          ) : (
+                                            <span className="font-hanken text-[9px] text-[#7e7576] mt-auto leading-[13px]">
+                                              Inches
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    },
                                   )}
-                                >
-                                  {range.min}–{range.max}
-                                </span>
-                              ) : (
-                                <span className="font-hanken text-[9px] text-[#7e7576] mt-auto leading-[13px]">
-                                  Inches
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

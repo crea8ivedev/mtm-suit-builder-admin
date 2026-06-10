@@ -15,8 +15,29 @@ import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
 import { useOrderDetail } from "../hooks/useOrderDetail";
 import { useSupplierSubmit, SUPPLIERS } from "../hooks/useSupplierSubmit";
-import { formatCurrency, formatDate } from "../lib/shopify";
+import {
+  formatCurrency,
+  formatDate,
+  fetchFabricOptions,
+  fetchJacketMeasurementFields,
+  fetchTrouserMeasurementFields,
+  fetchVestMeasurementFields,
+  fetchShirtMeasurementFields,
+  addUpchargeLineItem,
+  setOrderMetafields,
+} from "../lib/shopify";
 import { generateSingleOrderCSV } from "../utils/exportUtils";
+
+function formatAmount(amount, currencyCode) {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode,
+    }).format(amount);
+  } catch {
+    return `${currencyCode} ${parseFloat(amount).toFixed(2)}`;
+  }
+}
 
 function mapPaymentBadge(s) {
   return (
@@ -40,22 +61,31 @@ function parseSupplierMeta(order) {
     supplierStatus: map.supplier_status ?? null,
     supplierError: map.supplier_error ?? null,
     supplierSubmittedAt: map.supplier_submitted_at ?? null,
+    upchargeSynced: parseFloat(map.upcharge_synced || "0"),
   };
 }
 
-function categorize(customAttributes = []) {
+const INLINE_KEYS = new Set(["fabric", "size type"]);
+
+function resolveLabel(rawKey, labelMap) {
+  if (labelMap[rawKey]) return labelMap[rawKey];
+  if (rawKey.includes(" - ")) return rawKey.split(" - ").slice(1).join(" - ");
+  return rawKey;
+}
+
+function categorize(customAttributes = [], labelMap = {}) {
+  const measurementKeys = new Set(Object.keys(labelMap));
   const options = [];
   const measurements = [];
   for (const attr of customAttributes) {
     if (attr.key.startsWith("_")) continue;
-    const key = attr.key.startsWith("Vest ")
-      ? attr.key.replace("Vest ", "")
-      : attr.key;
+    const key = resolveLabel(attr.key, labelMap);
     const value = attr.value?.endsWith('"')
       ? attr.value.slice(0, -1)
       : (attr.value ?? "");
+    if (INLINE_KEYS.has(key.toLowerCase())) continue;
     const entry = { key, value };
-    if (value && /^\d/.test(value)) {
+    if (measurementKeys.has(attr.key)) {
       measurements.push(entry);
     } else {
       options.push(entry);
@@ -282,18 +312,98 @@ export default function OrderDetail() {
   const shopifyGid = `gid://shopify/Order/${orderId}`;
   const { order, loading, error, refetch } = useOrderDetail(shopifyGid);
 
+  const [fabricOptions, setFabricOptions] = useState([]);
+  const [labelMap, setLabelMap] = useState({});
+  const [syncingUpcharge, setSyncingUpcharge] = useState(false);
+  const [syncError, setSyncError] = useState(null);
+  const upchargeSyncFiredRef = useRef(false);
+
+  useEffect(() => {
+    fetchFabricOptions()
+      .then(setFabricOptions)
+      .catch(() => {});
+    Promise.all([
+      fetchJacketMeasurementFields(),
+      fetchTrouserMeasurementFields(),
+      fetchVestMeasurementFields(),
+      fetchShirtMeasurementFields(),
+    ])
+      .then(([jacket, trouser, vest, shirt]) => {
+        const map = {};
+        for (const f of [...jacket, ...trouser, ...vest, ...shirt]) {
+          if (f.key && f.label) map[f.key] = f.label;
+        }
+        setLabelMap(map);
+      })
+      .catch(() => {});
+  }, []);
+
   const lineItems = order?.lineItems?.edges?.map((e) => e.node) ?? [];
-  const allAttributes = lineItems.flatMap((item) =>
-    (item.customAttributes ?? [])
-      .filter((a) => !a.key.startsWith("_"))
-      .map((a) => ({
-        key: a.key.startsWith("Vest ") ? a.key.replace("Vest ", "") : a.key,
-        value: a.value?.endsWith('"') ? a.value.slice(0, -1) : (a.value ?? ""),
-      })),
+
+  const orderCurrencyCode =
+    order?.totalPriceSet?.shopMoney?.currencyCode || "USD";
+  const totalUpchargeAmount = lineItems.reduce(
+    (sum, item) =>
+      sum +
+      (item.customAttributes ?? [])
+        .filter((a) => a.key.startsWith("_upcharge_"))
+        .reduce((s, ua) => s + parseFloat(ua.value || 0), 0),
+    0,
   );
+  const subtotalAmount = parseFloat(
+    order?.subtotalPriceSet?.shopMoney?.amount || 0,
+  );
+  const taxAmount = parseFloat(order?.totalTaxSet?.shopMoney?.amount || 0);
+  const shopifyTotal = parseFloat(order?.totalPriceSet?.shopMoney?.amount || 0);
+
   const supplierMeta = parseSupplierMeta(order);
-  const { supplierError, supplierStatus, supplierSubmittedAt } = supplierMeta;
+  const { supplierError, supplierStatus, supplierSubmittedAt, upchargeSynced } =
+    supplierMeta;
   const isFailed = supplierStatus === "failed";
+
+  // upchargeEmbedded = upcharge already added to Shopify line item price via order edit
+  const upchargeEmbedded =
+    upchargeSynced > 0 && Math.abs(upchargeSynced - totalUpchargeAmount) < 0.01;
+  // display subtotal = strip out embedded upcharge so the breakdown shows base price
+  const displaySubtotalAmount = upchargeEmbedded
+    ? subtotalAmount - totalUpchargeAmount
+    : subtotalAmount;
+  // display total = shopifyTotal when embedded (already correct), computed when not
+  const displayTotal = upchargeEmbedded
+    ? shopifyTotal
+    : subtotalAmount + totalUpchargeAmount + taxAmount;
+  const needsUpchargeSync = totalUpchargeAmount > 0.01 && !upchargeEmbedded;
+
+  // Auto-sync: push upcharge as a separate line item and mark with metafield
+  useEffect(() => {
+    if (!order || !needsUpchargeSync || upchargeSyncFiredRef.current) return;
+    upchargeSyncFiredRef.current = true;
+    setSyncingUpcharge(true);
+    setSyncError(null);
+    const gid = `gid://shopify/Order/${orderId}`;
+    addUpchargeLineItem(gid, totalUpchargeAmount, orderCurrencyCode)
+      .then(() =>
+        setOrderMetafields(gid, [
+          { key: "upcharge_synced", value: totalUpchargeAmount.toFixed(2) },
+        ]),
+      )
+      .then(() => {
+        setSyncingUpcharge(false);
+        refetch();
+      })
+      .catch((err) => {
+        setSyncError(err.message);
+        setSyncingUpcharge(false);
+        upchargeSyncFiredRef.current = false;
+      });
+  }, [order, needsUpchargeSync]);
+
+  const allOptions = lineItems.flatMap(
+    (item) => categorize(item.customAttributes, labelMap).options,
+  );
+  const allMeasurements = lineItems.flatMap(
+    (item) => categorize(item.customAttributes, labelMap).measurements,
+  );
 
   const storeDomain = (import.meta.env.VITE_SHOPIFY_STORE_DOMAIN ?? "").replace(
     /\/$/,
@@ -367,7 +477,9 @@ export default function OrderDetail() {
                       TOTAL AMOUNT
                     </span>
                     <span className="font-garamond text-[20px] sm:text-[24px] text-gc-near-black2 leading-[32px]">
-                      {formatCurrency(order.totalPriceSet)}
+                      {syncingUpcharge
+                        ? "Syncing…"
+                        : formatAmount(displayTotal, orderCurrencyCode)}
                     </span>
                   </div>
                   <div className="flex flex-col gap-[3px] mt-[14px]">
@@ -384,7 +496,7 @@ export default function OrderDetail() {
 
               <div className="flex items-center gap-[10px] self-start sm:self-auto flex-shrink-0">
                 <button
-                  onClick={() => generateSingleOrderCSV(order)}
+                  onClick={() => generateSingleOrderCSV(order, labelMap)}
                   className="font-hanken inline-flex items-center gap-[8px] px-[16px] sm:px-[25px] py-[10px] sm:py-[13px] rounded-[8px] text-[12px] font-bold uppercase text-black border border-black hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   <Download size={13} />
@@ -456,161 +568,251 @@ export default function OrderDetail() {
             </div>
 
             <div className="flex flex-col gap-[20px] w-full flex-1 min-w-0">
-              {lineItems.map((item, idx) => {
-                const { options } = categorize(item.customAttributes);
-                const sizeType = options.find(
-                  (a) => a.key.toLowerCase() === "size type",
-                )?.value;
+              {lineItems
+                .filter((item) => item.title !== "Upcharge")
+                .map((item, idx) => {
+                  const { options } = categorize(
+                    item.customAttributes,
+                    labelMap,
+                  );
+                  const sizeType = (item.customAttributes ?? []).find(
+                    (a) => a.key.toLowerCase() === "size type",
+                  )?.value;
+                  const fabricLabel =
+                    (item.customAttributes ?? []).find(
+                      (a) => a.key.toLowerCase() === "fabric",
+                    )?.value ?? null;
+                  const fabricData = fabricLabel
+                    ? fabricOptions.find(
+                        (f) =>
+                          f.label.toLowerCase() === fabricLabel.toLowerCase(),
+                      )
+                    : null;
 
-                return (
-                  <div key={item.id} className="flex flex-col gap-[20px]">
-                    <div className="bg-white rounded-[12px] overflow-hidden border border-gc-divider shadow-sm">
-                      <div className="flex items-center justify-between px-[24px] py-[12px] bg-gc-bg-warm">
-                        <span className="font-hanken text-[14px] font-semibold tracking-[1.4px] uppercase text-gc-near-black2">
-                          ORDER ITEMS
-                          {lineItems.length > 1 ? ` · ${idx + 1}` : ""}
-                        </span>
-                        {item.variant?.sku && (
-                          <span className="font-hanken text-[12px] text-[#44474c]">
-                            ID: {item.variant.sku}
+                  return (
+                    <div key={item.id} className="flex flex-col gap-[20px]">
+                      <div className="bg-white rounded-[12px] overflow-hidden border border-gc-divider shadow-sm">
+                        <div className="flex items-center justify-between px-[24px] py-[12px] bg-gc-bg-warm">
+                          <span className="font-hanken text-[14px] font-semibold tracking-[1.4px] uppercase text-gc-near-black2">
+                            ORDER ITEMS
+                            {lineItems.length > 1 ? ` · ${idx + 1}` : ""}
                           </span>
-                        )}
-                      </div>
-
-                      <div className="p-[24px] flex flex-col gap-[24px]">
-                        <div className="flex flex-col gap-[8px]">
-                          <div className="flex items-start justify-between">
-                            <span className="font-garamond text-[24px] font-medium text-gc-near-black2 leading-[31px]">
-                              {item.title}
+                          {item.variant?.sku && (
+                            <span className="font-hanken text-[12px] text-[#44474c]">
+                              ID: {item.variant.sku}
                             </span>
-                            <span className="font-hanken text-[16px] font-semibold text-gc-primary">
-                              {item.discountedTotalSet
-                                ? formatCurrency(item.discountedTotalSet)
-                                : "—"}
-                            </span>
-                          </div>
-                          <p className="font-hanken text-[14px] font-semibold text-[#6d6d6d]">
-                            {sizeType ? `Size type: ${sizeType} • ` : ""}
-                            {item.quantity} ×{" "}
-                            {item.originalUnitPriceSet
-                              ? formatCurrency(item.originalUnitPriceSet)
-                              : "—"}
-                          </p>
+                          )}
+                        </div>
 
-                          {(() => {
-                            const upchargeEntries = (
-                              item.customAttributes ?? []
-                            ).filter((a) => a.key.startsWith("_upcharge_"));
-                            if (!upchargeEntries.length) return null;
-                            const currencyCode =
-                              order.totalPriceSet?.shopMoney?.currencyCode ||
-                              "USD";
-                            return (
-                              <div className="flex flex-col gap-[6px] mt-[8px] pt-[10px] border-t border-gc-divider/40">
-                                {upchargeEntries.map((ua) => {
-                                  const category = ua.key.slice(
-                                    "_upcharge_".length,
-                                  );
-                                  const selection =
-                                    (item.customAttributes ?? []).find(
-                                      (a) => a.key === category,
-                                    )?.value || "";
-                                  const amount = parseFloat(ua.value || 0);
-                                  let formatted;
-                                  try {
-                                    formatted = new Intl.NumberFormat("en-US", {
-                                      style: "currency",
-                                      currency: currencyCode,
-                                    }).format(amount);
-                                  } catch {
-                                    formatted = `${currencyCode} ${amount.toFixed(2)}`;
-                                  }
-                                  return (
-                                    <div
-                                      key={ua.key}
-                                      className="flex items-center justify-between"
-                                    >
-                                      <span className="font-hanken text-[13px] text-[#44474c]">
-                                        {category}
-                                        {selection ? `: ${selection}` : ""}
-                                      </span>
-                                      <span className="font-hanken text-[13px] font-semibold text-gc-primary">
-                                        +{formatted}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })()}
-
-                          <div className="flex flex-col gap-[13px] p-[17px] rounded-[8px] mt-[4px] bg-gc-surface-neutral border border-gc-divider/50">
-                            <div className="flex items-center gap-[8px]">
-                              <span className="font-hanken text-[12px] font-medium uppercase text-gc-label w-[52px]">
-                                SUPPLIER
+                        <div className="p-[24px] flex flex-col gap-[24px]">
+                          <div className="flex flex-col gap-[8px]">
+                            <div className="flex items-start justify-between">
+                              <span className="font-garamond text-[24px] font-medium text-gc-near-black2 leading-[31px]">
+                                {item.title}
                               </span>
-                              <SupplierPill
-                                status={supplierStatus || "pending"}
-                              />
+                              <span className="font-hanken text-[16px] font-semibold text-gc-primary">
+                                {item.discountedTotalSet
+                                  ? formatCurrency(item.discountedTotalSet)
+                                  : "—"}
+                              </span>
                             </div>
-                            {supplierSubmittedAt && (
+                            <p className="font-hanken text-[14px] font-semibold text-[#6d6d6d]">
+                              {sizeType ? `Size type: ${sizeType} • ` : ""}
+                              {item.quantity} ×{" "}
+                              {item.originalUnitPriceSet
+                                ? formatCurrency(item.originalUnitPriceSet)
+                                : "—"}
+                            </p>
+
+                            {(() => {
+                              const upchargeEntries = (
+                                item.customAttributes ?? []
+                              ).filter((a) => a.key.startsWith("_upcharge_"));
+                              if (!upchargeEntries.length) return null;
+                              const currencyCode =
+                                order.totalPriceSet?.shopMoney?.currencyCode ||
+                                "USD";
+                              return (
+                                <div className="flex flex-col gap-[6px] mt-[8px] pt-[10px] border-t border-gc-divider/40">
+                                  <span className="font-hanken text-[11px] font-semibold uppercase tracking-[1px] text-[#44474c]">
+                                    Upcharge
+                                  </span>
+                                  {upchargeEntries.map((ua) => {
+                                    const category = ua.key.slice(
+                                      "_upcharge_".length,
+                                    );
+                                    const selection =
+                                      (item.customAttributes ?? []).find(
+                                        (a) => a.key === category,
+                                      )?.value || "";
+                                    const amount = parseFloat(ua.value || 0);
+                                    let formatted;
+                                    try {
+                                      formatted = new Intl.NumberFormat(
+                                        "en-US",
+                                        {
+                                          style: "currency",
+                                          currency: currencyCode,
+                                        },
+                                      ).format(amount);
+                                    } catch {
+                                      formatted = `${currencyCode} ${amount.toFixed(2)}`;
+                                    }
+                                    return (
+                                      <div
+                                        key={ua.key}
+                                        className="flex items-center justify-between"
+                                      >
+                                        <span className="font-hanken text-[13px] text-[#44474c]">
+                                          {category}
+                                          {selection ? `: ${selection}` : ""}
+                                        </span>
+                                        <span className="font-hanken text-[13px] font-semibold text-gc-primary">
+                                          +{formatted}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+
+                            {fabricLabel && (
+                              <div className="flex items-center gap-[12px] px-[17px] py-[13px] rounded-[8px] bg-gc-surface-neutral border border-gc-divider/50">
+                                <span className="font-hanken text-[12px] font-medium uppercase text-gc-label w-[52px] flex-shrink-0">
+                                  FABRIC
+                                </span>
+                                <div className="flex items-center gap-[10px]">
+                                  <div
+                                    className="flex-shrink-0 rounded-[6px] overflow-hidden"
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      border: "1px solid rgba(0,0,0,0.08)",
+                                      backgroundColor:
+                                        fabricData?.color ?? "#ede9e3",
+                                    }}
+                                  >
+                                    {fabricData?.imageUrl && (
+                                      <img
+                                        src={fabricData.imageUrl}
+                                        alt={fabricLabel}
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          objectFit: "cover",
+                                          display: "block",
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                  <span className="font-hanken text-[14px] font-medium text-gc-near-black2">
+                                    {fabricLabel}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex flex-col gap-[13px] p-[17px] rounded-[8px] mt-[4px] bg-gc-surface-neutral border border-gc-divider/50">
                               <div className="flex items-center gap-[8px]">
-                                <CalendarCheck2
-                                  size={13}
-                                  className="text-gc-near-black2"
+                                <span className="font-hanken text-[12px] font-medium uppercase text-gc-label w-[52px]">
+                                  SUPPLIER
+                                </span>
+                                <SupplierPill
+                                  status={supplierStatus || "pending"}
                                 />
-                                <span className="font-hanken text-[14px] font-medium text-gc-near-black2">
-                                  {formatDate(supplierSubmittedAt)}
+                              </div>
+                              {supplierSubmittedAt && (
+                                <div className="flex items-center gap-[8px]">
+                                  <CalendarCheck2
+                                    size={13}
+                                    className="text-gc-near-black2"
+                                  />
+                                  <span className="font-hanken text-[14px] font-medium text-gc-near-black2">
+                                    {formatDate(supplierSubmittedAt)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-[12px] w-full sm:w-[256px] self-start">
+                            <div className="flex items-center justify-between">
+                              <span className="font-hanken text-[14px] text-[#44474c]">
+                                Subtotal
+                              </span>
+                              <span className="font-hanken text-[14px] text-gc-near-black2">
+                                {formatAmount(
+                                  displaySubtotalAmount,
+                                  orderCurrencyCode,
+                                )}
+                              </span>
+                            </div>
+                            {totalUpchargeAmount > 0 && (
+                              <div className="flex items-center justify-between">
+                                <span className="font-hanken text-[14px] text-[#44474c]">
+                                  Upcharge
+                                </span>
+                                <span className="font-hanken text-[14px] text-gc-near-black2">
+                                  +
+                                  {formatAmount(
+                                    totalUpchargeAmount,
+                                    orderCurrencyCode,
+                                  )}
                                 </span>
                               </div>
                             )}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-[12px] w-full sm:w-[256px] self-start">
-                          {[
-                            {
-                              label: "Subtotal",
-                              value: order.subtotalPriceSet,
-                            },
-                            { label: "Taxes & Fees", value: order.totalTaxSet },
-                          ].map(({ label, value }) => (
-                            <div
-                              key={label}
-                              className="flex items-center justify-between"
-                            >
+                            <div className="flex items-center justify-between">
                               <span className="font-hanken text-[14px] text-[#44474c]">
-                                {label}
+                                Taxes & Fees
                               </span>
                               <span className="font-hanken text-[14px] text-gc-near-black2">
-                                {value ? formatCurrency(value) : "—"}
+                                {order.totalTaxSet
+                                  ? formatCurrency(order.totalTaxSet)
+                                  : "—"}
                               </span>
                             </div>
-                          ))}
-                          <div className="flex items-center justify-between pt-[9px] border-t border-gc-divider">
-                            <span className="font-garamond text-[18px] font-bold text-gc-primary">
-                              Total
-                            </span>
-                            <span className="font-garamond text-[18px] font-bold text-gc-primary">
-                              {formatCurrency(order.totalPriceSet)}
-                            </span>
+                            {syncError && (
+                              <p className="font-hanken text-[11px] text-red-600 break-words">
+                                Sync failed: {syncError}
+                              </p>
+                            )}
+                            <div className="flex items-center justify-between pt-[9px] border-t border-gc-divider">
+                              <span className="font-garamond text-[18px] font-bold text-gc-primary">
+                                Total
+                              </span>
+                              <span className="font-garamond text-[18px] font-bold text-gc-primary">
+                                {formatAmount(displayTotal, orderCurrencyCode)}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
 
-              {allAttributes.length > 0 && (
-                <GCCard className="flex flex-col gap-[24px]">
+              {allOptions.length > 0 && (
+                <GCCard className="flex flex-col gap-[20px]">
+                  <div className="flex items-center gap-[8px]">
+                    <ListChecks size={20} className="text-gc-primary" />
+                    <span className="font-garamond text-[24px] font-medium text-gc-near-black2 leading-[31px]">
+                      Style Options
+                    </span>
+                  </div>
+                  <AttrGrid items={allOptions} />
+                </GCCard>
+              )}
+
+              {allMeasurements.length > 0 && (
+                <GCCard className="flex flex-col gap-[20px]">
                   <div className="flex items-center gap-[8px]">
                     <ListChecks size={20} className="text-gc-primary" />
                     <span className="font-garamond text-[24px] font-medium text-gc-near-black2 leading-[31px]">
                       Measurements
                     </span>
                   </div>
-                  <AttrGrid items={allAttributes} />
+                  <AttrGrid items={allMeasurements} />
                 </GCCard>
               )}
             </div>

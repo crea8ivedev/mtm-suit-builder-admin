@@ -222,10 +222,11 @@ const GET_PRODUCTS_QUERY = `
           id
           title
           status
-          variants(first: 1) {
+          variants(first: 100) {
             edges {
               node {
                 id
+                title
                 price
               }
             }
@@ -407,6 +408,7 @@ const GET_CUSTOMER_ORDERS_QUERY = `
               edges {
                 node {
                   title
+                  variant { title }
                   product {
                     id
                     metafield(namespace: "custom", key: "gc_builder") { value }
@@ -602,6 +604,17 @@ export function transformOrder(node) {
     ? `${lineItemCount}+ items`
     : `${lineItemCount} ${lineItemCount === 1 ? "item" : "items"}`;
 
+  const upchargeRaw = lineItemEdges.reduce((sum, e) => {
+    return (
+      sum +
+      (e.node.customAttributes ?? [])
+        .filter((a) => a.key.startsWith("_upcharge_"))
+        .reduce((s, a) => s + parseFloat(a.value || 0), 0)
+    );
+  }, 0);
+  const currencyCode = node.totalPriceSet?.shopMoney?.currencyCode || "USD";
+  const subtotalRaw = parseFloat(node.subtotalPriceSet?.shopMoney?.amount || 0);
+
   return {
     id: node.name,
     shopifyGid: node.id,
@@ -614,6 +627,9 @@ export function transformOrder(node) {
     orderDate: formatDate(node.createdAt),
     orderDateRaw: node.createdAt,
     total: formatCurrency(node.totalPriceSet),
+    currencyCode,
+    upchargeRaw,
+    subtotalRaw,
     paymentStatus: PAYMENT_STATUS_MAP[node.displayFinancialStatus] || "pending",
     fulfillmentStatus:
       FULFILLMENT_STATUS_MAP[node.displayFulfillmentStatus] || "unfulfilled",
@@ -1444,6 +1460,63 @@ export async function fetchContrastOptions() {
   return results;
 }
 
+// ─── Fit Size Options ─────────────────────────────────────────────────────
+
+const FIT_SIZE_OPTIONS_QUERY = `
+  query GetFitSizeOptions($first: Int!, $after: String) {
+    metaobjects(type: "fit_size_options", first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          handle
+          fields { key value }
+        }
+      }
+    }
+  }
+`;
+
+let _fitSizeOptionsCache = null;
+let _fitSizeOptionsCacheAt = 0;
+
+export async function fetchFitSizeOptions() {
+  if (
+    _fitSizeOptionsCache &&
+    Date.now() - _fitSizeOptionsCacheAt < STYLE_OPTIONS_CACHE_TTL
+  ) {
+    return _fitSizeOptionsCache;
+  }
+  const results = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(FIT_SIZE_OPTIONS_QUERY, {
+      first: 250,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.metaobjects;
+    for (const { node } of edges) {
+      const fm = Object.fromEntries(
+        node.fields.map((f) => [f.key, f.value ?? ""]),
+      );
+      results.push({
+        id: node.id,
+        handle: node.handle,
+        garment: fm.garment || "",
+        sizeType: fm.size_type || "",
+        label: fm.label || "",
+        sizeLabel: fm.size_label || null,
+      });
+    }
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+  _fitSizeOptionsCache = results;
+  _fitSizeOptionsCacheAt = Date.now();
+  return results;
+}
+
 export async function updateContrastOption(id, fields) {
   const fieldInputs = Object.entries(fields).map(([key, value]) => ({
     key,
@@ -1615,6 +1688,105 @@ export async function createStyleOption(garmentType, fields) {
   return metaobject;
 }
 
+const FABRIC_OPTIONS_QUERY = `
+  query FabricOptions($first: Int!, $after: String) {
+    metaobjects(type: "fabric_option", first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          handle
+          displayName
+          fields {
+            key
+            value
+          }
+        }
+      }
+    }
+  }
+`;
+
+const RESOLVE_MEDIA_IMAGES_QUERY = `
+  query ResolveMediaImages($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      id
+      ... on MediaImage {
+        image {
+          url
+          altText
+        }
+      }
+    }
+  }
+`;
+
+let _fabricOptionsCache = null;
+
+export async function fetchFabricOptions() {
+  if (_fabricOptionsCache) return _fabricOptionsCache;
+  const all = [];
+  let hasNextPage = true;
+  let cursor = null;
+
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(FABRIC_OPTIONS_QUERY, {
+      first: 250,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.metaobjects;
+    for (const { node } of edges) {
+      const fieldMap = Object.fromEntries(
+        node.fields.map((f) => [f.key, f.value]),
+      );
+      const imageGid =
+        typeof fieldMap.image === "string" &&
+        fieldMap.image.startsWith("gid://")
+          ? fieldMap.image
+          : null;
+      all.push({
+        handle: node.handle,
+        label: fieldMap.label ?? node.displayName,
+        color: fieldMap.color ?? null,
+        imageUrl: null,
+        imageAlt: node.displayName,
+        _imageGid: imageGid,
+      });
+    }
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+
+  // Resolve image GIDs via nodes query
+  const toResolve = all.filter((f) => f._imageGid);
+  if (toResolve.length) {
+    try {
+      const ids = toResolve.map((f) => f._imageGid);
+      const data = await shopifyGraphQL(RESOLVE_MEDIA_IMAGES_QUERY, { ids });
+      const urlMap = Object.fromEntries(
+        (data.nodes ?? [])
+          .filter((n) => n?.image?.url)
+          .map((n) => [n.id, { url: n.image.url, alt: n.image.altText }]),
+      );
+      for (const f of all) {
+        if (f._imageGid && urlMap[f._imageGid]) {
+          f.imageUrl = urlMap[f._imageGid].url;
+          f.imageAlt = urlMap[f._imageGid].alt ?? f.imageAlt;
+        }
+      }
+    } catch {
+      // falls back to color swatch
+    }
+  }
+
+  for (const f of all) delete f._imageGid;
+  _fabricOptionsCache = all;
+  return all;
+}
+
+export function clearFabricOptionsCache() {
+  _fabricOptionsCache = null;
+}
+
 export async function syncStyleOptionImageUrls(options) {
   const toSync = options.filter((o) => o.kutetailerCode && !o.imageUrlStored);
   if (!toSync.length) return 0;
@@ -1639,4 +1811,74 @@ export async function syncStyleOptionImageUrls(options) {
   );
   if (failed.length) throw new Error(`${failed.length} update(s) failed`);
   return toSync.length;
+}
+
+// ─── Order Editing API ────────────────────────────────────────────────────────
+
+const ORDER_EDIT_BEGIN = `
+  mutation OrderEditBegin($id: ID!) {
+    orderEditBegin(id: $id) {
+      calculatedOrder { id }
+      userErrors { field message }
+    }
+  }
+`;
+
+const ORDER_EDIT_ADD_CUSTOM_ITEM = `
+  mutation OrderEditAddCustomItem(
+    $id: ID!
+    $title: String!
+    $price: MoneyInput!
+    $quantity: Int!
+  ) {
+    orderEditAddCustomItem(
+      id: $id
+      title: $title
+      price: $price
+      quantity: $quantity
+      requiresShipping: false
+      taxable: false
+    ) {
+      calculatedOrder { id }
+      userErrors { field message }
+    }
+  }
+`;
+
+const ORDER_EDIT_COMMIT = `
+  mutation OrderEditCommit($id: ID!, $notifyCustomer: Boolean) {
+    orderEditCommit(id: $id, notifyCustomer: $notifyCustomer) {
+      order {
+        id
+        totalPriceSet { shopMoney { amount currencyCode } }
+        subtotalPriceSet { shopMoney { amount currencyCode } }
+      }
+      userErrors { field message }
+    }
+  }
+`;
+
+export async function addUpchargeLineItem(orderId, amount, currencyCode) {
+  const beginData = await shopifyGraphQL(ORDER_EDIT_BEGIN, { id: orderId });
+  const beginErrors = beginData.orderEditBegin?.userErrors ?? [];
+  if (beginErrors.length) throw new Error(beginErrors[0].message);
+  const calculatedId = beginData.orderEditBegin.calculatedOrder.id;
+
+  const addData = await shopifyGraphQL(ORDER_EDIT_ADD_CUSTOM_ITEM, {
+    id: calculatedId,
+    title: "Upcharge",
+    price: { amount: amount.toFixed(2), currencyCode },
+    quantity: 1,
+  });
+  const addErrors = addData.orderEditAddCustomItem?.userErrors ?? [];
+  if (addErrors.length) throw new Error(addErrors[0].message);
+
+  const commitData = await shopifyGraphQL(ORDER_EDIT_COMMIT, {
+    id: calculatedId,
+    notifyCustomer: false,
+  });
+  const commitErrors = commitData.orderEditCommit?.userErrors ?? [];
+  if (commitErrors.length) throw new Error(commitErrors[0].message);
+
+  return commitData.orderEditCommit.order;
 }

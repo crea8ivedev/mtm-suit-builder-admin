@@ -34,6 +34,9 @@ import {
   fetchJacketMeasurementFields,
   fetchStyleOptions,
   fetchContrastOptions,
+  fetchFabricOptions,
+  clearFabricOptionsCache,
+  fetchFitSizeOptions,
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
 
@@ -547,11 +550,97 @@ function CustomerSelector({ value, onChange }) {
   );
 }
 
+function FitSizeDropdown({ label, opts, selected, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    function handler(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+  return (
+    <div ref={ref} className="flex flex-col gap-[6px] min-w-0">
+      <span className="font-hanken text-[9px] sm:text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase leading-tight truncate">
+        {label}
+      </span>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="font-hanken w-full flex items-center justify-between gap-[6px] px-[8px] sm:px-[13px] h-[36px] sm:h-[40px] rounded-[8px] text-[13px] font-medium text-gc-near-black2 bg-white cursor-pointer border border-gc-section-divider/80"
+        >
+          <span
+            className={`truncate text-[14px] sm:text-[18px] font-garamond ${selected ? "text-[#1c1c19]" : "text-[#9ca3af]"}`}
+          >
+            {selected || "—"}
+          </span>
+          <ChevronDown
+            size={14}
+            className={`flex-shrink-0 text-[#424656] transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+        {open && (
+          <div className="absolute left-0 right-0 top-full mt-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden border border-gc-border-input">
+            <ul className="max-h-[200px] overflow-y-auto py-[4px]">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelect("");
+                    setOpen(false);
+                  }}
+                  className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-[#9ca3af] hover:bg-gc-bg flex items-center justify-between cursor-pointer"
+                >
+                  — Select —
+                  {!selected && <Check size={12} className="text-gc-primary" />}
+                </button>
+              </li>
+              {opts.map((opt) => (
+                <li key={opt.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelect(opt.label);
+                      setOpen(false);
+                    }}
+                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-gc-near-black2 hover:bg-gc-bg flex items-center justify-between gap-[8px] cursor-pointer"
+                  >
+                    <span className="flex flex-col items-start min-w-0">
+                      <span className="truncate">{opt.label}</span>
+                      {opt.sizeLabel && (
+                        <span className="text-[10px] text-[#9ca3af]">
+                          {opt.sizeLabel}
+                        </span>
+                      )}
+                    </span>
+                    {selected === opt.label && (
+                      <Check
+                        size={12}
+                        className="flex-shrink-0 text-gc-primary"
+                      />
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AttributeEditor({
   attributes,
   onChange,
   rangeGroups = [],
   onValidChange,
+  fitSizeOptions = [],
+  fitSizeSelections = {},
+  onFitSizeChange,
 }) {
   const [touchedFields, setTouchedFields] = useState(new Set());
 
@@ -707,6 +796,38 @@ function AttributeEditor({
                 );
               })}
             </div>
+
+            {(() => {
+              const garmentFitOpts = fitSizeOptions.filter(
+                (o) => o.garment === sec.label,
+              );
+              if (!garmentFitOpts.length) return null;
+              const byType = {};
+              for (const o of garmentFitOpts) {
+                if (!byType[o.sizeType]) byType[o.sizeType] = [];
+                byType[o.sizeType].push(o);
+              }
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[8px] sm:gap-x-[32px] gap-y-[16px] sm:gap-y-[24px] pt-[16px] border-t border-gc-primary-dark/10">
+                  {Object.entries(byType).map(([sizeType, opts]) => (
+                    <FitSizeDropdown
+                      key={`${sec.label}__${sizeType}`}
+                      label={sizeType}
+                      opts={opts}
+                      selected={
+                        fitSizeSelections[`${sec.label}__${sizeType}`] ?? ""
+                      }
+                      onSelect={(val) =>
+                        onFitSizeChange?.({
+                          ...fitSizeSelections,
+                          [`${sec.label}__${sizeType}`]: val,
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         );
       })}
@@ -917,6 +1038,86 @@ function StyleOptionsSection({
   );
 }
 
+function VariantSelector({ variants, fabricOptions, selected, onSelect }) {
+  return (
+    <div className="bg-white/40 rounded-[12px] p-[31px] border border-gc-border-input">
+      <h2 className="font-garamond text-[28px] font-semibold text-gc-primary mb-[20px]">
+        Variant
+      </h2>
+      <div className="w-full border-t border-gc-section-divider/30 pt-[20px]">
+        <label className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide block mb-[14px]">
+          Select Variant
+        </label>
+        <div className="flex flex-wrap gap-[10px]">
+          {variants.map((v) => {
+            const isSelected = selected?.id === v.id;
+            const fabric = fabricOptions.find(
+              (f) => f.label.toLowerCase() === v.title.toLowerCase(),
+            );
+            return (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => onSelect(v)}
+                style={{
+                  backgroundColor: "#fff",
+                  color: "#1c1c19",
+                  borderColor: isSelected ? "#a45d41" : "#d1cac6",
+                  borderWidth: isSelected ? 2 : 1,
+                  boxShadow: isSelected
+                    ? "0 0 0 3px rgba(164,93,65,0.12)"
+                    : "none",
+                }}
+                className="font-hanken flex items-center gap-[10px] pl-[6px] pr-[14px] h-[52px] rounded-[10px] text-[13px] font-medium transition-all cursor-pointer border"
+              >
+                {/* Swatch box — image fills box; color fills bg; else neutral */}
+                <div
+                  className="flex-shrink-0 rounded-[6px] overflow-hidden"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    backgroundColor: fabric?.color ?? "#ede9e3",
+                  }}
+                >
+                  {fabric?.imageUrl && (
+                    <img
+                      src={fabric.imageUrl}
+                      alt={v.title}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                    />
+                  )}
+                </div>
+
+                <div className="flex flex-col items-start gap-[2px]">
+                  <span className="font-hanken text-[13px] font-semibold leading-tight text-[#1c1c19]">
+                    {v.title}
+                  </span>
+                  <span className="font-hanken text-[11px] font-medium text-[#7e7576]">
+                    {v.price}
+                  </span>
+                </div>
+
+                {isSelected && (
+                  <Check
+                    size={13}
+                    className="flex-shrink-0 ml-[2px] text-[#a45d41]"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ──────────────────────────────────────
 export default function CreateOrder() {
   const navigate = useNavigate();
@@ -935,6 +1136,7 @@ export default function CreateOrder() {
   const [attributes, setAttributes] = useState([]);
   const [fieldsLoading, setFieldsLoading] = useState(false);
   const [price, setPrice] = useState("0.00");
+  const [selectedVariant, setSelectedVariant] = useState(null);
   const [note, setNote] = useState("");
   const [measurementsValid, setMeasurementsValid] = useState(true);
 
@@ -950,6 +1152,14 @@ export default function CreateOrder() {
   const [contrastOptions, setContrastOptions] = useState([]);
   const [styleSelections, setStyleSelections] = useState({});
   const [styleOptionsLoading, setStyleOptionsLoading] = useState(false);
+
+  const [fabricOptions, setFabricOptions] = useState([]);
+  const [fabricLoading, setFabricLoading] = useState(false);
+  const [selectedFabric, setSelectedFabric] = useState(null);
+
+  const [fitSizeOptions, setFitSizeOptions] = useState([]);
+  const [fitSizeSelections, setFitSizeSelections] = useState({});
+  const [fitSizeLoading, setFitSizeLoading] = useState(false);
 
   useEffect(() => {
     fetchVestRanges()
@@ -972,6 +1182,18 @@ export default function CreateOrder() {
         if (data && Object.keys(data).length > 0) setJacketRanges(data);
       })
       .catch(() => {});
+    clearFabricOptionsCache();
+    setFabricLoading(true);
+    fetchFabricOptions()
+      .then((opts) => setFabricOptions(opts))
+      .catch(() => {})
+      .finally(() => setFabricLoading(false));
+
+    setFitSizeLoading(true);
+    fetchFitSizeOptions()
+      .then((opts) => setFitSizeOptions(opts))
+      .catch(() => {})
+      .finally(() => setFitSizeLoading(false));
   }, []);
 
   const rangeGroups = useMemo(() => {
@@ -1009,6 +1231,7 @@ export default function CreateOrder() {
         return {
           orderId: o.name,
           date: (o.createdAt ?? "").split("T")[0],
+          variantTitle: item?.variant?.title ?? null,
           attributes: (item?.customAttributes ?? []).filter(
             (a) => !a.key.startsWith("_"),
           ),
@@ -1040,6 +1263,7 @@ export default function CreateOrder() {
       return;
     }
     setOrdersLoading(true);
+    clearCustomerDetailCache(selectedCustomer.id);
     fetchCustomerWithOrders(selectedCustomer.id)
       .then((data) => {
         setCustomerOrders(data.allOrders);
@@ -1108,6 +1332,9 @@ export default function CreateOrder() {
 
   async function handleNewOrder() {
     setSelectedTemplate(null);
+    setSelectedVariant(null);
+    setPrice("0.00");
+    setFitSizeSelections({});
     if (!selectedProduct) return;
 
     const pastNode = findPastLineItem(
@@ -1160,17 +1387,36 @@ export default function CreateOrder() {
     }
   }
 
+  // Initialize variant + price when product changes (runs only on product change, not on orders load)
   useEffect(() => {
     if (!selectedProduct) {
-      setAttributes([]);
+      setSelectedVariant(null);
       setPrice("0.00");
       setSelectedTemplate(null);
       return;
     }
+    setSelectedVariant(null);
+    setSelectedFabric(null);
+    setPrice("0.00");
+  }, [selectedProduct]);
 
-    const variantPrice =
-      selectedProduct.variants?.edges?.[0]?.node?.price || "0.00";
-    setPrice(variantPrice);
+  // Sync selectedFabric whenever variant changes
+  useEffect(() => {
+    if (!selectedVariant) {
+      setSelectedFabric(null);
+      return;
+    }
+    const matched = fabricOptions.find(
+      (f) => f.label.toLowerCase() === selectedVariant.title.toLowerCase(),
+    );
+    setSelectedFabric(matched ?? null);
+  }, [selectedVariant, fabricOptions]);
+
+  useEffect(() => {
+    if (!selectedProduct) {
+      setAttributes([]);
+      return;
+    }
 
     if (!selectedProduct.metafield?.value) {
       setAttributes([]);
@@ -1234,9 +1480,15 @@ export default function CreateOrder() {
     setStyleOptions([]);
     setContrastOptions([]);
     setStyleSelections({});
-    if (!selectedProduct?.metafield?.value) return;
+    if (!selectedProduct?.metafield?.value) {
+      setFitSizeSelections({});
+      return;
+    }
     const garments = styleGarmentsForProduct(selectedProduct);
-    if (!garments.length) return;
+    if (!garments.length) {
+      setFitSizeSelections({});
+      return;
+    }
     setStyleOptionsLoading(true);
     Promise.all([fetchStyleOptions(), fetchContrastOptions()])
       .then(([allStyle, allContrast]) => {
@@ -1256,15 +1508,52 @@ export default function CreateOrder() {
       })
       .catch(() => {})
       .finally(() => setStyleOptionsLoading(false));
-  }, [selectedProduct]);
+
+    setFitSizeSelections({});
+  }, [selectedProduct, fitSizeOptions]);
 
   useEffect(() => {
     if (pastOrdersForProduct.length > 0) {
-      setSelectedTemplate(pastOrdersForProduct[0].orderId);
+      const first = pastOrdersForProduct[0];
+      setSelectedTemplate(first.orderId);
+      if (first.variantTitle && selectedProduct) {
+        const variants =
+          selectedProduct.variants?.edges?.map((e) => e.node) ?? [];
+        const match = variants.find(
+          (v) => v.title.toLowerCase() === first.variantTitle.toLowerCase(),
+        );
+        if (match) {
+          setSelectedVariant(match);
+          setPrice(match.price || "0.00");
+        } else {
+          setSelectedVariant(null);
+          setPrice("0.00");
+        }
+      } else {
+        setSelectedVariant(null);
+        setPrice("0.00");
+      }
+
+      // Pre-fill fit size selections from past order attributes
+      const fitPrefill = {};
+      for (const attr of first.attributes) {
+        // attrs stored as "Jacket - Fit" → key "Jacket__Fit"
+        const match = attr.key.match(/^(.+?) - (.+)$/);
+        if (match) {
+          const [, garment, sizeType] = match;
+          const hasFitOpt = fitSizeOptions.some(
+            (o) => o.garment === garment && o.sizeType === sizeType,
+          );
+          if (hasFitOpt) fitPrefill[`${garment}__${sizeType}`] = attr.value;
+        }
+      }
+      if (Object.keys(fitPrefill).length) setFitSizeSelections(fitPrefill);
     } else {
       setSelectedTemplate(null);
+      setSelectedVariant(null);
+      setPrice("0.00");
     }
-  }, [pastOrdersForProduct]);
+  }, [pastOrdersForProduct, fitSizeOptions]);
 
   async function handleSubmit() {
     if (!selectedCustomer || !selectedProduct) return;
@@ -1304,15 +1593,26 @@ export default function CreateOrder() {
           };
         });
 
+      const fitSizeAttrs = Object.entries(fitSizeSelections)
+        .filter(([, v]) => v)
+        .map(([key, value]) => ({
+          key: key.replace("__", " - "),
+          value,
+        }));
+
       const finalPrice = (parseFloat(price || "0.00") + totalUpcharge).toFixed(
         2,
       );
+
+      const lineItemBase = selectedVariant?.id
+        ? { variantId: selectedVariant.id }
+        : { title: selectedProduct.title };
 
       const draft = await createDraftOrder({
         customerId: selectedCustomer.id,
         lineItems: [
           {
-            title: selectedProduct.title,
+            ...lineItemBase,
             quantity: 1,
             originalUnitPrice: finalPrice,
             requiresShipping: true,
@@ -1322,6 +1622,10 @@ export default function CreateOrder() {
                 .map(({ key, value }) => ({ key, value: String(value) })),
               ...styleAttrs,
               ...upchargeAttrs,
+              ...fitSizeAttrs,
+              ...(selectedFabric
+                ? [{ key: "Fabric", value: selectedFabric.label }]
+                : []),
             ],
           },
         ],
@@ -1531,6 +1835,29 @@ export default function CreateOrder() {
                     key={o.orderId}
                     onClick={async () => {
                       setSelectedTemplate(o.orderId);
+
+                      // Auto-select the variant used in this past order, or clear if none
+                      if (o.variantTitle) {
+                        const variants =
+                          selectedProduct.variants?.edges?.map((e) => e.node) ??
+                          [];
+                        const match = variants.find(
+                          (v) =>
+                            v.title.toLowerCase() ===
+                            o.variantTitle.toLowerCase(),
+                        );
+                        if (match) {
+                          setSelectedVariant(match);
+                          setPrice(match.price || "0.00");
+                        } else {
+                          setSelectedVariant(null);
+                          setPrice("0.00");
+                        }
+                      } else {
+                        setSelectedVariant(null);
+                        setPrice("0.00");
+                      }
+
                       const garments = garmentsFromGcBuilderValue(
                         selectedProduct.metafield?.value,
                       );
@@ -1566,6 +1893,22 @@ export default function CreateOrder() {
                           deduplicateByRange(o.attributes, combinedRanges),
                         );
                       }
+
+                      // Pre-fill fit size from this past order's attributes
+                      const fitPrefill = {};
+                      for (const attr of o.attributes) {
+                        const m = attr.key.match(/^(.+?) - (.+)$/);
+                        if (m) {
+                          const [, garment, sizeType] = m;
+                          const hasFitOpt = fitSizeOptions.some(
+                            (f) =>
+                              f.garment === garment && f.sizeType === sizeType,
+                          );
+                          if (hasFitOpt)
+                            fitPrefill[`${garment}__${sizeType}`] = attr.value;
+                        }
+                      }
+                      setFitSizeSelections(fitPrefill);
                     }}
                     className={cn(
                       "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
@@ -1612,6 +1955,33 @@ export default function CreateOrder() {
               </div>
             </div>
 
+            {/* ── Variant Selector (with fabric swatch) ── */}
+            {(() => {
+              const variants =
+                selectedProduct.variants?.edges?.map((e) => e.node) ?? [];
+              const showSelector =
+                variants.length > 1 ||
+                (variants.length === 1 &&
+                  variants[0].title !== "Default Title");
+              if (!showSelector) return null;
+              return (
+                <VariantSelector
+                  variants={variants}
+                  fabricOptions={fabricOptions}
+                  selected={selectedVariant}
+                  onSelect={(v) => {
+                    if (selectedVariant?.id === v.id) {
+                      setSelectedVariant(null);
+                      setPrice("0.00");
+                      return;
+                    }
+                    setSelectedVariant(v);
+                    setPrice(v.price || "0.00");
+                  }}
+                />
+              );
+            })()}
+
             {selectedProduct?.metafield?.value && (
               <StyleOptionsSection
                 styleOptions={styleOptions}
@@ -1638,6 +2008,9 @@ export default function CreateOrder() {
                 onChange={setAttributes}
                 rangeGroups={rangeGroups}
                 onValidChange={setMeasurementsValid}
+                fitSizeOptions={fitSizeOptions}
+                fitSizeSelections={fitSizeSelections}
+                onFitSizeChange={setFitSizeSelections}
               />
             )}
 

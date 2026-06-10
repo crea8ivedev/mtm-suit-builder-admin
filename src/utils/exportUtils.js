@@ -26,10 +26,43 @@ function formatDateForCSV(order) {
   return `="${iso}"`;
 }
 
-export function generateSingleOrderCSV(order) {
+function formatMoneyRaw(amount, currencyCode) {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode,
+    }).format(parseFloat(amount));
+  } catch {
+    return `${currencyCode} ${parseFloat(amount).toFixed(2)}`;
+  }
+}
+
+// Strip garment prefix from style option keys ("Jacket - Lapel Style" → "Lapel Style")
+// Use labelMap for measurement field display labels
+function attrDisplayLabel(key, labelMap = {}) {
+  if (labelMap[key]) return labelMap[key];
+  if (key.includes(" - ")) return key.split(" - ").slice(1).join(" - ");
+  return key;
+}
+
+export function generateSingleOrderCSV(order, labelMap = {}) {
   if (!order) return;
 
   const lineItems = order.lineItems?.edges?.map((e) => e.node) ?? [];
+  const currencyCode = order.totalPriceSet?.shopMoney?.currencyCode || "USD";
+
+  const upchargeAmt = lineItems.reduce((sum, item) => {
+    return (
+      sum +
+      (item.customAttributes ?? [])
+        .filter((a) => a.key.startsWith("_upcharge_"))
+        .reduce((s, a) => s + parseFloat(a.value || 0), 0)
+    );
+  }, 0);
+  const subtotalAmt = parseFloat(
+    order.subtotalPriceSet?.shopMoney?.amount || 0,
+  );
+  const productsTotal = subtotalAmt - upchargeAmt;
 
   const attrKeySet = new LinkedSet();
   lineItems.forEach((item) => {
@@ -40,8 +73,21 @@ export function generateSingleOrderCSV(order) {
   });
   const attrKeys = attrKeySet.toArray();
 
-  const ORDER_COLS = ["Order ID", "Date", "Customer", "Email"];
-  const ITEM_COLS = ["Item #", "Product", "Quantity", ...attrKeys];
+  const ORDER_COLS = [
+    "Order ID",
+    "Date",
+    "Customer",
+    "Email",
+    "Products Total",
+    "Upcharge Amount",
+    "Grand Total",
+  ];
+  const ITEM_COLS = [
+    "Item #",
+    "Product",
+    "Quantity",
+    ...attrKeys.map((k) => attrDisplayLabel(k, labelMap)),
+  ];
   const headers = [...ORDER_COLS, ...ITEM_COLS];
   const BLANK_ORDER = new Array(ORDER_COLS.length).fill("");
 
@@ -54,11 +100,14 @@ export function generateSingleOrderCSV(order) {
     `="${dateIso}"`,
     customerName,
     order.customer?.email ?? "",
+    formatMoneyRaw(productsTotal, currencyCode),
+    formatMoneyRaw(upchargeAmt, currencyCode),
+    formatMoneyRaw(subtotalAmt, currencyCode),
   ];
 
   const rows = [headers];
   if (lineItems.length === 0) {
-    rows.push([...orderBase, "", "", "", ...attrKeys.map(() => "")]);
+    rows.push([...orderBase, "", "", ...attrKeys.map(() => "")]);
   } else {
     lineItems.forEach((item, idx) => {
       const attrMap = Object.fromEntries(
@@ -102,8 +151,21 @@ export function generateCSV(orders) {
   });
   const attrKeys = attrKeySet.toArray();
 
-  const ORDER_COLS = ["Order ID", "Date", "Customer", "Email"];
-  const ITEM_COLS = ["Item #", "Product", "Quantity", ...attrKeys];
+  const ORDER_COLS = [
+    "Order ID",
+    "Date",
+    "Customer",
+    "Email",
+    "Products Total",
+    "Upcharge Amount",
+    "Grand Total",
+  ];
+  const ITEM_COLS = [
+    "Item #",
+    "Product",
+    "Quantity",
+    ...attrKeys.map((k) => attrDisplayLabel(k)),
+  ];
   const headers = [...ORDER_COLS, ...ITEM_COLS];
   const BLANK_ORDER = new Array(ORDER_COLS.length).fill("");
   const BLANK_ROW = new Array(headers.length).fill("");
@@ -112,15 +174,22 @@ export function generateCSV(orders) {
 
   orders.forEach((order, oi) => {
     const items = order.lineItemDetails ?? [];
+    const curr = order.currencyCode || "USD";
+    const upchargeAmt = order.upchargeRaw || 0;
+    const subtotal = order.subtotalRaw || 0;
+    const productsTotal = subtotal - upchargeAmt;
     const orderBase = [
       order.id,
       formatDateForCSV(order),
       order.customer.name,
       order.customer.email,
+      formatMoneyRaw(productsTotal, curr),
+      formatMoneyRaw(upchargeAmt, curr),
+      formatMoneyRaw(subtotal, curr),
     ];
 
     if (items.length === 0) {
-      rows.push([...orderBase, "", "", "", ...attrKeys.map(() => "")]);
+      rows.push([...orderBase, "", "", ...attrKeys.map(() => "")]);
     } else {
       items.forEach((item, idx) => {
         const attrMap = Object.fromEntries(
