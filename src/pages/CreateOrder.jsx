@@ -33,6 +33,7 @@ import {
   fetchShirtMeasurementFields,
   fetchJacketMeasurementFields,
   fetchStyleOptions,
+  fetchContrastOptions,
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
 
@@ -713,24 +714,26 @@ function AttributeEditor({
   );
 }
 
+// Read garments purely from the gc_builder metafield value (a choice string).
+// e.g. "jacket" → ["Jacket"],  "Suit — 3 piece (jacket + trouser + vest)" → ["Jacket","Trouser","Vest"]
+function garmentsFromGcBuilderValue(value) {
+  if (!value) return [];
+  const v = value.toLowerCase();
+  const found = [];
+  if (v.includes("jacket")) found.push("Jacket");
+  if (v.includes("trouser")) found.push("Trouser");
+  if (v.includes("vest")) found.push("Vest");
+  if (v.includes("shirt")) found.push("Shirt");
+  // plain "suit" with no explicit garment words → jacket + trouser
+  if (!found.length && v.includes("suit")) {
+    found.push("Jacket");
+    found.push("Trouser");
+  }
+  return found;
+}
+
 function styleGarmentsForProduct(product) {
-  const t = (product?.title ?? "").toLowerCase();
-  const garments = [];
-  if (
-    t.includes("tuxedo") ||
-    t.includes("suit") ||
-    t.includes("jacket") ||
-    t.includes("overcoat")
-  )
-    garments.push("Jacket");
-  if (
-    t.includes("tuxedo") ||
-    t.includes("suit") ||
-    t.includes("trouser") ||
-    t.includes("pant")
-  )
-    garments.push("Trouser");
-  return garments;
+  return garmentsFromGcBuilderValue(product?.metafield?.value);
 }
 
 function StyleDropdown({ label, opts, selected, onSelect }) {
@@ -821,22 +824,36 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
   );
 }
 
-function StyleOptionsSection({ styleOptions, selections, onChange, loading }) {
-  const grouped = useMemo(() => {
+function StyleOptionsSection({
+  styleOptions,
+  contrastOptions,
+  selections,
+  onChange,
+  loading,
+}) {
+  // Group by garment → then by category
+  const byGarment = useMemo(() => {
     const map = {};
-    for (const opt of styleOptions) {
-      if (!opt.visible) continue;
+    const all = [
+      ...styleOptions.filter((o) => o.visible),
+      ...contrastOptions.filter((o) => o.visible),
+    ];
+    for (const opt of all) {
+      const g = opt.garment || "General";
+      if (!map[g]) map[g] = {};
       const cat = opt.category || "General";
-      if (!map[cat]) map[cat] = [];
-      map[cat].push(opt);
+      if (!map[g][cat]) map[g][cat] = [];
+      map[g][cat].push(opt);
     }
-    for (const cat in map) {
-      map[cat].sort((a, b) => a.sortOrder - b.sortOrder);
+    for (const g in map) {
+      for (const cat in map[g]) {
+        map[g][cat].sort((a, b) => a.sortOrder - b.sortOrder);
+      }
     }
     return map;
-  }, [styleOptions]);
+  }, [styleOptions, contrastOptions]);
 
-  const categories = Object.keys(grouped).sort();
+  const garments = Object.keys(byGarment);
 
   if (loading) {
     return (
@@ -845,10 +862,11 @@ function StyleOptionsSection({ styleOptions, selections, onChange, loading }) {
       </div>
     );
   }
-  if (!categories.length) return null;
+  if (!garments.length) return null;
 
   return (
-    <div className="bg-white rounded-[12px] p-[31px] flex flex-col gap-[32px] border border-gc-divider">
+    <div className="bg-white rounded-[12px] p-[31px] flex flex-col gap-[40px] border border-gc-divider">
+      {/* Section header */}
       <div className="flex items-center justify-between pb-[9px] border-b border-gc-primary-dark/20">
         <div className="flex items-center gap-[13px]">
           <div className="w-[3px] h-[20px] rounded-sm bg-gc-primary" />
@@ -856,24 +874,45 @@ function StyleOptionsSection({ styleOptions, selections, onChange, loading }) {
             Style Options
           </h3>
         </div>
-        <span className="font-hanken text-[10px] font-bold text-[rgba(28,28,25,0.5)] tracking-[1px] uppercase">
-          {categories.length} categories
-        </span>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-[12px] sm:gap-x-[24px] gap-y-[12px] sm:gap-y-[20px]">
-        {categories.map((category) => {
-          const opts = grouped[category];
-          return (
-            <StyleDropdown
-              key={category}
-              label={opts[0]?.displayLabel || category}
-              opts={opts}
-              selected={selections[category] ?? ""}
-              onSelect={(val) => onChange({ ...selections, [category]: val })}
-            />
-          );
-        })}
-      </div>
+
+      {garments.map((garment) => {
+        const catMap = byGarment[garment];
+        const categories = Object.keys(catMap);
+        return (
+          <div key={garment} className="flex flex-col gap-[12px]">
+            {/* Garment label */}
+            <div className="flex items-center justify-between gap-[8px]">
+              <span className="font-hanken text-[12px] font-semibold text-[#a45d41] uppercase tracking-[0.8px]">
+                {garment}
+              </span>
+              <span className="font-hanken text-[10px] font-medium text-[rgba(28,28,25,0.35)] tracking-[0.6px] uppercase">
+                {categories.length} option{categories.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-[12px] sm:gap-x-[24px] gap-y-[12px] sm:gap-y-[20px]">
+              {categories.map((cat) => {
+                const opts = catMap[cat];
+                return (
+                  <StyleDropdown
+                    key={`${garment}-${cat}`}
+                    label={opts[0]?.displayLabel || cat}
+                    opts={opts}
+                    selected={selections[`${garment}__${cat}`] ?? ""}
+                    onSelect={(val) =>
+                      onChange({
+                        ...selections,
+                        [`${garment}__${cat}`]: val,
+                      })
+                    }
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -908,6 +947,7 @@ export default function CreateOrder() {
   const [jacketRanges, setJacketRanges] = useState(null);
 
   const [styleOptions, setStyleOptions] = useState([]);
+  const [contrastOptions, setContrastOptions] = useState([]);
   const [styleSelections, setStyleSelections] = useState({});
   const [styleOptionsLoading, setStyleOptionsLoading] = useState(false);
 
@@ -936,19 +976,17 @@ export default function CreateOrder() {
 
   const rangeGroups = useMemo(() => {
     if (!selectedProduct) return [];
-    const t = selectedProduct.title.toLowerCase();
-    const isSuit = t.includes("tuxedo") || t.includes("suit");
+    const garments = garmentsFromGcBuilderValue(
+      selectedProduct.metafield?.value,
+    );
     const groups = [];
-    if (
-      (isSuit || t.includes("jacket") || t.includes("overcoat")) &&
-      jacketRanges
-    )
+    if (garments.includes("Jacket") && jacketRanges)
       groups.push({ label: "Jacket", ranges: jacketRanges });
-    if ((isSuit || t.includes("trouser")) && trouserRanges)
+    if (garments.includes("Trouser") && trouserRanges)
       groups.push({ label: "Trouser", ranges: trouserRanges });
-    if ((isSuit || t.includes("vest")) && vestRanges)
+    if (garments.includes("Vest") && vestRanges)
       groups.push({ label: "Vest", ranges: vestRanges });
-    if ((isSuit || t.includes("shirt")) && shirtRanges)
+    if (garments.includes("Shirt") && shirtRanges)
       groups.push({ label: "Shirt", ranges: shirtRanges });
     return groups;
   }, [selectedProduct, jacketRanges, trouserRanges, vestRanges, shirtRanges]);
@@ -1020,31 +1058,17 @@ export default function CreateOrder() {
       );
   }
 
-  function productType(product) {
-    const t = (product?.title ?? "").toLowerCase();
-    if (t.includes("tuxedo") || t.includes("suit")) return "suit";
-    if (t.includes("trouser")) return "trouser";
-    if (t.includes("vest")) return "vest";
-    if (t.includes("shirt")) return "shirt";
-    if (t.includes("jacket") || t.includes("overcoat")) return "jacket";
-    return "unknown";
-  }
-
-  async function getCanonicalFieldsForType(ptype) {
-    if (ptype === "vest") return fetchVestMeasurementFields();
-    if (ptype === "trouser") return fetchTrouserMeasurementFields();
-    if (ptype === "shirt") return fetchShirtMeasurementFields();
-    if (ptype === "jacket") return fetchJacketMeasurementFields();
-    if (ptype === "suit") {
-      const [jf, tf, vf, sf] = await Promise.all([
-        fetchJacketMeasurementFields(),
-        fetchTrouserMeasurementFields(),
-        fetchVestMeasurementFields(),
-        fetchShirtMeasurementFields(),
-      ]);
-      return [...jf, ...tf, ...vf, ...sf];
-    }
-    return null;
+  async function getCanonicalFieldsForGarments(garments) {
+    const FETCHERS = {
+      Jacket: fetchJacketMeasurementFields,
+      Trouser: fetchTrouserMeasurementFields,
+      Vest: fetchVestMeasurementFields,
+      Shirt: fetchShirtMeasurementFields,
+    };
+    const results = await Promise.all(
+      garments.filter((g) => FETCHERS[g]).map((g) => FETCHERS[g]()),
+    );
+    return results.flat();
   }
 
   function prefillFromPastOrder(canonicalFields, pastAttrs, rangeMap) {
@@ -1070,14 +1094,16 @@ export default function CreateOrder() {
   }
 
   async function getFieldsForProduct(product) {
-    const ptype = productType(product);
-    const canonical = await getCanonicalFieldsForType(ptype);
-    if (canonical) return canonical.map((f) => ({ key: f.key, value: "" }));
+    const garments = garmentsFromGcBuilderValue(product.metafield?.value);
+    if (garments.length) {
+      const canonical = await getCanonicalFieldsForGarments(garments);
+      if (canonical.length)
+        return canonical.map((f) => ({ key: f.key, value: "" }));
+    }
     const serverFields = await getProductFields(product.id);
     if (serverFields.length > 0)
       return serverFields.map((key) => ({ key, value: "" }));
-    const gcFields = parseGcBuilderFields(product.metafield?.value);
-    return (gcFields ?? []).map((a) => ({ ...a, value: "" }));
+    return [];
   }
 
   async function handleNewOrder() {
@@ -1095,12 +1121,14 @@ export default function CreateOrder() {
       ...jacketRanges,
       ...shirtRanges,
     };
-    const ptype = productType(selectedProduct);
+    const garments = garmentsFromGcBuilderValue(
+      selectedProduct.metafield?.value,
+    );
 
-    if (pastNode?.customAttributes?.length > 0 && ptype !== "unknown") {
+    if (pastNode?.customAttributes?.length > 0 && garments.length) {
       setFieldsLoading(true);
       try {
-        const canonical = await getCanonicalFieldsForType(ptype);
+        const canonical = await getCanonicalFieldsForGarments(garments);
         setAttributes(
           applyDefaultSizeType(
             canonical.map((f) => ({ key: f.key, value: "" })),
@@ -1161,12 +1189,14 @@ export default function CreateOrder() {
       ...jacketRanges,
       ...shirtRanges,
     };
-    const ptype = productType(selectedProduct);
+    const garments = garmentsFromGcBuilderValue(
+      selectedProduct.metafield?.value,
+    );
 
-    if (pastNode?.customAttributes?.length > 0 && ptype !== "unknown") {
+    if (pastNode?.customAttributes?.length > 0 && garments.length) {
       setFieldsLoading(true);
       const pastAttrs = attrsFromLineItem(pastNode, false);
-      getCanonicalFieldsForType(ptype)
+      getCanonicalFieldsForGarments(garments)
         .then((canonical) => {
           const filled = prefillFromPastOrder(
             canonical,
@@ -1202,20 +1232,25 @@ export default function CreateOrder() {
 
   useEffect(() => {
     setStyleOptions([]);
+    setContrastOptions([]);
     setStyleSelections({});
     if (!selectedProduct?.metafield?.value) return;
     const garments = styleGarmentsForProduct(selectedProduct);
     if (!garments.length) return;
     setStyleOptionsLoading(true);
-    fetchStyleOptions()
-      .then((all) => {
-        const filtered = all.filter((o) => garments.includes(o.garment));
+    Promise.all([fetchStyleOptions(), fetchContrastOptions()])
+      .then(([allStyle, allContrast]) => {
+        const filtered = allStyle.filter((o) => garments.includes(o.garment));
         setStyleOptions(filtered);
+        setContrastOptions(
+          allContrast.filter((o) => garments.includes(o.garment)),
+        );
         const defaults = {};
         filtered
           .filter((o) => o.isDefault && o.visible)
           .forEach((o) => {
-            if (!defaults[o.category]) defaults[o.category] = o.label;
+            const key = `${o.garment}__${o.category}`;
+            if (!defaults[key]) defaults[key] = o.label;
           });
         setStyleSelections(defaults);
       })
@@ -1236,22 +1271,37 @@ export default function CreateOrder() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      // styleSelections keys are "Garment__category" — store as "Garment - category" on the order
       const styleAttrs = Object.entries(styleSelections)
         .filter(([, v]) => v)
-        .map(([key, value]) => ({ key, value }));
+        .map(([key, value]) => ({
+          key: key.replace("__", " - "),
+          value,
+        }));
 
       const upchargeAttrs = Object.entries(styleSelections)
-        .filter(([category, label]) => {
+        .filter(([compKey, label]) => {
+          const [garment, category] = compKey.split("__");
           const opt = styleOptions.find(
-            (o) => o.category === category && o.label === label,
+            (o) =>
+              o.garment === garment &&
+              o.category === category &&
+              o.label === label,
           );
           return opt?.upcharge > 0;
         })
-        .map(([category, label]) => {
+        .map(([compKey, label]) => {
+          const [garment, category] = compKey.split("__");
           const opt = styleOptions.find(
-            (o) => o.category === category && o.label === label,
+            (o) =>
+              o.garment === garment &&
+              o.category === category &&
+              o.label === label,
           );
-          return { key: `_upcharge_${category}`, value: String(opt.upcharge) };
+          return {
+            key: `_upcharge_${garment}_${category}`,
+            value: String(opt.upcharge),
+          };
         });
 
       const finalPrice = (parseFloat(price || "0.00") + totalUpcharge).toFixed(
@@ -1321,9 +1371,13 @@ export default function CreateOrder() {
     if (!styleOptions.length) return 0;
     return Object.entries(styleSelections)
       .filter(([, label]) => label)
-      .reduce((sum, [category, label]) => {
+      .reduce((sum, [compKey, label]) => {
+        const [garment, category] = compKey.split("__");
         const opt = styleOptions.find(
-          (o) => o.category === category && o.label === label,
+          (o) =>
+            o.garment === garment &&
+            o.category === category &&
+            o.label === label,
         );
         return sum + (opt?.upcharge > 0 ? opt.upcharge : 0);
       }, 0);
@@ -1477,18 +1531,20 @@ export default function CreateOrder() {
                     key={o.orderId}
                     onClick={async () => {
                       setSelectedTemplate(o.orderId);
-                      const ptype = productType(selectedProduct);
+                      const garments = garmentsFromGcBuilderValue(
+                        selectedProduct.metafield?.value,
+                      );
                       const combinedRanges = {
                         ...vestRanges,
                         ...trouserRanges,
                         ...jacketRanges,
                         ...shirtRanges,
                       };
-                      if (ptype !== "unknown") {
+                      if (garments.length) {
                         setFieldsLoading(true);
                         try {
                           const canonical =
-                            await getCanonicalFieldsForType(ptype);
+                            await getCanonicalFieldsForGarments(garments);
                           setAttributes(
                             applyDefaultSizeType(
                               prefillFromPastOrder(
@@ -1559,6 +1615,7 @@ export default function CreateOrder() {
             {selectedProduct?.metafield?.value && (
               <StyleOptionsSection
                 styleOptions={styleOptions}
+                contrastOptions={contrastOptions}
                 selections={styleSelections}
                 onChange={setStyleSelections}
                 loading={styleOptionsLoading}
