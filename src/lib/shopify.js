@@ -931,15 +931,6 @@ let _vestFieldsListCache = null;
 let _vestRangesCacheAt = 0;
 const VEST_CACHE_TTL = 30 * 60 * 1000;
 
-const VEST_BUILDER_ABBR = {
-  v_nape_to_waist: "Nape to Waist",
-  v_front_waist_length: "Front Waist Len",
-  v_front_waist_height: "Front Waist Ht",
-  v_back_waist_height: "Back Waist Ht",
-  v_first_button_position: "1st Btn Position",
-  v_highest_point_of: "Highest Point",
-};
-
 async function _loadVestData() {
   const data = await shopifyGraphQL(GET_VEST_RANGES);
   const entries = data?.metaobjects?.edges ?? [];
@@ -960,11 +951,6 @@ async function _loadVestData() {
     map[vKey] = entry;
     map[label] = entry;
     map[`Vest ${label}`] = entry;
-    const abbr = VEST_BUILDER_ABBR[vKey];
-    if (abbr) {
-      map[abbr] = entry;
-      map[`Vest ${abbr}`] = entry;
-    }
     fieldsList.push({ key: vKey, label, min, max });
   }
   _vestRangesCache = map;
@@ -1061,12 +1047,6 @@ let _trouserFieldsListCache = null;
 let _trouserRangesCacheAt = 0;
 const TROUSER_CACHE_TTL = 30 * 60 * 1000;
 
-const TROUSER_BUILDER_ABBR = {
-  t_front_waist_height: "Front Waist Ht",
-  t_back_waist_height: "Back Waist Ht",
-  t_u_rise: "Rise",
-};
-
 async function _loadTrouserData() {
   const data = await shopifyGraphQL(GET_TROUSER_RANGES);
   const entries = data?.metaobjects?.edges ?? [];
@@ -1087,11 +1067,6 @@ async function _loadTrouserData() {
     map[tKey] = entry;
     map[label] = entry;
     map[`Trouser ${label}`] = entry;
-    const abbr = TROUSER_BUILDER_ABBR[tKey];
-    if (abbr) {
-      map[abbr] = entry;
-      map[`Trouser ${abbr}`] = entry;
-    }
     fieldsList.push({ key: tKey, label, min, max });
   }
   _trouserRangesCache = map;
@@ -1133,11 +1108,6 @@ let _jacketFieldsListCache = null;
 let _jacketRangesCacheAt = 0;
 const JACKET_CACHE_TTL = 30 * 60 * 1000;
 
-const JACKET_BUILDER_ABBR = {
-  seat: "Seat (Hip)",
-  "front-waist-length": "Front Waist Len",
-};
-
 async function _loadJacketData() {
   const data = await shopifyGraphQL(GET_JACKET_RANGES);
   const entries = data?.metaobjects?.edges ?? [];
@@ -1165,11 +1135,6 @@ async function _loadJacketData() {
     map[canonicalKey] = entry;
     map[label] = entry;
     map[`Jacket ${label}`] = entry;
-    const abbr = JACKET_BUILDER_ABBR[handle];
-    if (abbr) {
-      map[abbr] = entry;
-      map[`Jacket ${abbr}`] = entry;
-    }
     fieldsList.push({ key: canonicalKey, label, min, max });
   }
   _jacketRangesCache = map;
