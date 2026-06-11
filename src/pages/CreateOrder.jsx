@@ -3,21 +3,28 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   X,
   FileText,
-  AlertCircle,
   ChevronDown,
-  Search,
   Plus,
   History,
-  Check,
   CheckCircle2,
 } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
+import AlertBanner from "../components/ui/AlertBanner";
+import { CustomerSelector } from "../components/order/CustomerStep";
 import {
-  fetchCustomersPage,
+  ProductSelector,
+  VariantSelector,
+} from "../components/order/ProductStep";
+import {
+  AttributeEditor,
+  StyleOptionsSection,
+  getRangeForKey,
+  groupAttributes,
+} from "../components/order/MeasurementsStep";
+import {
   fetchGcBuilderProducts,
   fetchCustomerWithOrders,
-  transformCustomer,
   clearOrdersCache,
   clearCustomerDetailCache,
   getProductFields,
@@ -71,16 +78,6 @@ function buildProfilesFromOrders(orders) {
   return result;
 }
 
-function getRangeForKey(rangeMap, key) {
-  if (!rangeMap) return null;
-  if (rangeMap[key]) return rangeMap[key];
-  const n = key.toLowerCase().trim();
-  for (const [k, v] of Object.entries(rangeMap)) {
-    if (k.toLowerCase().trim() === n) return v;
-  }
-  return null;
-}
-
 function deduplicateByRange(attrs, rangeMap) {
   const seenRangeKeys = new Set();
   const seenNormKeys = new Set();
@@ -97,145 +94,6 @@ function deduplicateByRange(attrs, rangeMap) {
     seenNormKeys.add(normKey);
     return true;
   });
-}
-
-const SECTION_COLORS = {
-  Jacket: {
-    border: "border-blue-500",
-    icon: "text-blue-600",
-    heading: "text-blue-700",
-    badge: "bg-blue-50 text-blue-700",
-  },
-  Trouser: {
-    border: "border-brand-600",
-    icon: "text-brand-700",
-    heading: "text-brand-700",
-    badge: "bg-brand-50 text-brand-700",
-  },
-  Vest: {
-    border: "border-amber-500",
-    icon: "text-amber-600",
-    heading: "text-amber-700",
-    badge: "bg-amber-50 text-amber-700",
-  },
-  Shirt: {
-    border: "border-green-500",
-    icon: "text-green-600",
-    heading: "text-green-700",
-    badge: "bg-green-50 text-green-700",
-  },
-  default: {
-    border: "border-brand-600",
-    icon: "text-brand-700",
-    heading: "text-brand-700",
-    badge: "bg-brand-50 text-brand-700",
-  },
-};
-
-function groupAttributes(attributes, rangeGroups) {
-  const general = [];
-  const sections = rangeGroups.map((g) => ({
-    label: g.label,
-    ranges: g.ranges,
-    items: [],
-  }));
-  const hasGroups = sections.length > 0;
-
-  const findSec = (label) => sections.find((s) => s.label === label);
-
-  const PREFIX_ROUTES = [
-    ["Vest ", "Vest"],
-    ["Jacket ", "Jacket"],
-    ["Trouser ", "Trouser"],
-    ["Shirt ", "Shirt"],
-  ];
-
-  for (const attr of attributes) {
-    if (attr.key.startsWith("_")) continue;
-    const kl = attr.key.toLowerCase();
-
-    if (kl === "size type") {
-      general.push({ key: attr.key, originalKey: attr.key });
-      continue;
-    }
-
-    if (hasGroups && kl.startsWith("standard")) continue;
-
-    let placed = false;
-    for (const [prefix, label] of PREFIX_ROUTES) {
-      if (attr.key.startsWith(prefix)) {
-        const sec = findSec(label);
-        if (sec) {
-          sec.items.push({
-            key: attr.key.slice(prefix.length),
-            originalKey: attr.key,
-          });
-          placed = true;
-          break;
-        }
-      }
-    }
-    if (placed) continue;
-
-    if (hasGroups) {
-      for (const sec of sections) {
-        if (getRangeForKey(sec.ranges, attr.key)) {
-          sec.items.push({ key: attr.key, originalKey: attr.key });
-          placed = true;
-          break;
-        }
-      }
-    }
-
-    if (!placed) general.push({ key: attr.key, originalKey: attr.key });
-  }
-
-  return { general, sections };
-}
-
-function parseGcBuilderFields(jsonValue) {
-  try {
-    const parsed = JSON.parse(jsonValue);
-    const fields = [];
-    function extract(obj) {
-      if (!obj || typeof obj !== "object") return;
-      if (Array.isArray(obj)) {
-        obj.forEach((item) => {
-          if (typeof item === "string") fields.push({ key: item, value: "" });
-          else extract(item);
-        });
-        return;
-      }
-      const keyProp = obj.key || obj.name || obj.label;
-      const hasChildren = [
-        "fields",
-        "sections",
-        "measurements",
-        "components",
-        "children",
-        "items",
-      ].some((k) => Array.isArray(obj[k]));
-      if (keyProp && typeof keyProp === "string" && !hasChildren) {
-        fields.push({ key: keyProp, value: "" });
-        return;
-      }
-      [
-        "fields",
-        "measurements",
-        "sections",
-        "components",
-        "children",
-        "items",
-        "attributes",
-      ].forEach((k) => {
-        if (Array.isArray(obj[k])) extract(obj[k]);
-      });
-    }
-    extract(parsed);
-    return fields.length > 0 ? fields : null;
-  } catch {
-    return null;
-  }
 }
 
 function isCustomSizeLineItem(node) {
@@ -273,6 +131,28 @@ function attrsFromLineItem(node, emptyValues = false) {
         ? { key: a.key, value: "Custom" }
         : { key: a.key, value: emptyValues ? "" : a.value },
     );
+}
+
+// Read garments purely from the gc_builder metafield value (a choice string).
+// e.g. "jacket" → ["Jacket"],  "Suit — 3 piece (jacket + trouser + vest)" → ["Jacket","Trouser","Vest"]
+function garmentsFromGcBuilderValue(value) {
+  if (!value) return [];
+  const v = value.toLowerCase();
+  const found = [];
+  if (v.includes("jacket")) found.push("Jacket");
+  if (v.includes("trouser")) found.push("Trouser");
+  if (v.includes("vest")) found.push("Vest");
+  if (v.includes("shirt")) found.push("Shirt");
+  // plain "suit" with no explicit garment words → jacket + trouser
+  if (!found.length && v.includes("suit")) {
+    found.push("Jacket");
+    found.push("Trouser");
+  }
+  return found;
+}
+
+function styleGarmentsForProduct(product) {
+  return garmentsFromGcBuilderValue(product?.metafield?.value);
 }
 
 // ─── Step Indicator ─────────────────────────────────────────────────────────
@@ -320,800 +200,6 @@ function StepIndicator({ currentStep }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-const AVATAR_PALETTE = [
-  { bg: "rgba(42,10,10,0.05)", border: "rgba(42,10,10,0.1)", text: "#2a0a0a" },
-  {
-    bg: "rgba(146,73,50,0.05)",
-    border: "rgba(146,73,50,0.1)",
-    text: "#924932",
-  },
-  {
-    bg: "rgba(119,90,25,0.05)",
-    border: "rgba(119,90,25,0.1)",
-    text: "#775a19",
-  },
-  {
-    bg: "rgba(164,93,65,0.05)",
-    border: "rgba(164,93,65,0.1)",
-    text: "#a45d41",
-  },
-];
-
-function getInitials(name) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2)
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
-
-function avatarColor(idx) {
-  return AVATAR_PALETTE[idx % AVATAR_PALETTE.length];
-}
-
-function OrdersBadge({ count }) {
-  if (count == null)
-    return (
-      <span className="font-hanken text-[12px] tracking-[0.9px] text-[#7e7576]">
-        No history
-      </span>
-    );
-  const many = count >= 2;
-  const label = count === 1 ? "1 ORDER" : `${count} ORDERS`;
-  return (
-    <span
-      className={`font-hanken text-[10px] font-medium tracking-[0.8px] uppercase px-[6px] py-[3px] rounded-[4px] ${many ? "bg-gc-avatar-gold/10 text-gc-avatar-gold" : "bg-gc-section-divider/20 text-[#4c4546]"}`}
-    >
-      {label}
-    </span>
-  );
-}
-
-// ─── Customer Selector ──────────────────────────────────────────────────────
-function CustomerSelector({ value, onChange }) {
-  const [search, setSearch] = useState("");
-  const [results, setResults] = useState([]);
-  const [resultsLoading, setResultsLoading] = useState(false);
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const debounceRef = useRef(null);
-  const initialFetched = useRef(false);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    function handleOutside(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, []);
-
-  function doFetch(query) {
-    setResultsLoading(true);
-    fetchCustomersPage({ pageSize: 20, searchQuery: query })
-      .then(({ customers: raw }) => {
-        setResults(raw.map(transformCustomer));
-        setResultsLoading(false);
-      })
-      .catch(() => setResultsLoading(false));
-  }
-
-  function handleFocus() {
-    setOpen(true);
-    if (!initialFetched.current) {
-      initialFetched.current = true;
-      doFetch("");
-    }
-  }
-
-  function handleSearchChange(e) {
-    const val = e.target.value;
-    setSearch(val);
-    setOpen(true);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doFetch(val), 300);
-  }
-
-  if (value) {
-    const color = avatarColor(0);
-    return (
-      <div className="flex items-center gap-[16px] px-[16px] py-[16px] bg-white rounded-[8px] border border-gc-border-input">
-        <div
-          className="w-[48px] h-[48px] rounded-full flex items-center justify-center flex-shrink-0"
-          style={{
-            backgroundColor: color.bg,
-            border: `1px solid ${color.border}`,
-          }}
-        >
-          <span
-            className="font-garamond text-[18px]"
-            style={{ color: color.text }}
-          >
-            {getInitials(value.name)}
-          </span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-hanken text-[16px] font-semibold text-black leading-tight">
-            {value.name}
-          </p>
-          {value.email && (
-            <p className="font-hanken text-[10px] font-semibold text-[#4c4546] tracking-[0.9px] lowercase mt-[2px]">
-              {value.email}
-            </p>
-          )}
-        </div>
-        <div className="flex-shrink-0 mr-[8px]">
-          <OrdersBadge count={value.numberOfOrders} />
-        </div>
-        <button
-          onClick={() => onChange(null)}
-          className="text-gc-near-black2 hover:text-gc-primary transition-colors cursor-pointer p-[6px] rounded-[6px] hover:bg-[rgba(164,93,65,0.08)]"
-          title="Change customer"
-        >
-          <X size={14} />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <div className="flex items-center h-[60px] bg-white rounded-[8px] px-[17px] gap-[10px] overflow-hidden border border-gc-border-input">
-        <Search size={16} className="text-[#6b7280] flex-shrink-0" />
-        <input
-          type="text"
-          placeholder="Search customer by name or email...."
-          value={search}
-          onChange={handleSearchChange}
-          onFocus={handleFocus}
-          className="flex-1 font-hanken text-[14px] text-gc-near-black2 placeholder:text-gc-muted outline-none bg-transparent"
-        />
-      </div>
-      {open && (
-        <div className="absolute top-full left-0 right-0 z-[100] mt-[4px] bg-white rounded-[8px] shadow-xl flex flex-col overflow-hidden border border-gc-border-input max-h-[min(458px,60vh)]">
-          <div className="overflow-y-auto flex-1 px-px pt-[9px]">
-            {resultsLoading ? (
-              <div className="font-hanken p-[16px] text-[14px] text-[#6b7280] text-center">
-                Searching…
-              </div>
-            ) : results.length === 0 ? (
-              <div className="font-hanken p-[16px] text-[14px] text-[#6b7280] text-center">
-                No customers found
-              </div>
-            ) : (
-              results.map((customer, idx) => {
-                const color = avatarColor(idx);
-                return (
-                  <button
-                    key={customer.id}
-                    onClick={() => {
-                      onChange(customer);
-                      setOpen(false);
-                      setSearch("");
-                    }}
-                    className="w-full flex items-center justify-between px-[12px] sm:px-[16px] py-[12px] sm:py-[16px] text-left transition-colors cursor-pointer hover:bg-gc-bg-warm border-b border-gc-section-divider/10"
-                  >
-                    <div className="flex items-center gap-[10px] sm:gap-[16px] min-w-0">
-                      <div
-                        className="w-[36px] h-[36px] sm:w-[48px] sm:h-[48px] rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{
-                          backgroundColor: color.bg,
-                          border: `1px solid ${color.border}`,
-                        }}
-                      >
-                        <span
-                          className="font-garamond text-[14px] sm:text-[18px]"
-                          style={{ color: color.text }}
-                        >
-                          {getInitials(customer.name)}
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-start min-w-0">
-                        <span className="font-hanken text-[14px] sm:text-[16px] font-semibold text-black leading-tight truncate max-w-full">
-                          {customer.name}
-                        </span>
-                        {customer.email && (
-                          <span className="font-hanken text-[10px] font-semibold text-[#4c4546] tracking-[0.9px] lowercase truncate max-w-full">
-                            {customer.email}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex-shrink-0 ml-[8px]">
-                      <OrdersBadge count={customer.numberOfOrders} />
-                    </div>
-                  </button>
-                );
-              })
-            )}
-          </div>
-          <button
-            onClick={() => {
-              setOpen(false);
-              navigate("/customers", {
-                state: { autoCreateModal: true, returnTo: "/orders/new" },
-              });
-            }}
-            className="w-full flex items-center justify-center gap-[8px] h-[44px] flex-shrink-0 cursor-pointer transition-opacity hover:opacity-90 rounded-bl-[8px] rounded-br-[8px] bg-gc-primary"
-          >
-            <Plus size={11} color="white" />
-            <span className="font-hanken text-[14px] font-semibold text-white uppercase tracking-[0.5px]">
-              New Customer
-            </span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FitSizeDropdown({ label, opts, selected, onSelect }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-  return (
-    <div ref={ref} className="flex flex-col gap-[6px] min-w-0">
-      <span className="font-hanken text-[9px] sm:text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase leading-tight truncate">
-        {label}
-      </span>
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="font-hanken w-full flex items-center justify-between gap-[6px] px-[8px] sm:px-[13px] h-[36px] sm:h-[40px] rounded-[8px] text-[13px] font-medium text-gc-near-black2 bg-white cursor-pointer border border-gc-section-divider/80"
-        >
-          <span
-            className={`truncate text-[14px] sm:text-[18px] font-garamond ${selected ? "text-[#1c1c19]" : "text-[#9ca3af]"}`}
-          >
-            {selected || "—"}
-          </span>
-          <ChevronDown
-            size={14}
-            className={`flex-shrink-0 text-[#424656] transition-transform duration-150 ${open ? "rotate-180" : ""}`}
-          />
-        </button>
-        {open && (
-          <div className="absolute left-0 right-0 top-full mt-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden border border-gc-border-input">
-            <ul className="max-h-[200px] overflow-y-auto py-[4px]">
-              <li>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSelect("");
-                    setOpen(false);
-                  }}
-                  className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-[#9ca3af] hover:bg-gc-bg flex items-center justify-between cursor-pointer"
-                >
-                  — Select —
-                  {!selected && <Check size={12} className="text-gc-primary" />}
-                </button>
-              </li>
-              {opts.map((opt) => (
-                <li key={opt.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelect(opt.label);
-                      setOpen(false);
-                    }}
-                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-gc-near-black2 hover:bg-gc-bg flex items-center justify-between gap-[8px] cursor-pointer"
-                  >
-                    <span className="flex flex-col items-start min-w-0">
-                      <span className="truncate">{opt.label}</span>
-                      {opt.sizeLabel && (
-                        <span className="text-[10px] text-[#9ca3af]">
-                          {opt.sizeLabel}
-                        </span>
-                      )}
-                    </span>
-                    {selected === opt.label && (
-                      <Check
-                        size={12}
-                        className="flex-shrink-0 text-gc-primary"
-                      />
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AttributeEditor({
-  attributes,
-  onChange,
-  rangeGroups = [],
-  onValidChange,
-  fitSizeOptions = [],
-  fitSizeSelections = {},
-  onFitSizeChange,
-}) {
-  const [touchedFields, setTouchedFields] = useState(new Set());
-
-  const keySignature = attributes.map((a) => a.key).join("\0");
-  const { general, sections } = useMemo(
-    () => groupAttributes(attributes, rangeGroups),
-    [keySignature, rangeGroups],
-  );
-
-  function updateAttr(originalKey, value) {
-    setTouchedFields((prev) => new Set([...prev, originalKey]));
-    onChange(
-      attributes.map((a) => (a.key === originalKey ? { ...a, value } : a)),
-    );
-  }
-
-  useEffect(() => {
-    if (!onValidChange) return;
-    if (!sections.length) {
-      onValidChange(true);
-      return;
-    }
-    const hasError = sections.some((sec) =>
-      sec.items.some(({ key, originalKey }) => {
-        const val = attributes.find((a) => a.key === originalKey)?.value ?? "";
-        if (!val) return false;
-        const range = getRangeForKey(sec.ranges, key);
-        if (!range) return false;
-        const n = parseFloat(val);
-        return !isNaN(n) && (n < range.min || n > range.max);
-      }),
-    );
-    onValidChange(!hasError);
-  }, [attributes, sections]);
-
-  if (attributes.length === 0) {
-    return (
-      <div className="bg-white rounded-[12px] px-[31px] py-[24px] border border-gc-divider">
-        <p className="font-hanken text-[14px] text-[#6b7280]">
-          No fields loaded for this product.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-white rounded-[12px] p-[31px] flex flex-col gap-[48px] border border-gc-divider">
-      {general.length > 0 && (
-        <div className="flex flex-col gap-[16px]">
-          <div className="flex items-center justify-between pb-[9px] border-b border-gc-primary-dark/20">
-            <div className="flex items-center gap-[13px]">
-              <div className="w-[3px] h-[20px] rounded-sm bg-gc-primary" />
-              <h3 className="font-garamond text-[20px] sm:text-[28px] font-semibold text-gc-primary">
-                Details
-              </h3>
-            </div>
-            <span className="font-hanken text-[10px] font-bold text-[rgba(28,28,25,0.5)] tracking-[1px] uppercase">
-              {general.length} fields
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[8px] sm:gap-x-[32px] gap-y-[16px] sm:gap-y-[24px]">
-            {general.map(({ key, originalKey }) => (
-              <div
-                key={originalKey}
-                className="flex flex-col gap-[4px] min-w-0 sm:relative sm:h-[74px]"
-              >
-                <label className="font-hanken text-[9px] sm:text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase leading-tight truncate sm:absolute sm:top-0">
-                  {key}
-                </label>
-                <input
-                  type="text"
-                  value={
-                    attributes.find((a) => a.key === originalKey)?.value || ""
-                  }
-                  onChange={(e) => updateAttr(originalKey, e.target.value)}
-                  className="w-full h-[36px] sm:h-[40px] bg-white rounded-[8px] px-[8px] sm:px-[13px] font-garamond text-[14px] sm:text-[18px] text-[#1c1c19] outline-none transition-colors sm:absolute sm:top-[20px] border border-gc-section-divider/80"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {sections.map((sec) => {
-        if (!sec.items.length) return null;
-        return (
-          <div key={sec.label} className="flex flex-col gap-[16px]">
-            <div className="flex items-center justify-between pb-[9px] border-b border-gc-primary-dark/20">
-              <div className="flex items-center gap-[13px]">
-                <div className="w-[3px] h-[20px] rounded-sm bg-gc-primary" />
-                <h3 className="font-garamond text-[20px] sm:text-[28px] font-semibold text-[#a45d41]">
-                  {sec.label} Measurements
-                </h3>
-              </div>
-              <span className="font-hanken text-[10px] font-bold text-[rgba(28,28,25,0.5)] tracking-[1px] uppercase">
-                {sec.items.length} measurements
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[8px] sm:gap-x-[32px] gap-y-[16px] sm:gap-y-[24px]">
-              {sec.items.map(({ key, originalKey }) => {
-                const val =
-                  attributes.find((a) => a.key === originalKey)?.value ?? "";
-                const range = getRangeForKey(sec.ranges, key);
-                const isTouched = touchedFields.has(originalKey);
-                const n = parseFloat(val);
-                const isInvalid =
-                  isTouched &&
-                  range &&
-                  val !== "" &&
-                  !isNaN(n) &&
-                  (n < range.min || n > range.max);
-                const isValid =
-                  isTouched &&
-                  range &&
-                  val !== "" &&
-                  !isNaN(n) &&
-                  n >= range.min &&
-                  n <= range.max;
-                return (
-                  <div
-                    key={originalKey}
-                    className="flex flex-col gap-[4px] min-w-0 sm:relative sm:h-[74px]"
-                  >
-                    <label className="font-hanken text-[9px] sm:text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase leading-tight truncate sm:absolute sm:top-0">
-                      {getRangeForKey(sec.ranges, key)?.label ?? key}
-                    </label>
-                    <input
-                      type="text"
-                      value={val}
-                      onChange={(e) => updateAttr(originalKey, e.target.value)}
-                      className={cn(
-                        "w-full h-[36px] sm:h-[40px] bg-white rounded-[8px] px-[8px] sm:px-[13px] font-garamond text-[14px] sm:text-[18px] outline-none transition-colors sm:absolute sm:top-[20px] border",
-                        isValid
-                          ? "text-green-700 border-green-500"
-                          : isInvalid
-                            ? "text-red-500 border-red-400"
-                            : "text-[#1c1c19] border-gc-section-divider/80",
-                      )}
-                    />
-                    <p
-                      className={cn(
-                        "font-hanken text-[10px] font-medium sm:absolute sm:top-[67px] sm:left-[4px]",
-                        isValid
-                          ? "text-green-600"
-                          : isInvalid
-                            ? "text-red-500"
-                            : "text-[rgba(28,28,25,0.4)]",
-                      )}
-                    >
-                      {range ? `Range: ${range.min}–${range.max}` : ""}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-
-            {(() => {
-              const garmentFitOpts = fitSizeOptions.filter(
-                (o) => o.garment === sec.label,
-              );
-              if (!garmentFitOpts.length) return null;
-              const byType = {};
-              for (const o of garmentFitOpts) {
-                if (!byType[o.sizeType]) byType[o.sizeType] = [];
-                byType[o.sizeType].push(o);
-              }
-              return (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[8px] sm:gap-x-[32px] gap-y-[16px] sm:gap-y-[24px] pt-[16px] border-t border-gc-primary-dark/10">
-                  {Object.entries(byType).map(([sizeType, opts]) => (
-                    <FitSizeDropdown
-                      key={`${sec.label}__${sizeType}`}
-                      label={sizeType}
-                      opts={opts}
-                      selected={
-                        fitSizeSelections[`${sec.label}__${sizeType}`] ?? ""
-                      }
-                      onSelect={(val) =>
-                        onFitSizeChange?.({
-                          ...fitSizeSelections,
-                          [`${sec.label}__${sizeType}`]: val,
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Read garments purely from the gc_builder metafield value (a choice string).
-// e.g. "jacket" → ["Jacket"],  "Suit — 3 piece (jacket + trouser + vest)" → ["Jacket","Trouser","Vest"]
-function garmentsFromGcBuilderValue(value) {
-  if (!value) return [];
-  const v = value.toLowerCase();
-  const found = [];
-  if (v.includes("jacket")) found.push("Jacket");
-  if (v.includes("trouser")) found.push("Trouser");
-  if (v.includes("vest")) found.push("Vest");
-  if (v.includes("shirt")) found.push("Shirt");
-  // plain "suit" with no explicit garment words → jacket + trouser
-  if (!found.length && v.includes("suit")) {
-    found.push("Jacket");
-    found.push("Trouser");
-  }
-  return found;
-}
-
-function styleGarmentsForProduct(product) {
-  return garmentsFromGcBuilderValue(product?.metafield?.value);
-}
-
-function StyleDropdown({ label, opts, selected, onSelect }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const selectedLabel = opts.find((o) => o.label === selected)?.label ?? "";
-
-  return (
-    <div ref={ref} className="flex flex-col gap-[6px] min-w-0">
-      <span className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide truncate">
-        {label}
-      </span>
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="font-hanken w-full flex items-center justify-between gap-[6px] px-[10px] py-[9px] rounded-[8px] text-[12px] sm:text-[13px] font-medium text-gc-near-black2 bg-white cursor-pointer border border-gc-border-input"
-        >
-          <span
-            className={`truncate ${selectedLabel ? "text-gc-near-black2" : "text-[#9ca3af]"}`}
-          >
-            {selectedLabel || "— Select —"}
-          </span>
-          <ChevronDown
-            size={14}
-            className={`flex-shrink-0 text-[#424656] transition-transform duration-150 ${open ? "rotate-180" : ""}`}
-          />
-        </button>
-
-        {open && (
-          <div className="absolute left-0 right-0 top-full mt-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden border border-gc-border-input">
-            <ul className="max-h-[200px] overflow-y-auto py-[4px]">
-              <li>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSelect("");
-                    setOpen(false);
-                  }}
-                  className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-[#9ca3af] hover:bg-gc-bg flex items-center justify-between cursor-pointer"
-                >
-                  — Select —
-                  {!selected && <Check size={12} className="text-gc-primary" />}
-                </button>
-              </li>
-              {opts.map((opt) => (
-                <li key={opt.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelect(opt.label);
-                      setOpen(false);
-                    }}
-                    className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-gc-near-black2 hover:bg-gc-bg flex items-center justify-between gap-[8px] cursor-pointer"
-                  >
-                    <span className="flex items-center gap-[6px] min-w-0">
-                      <span className="truncate">{opt.label}</span>
-                      {opt.upcharge > 0 && (
-                        <span className="font-hanken text-[10px] font-semibold flex-shrink-0 px-[5px] py-[1px] rounded-[4px] bg-gc-primary/[8%] text-gc-primary">
-                          +{opt.upcharge}
-                        </span>
-                      )}
-                    </span>
-                    {selected === opt.label && (
-                      <Check
-                        size={12}
-                        className="flex-shrink-0 text-gc-primary"
-                      />
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function StyleOptionsSection({
-  styleOptions,
-  contrastOptions,
-  selections,
-  onChange,
-  loading,
-}) {
-  // Group by garment → then by category
-  const byGarment = useMemo(() => {
-    const map = {};
-    const all = [
-      ...styleOptions.filter((o) => o.visible),
-      ...contrastOptions.filter((o) => o.visible),
-    ];
-    for (const opt of all) {
-      const g = opt.garment || "General";
-      if (!map[g]) map[g] = {};
-      const cat = opt.category || "General";
-      if (!map[g][cat]) map[g][cat] = [];
-      map[g][cat].push(opt);
-    }
-    for (const g in map) {
-      for (const cat in map[g]) {
-        map[g][cat].sort((a, b) => a.sortOrder - b.sortOrder);
-      }
-    }
-    return map;
-  }, [styleOptions, contrastOptions]);
-
-  const garments = Object.keys(byGarment);
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-[12px] p-[31px] border border-gc-divider">
-        <LoadingState message="Loading style options…" />
-      </div>
-    );
-  }
-  if (!garments.length) return null;
-
-  return (
-    <div className="bg-white rounded-[12px] p-[31px] flex flex-col gap-[40px] border border-gc-divider">
-      {/* Section header */}
-      <div className="flex items-center justify-between pb-[9px] border-b border-gc-primary-dark/20">
-        <div className="flex items-center gap-[13px]">
-          <div className="w-[3px] h-[20px] rounded-sm bg-gc-primary" />
-          <h3 className="font-garamond text-[20px] sm:text-[28px] font-semibold text-gc-primary">
-            Style Options
-          </h3>
-        </div>
-      </div>
-
-      {garments.map((garment) => {
-        const catMap = byGarment[garment];
-        const categories = Object.keys(catMap);
-        return (
-          <div key={garment} className="flex flex-col gap-[12px]">
-            {/* Garment label */}
-            <div className="flex items-center justify-between gap-[8px]">
-              <span className="font-hanken text-[12px] font-semibold text-[#a45d41] uppercase tracking-[0.8px]">
-                {garment}
-              </span>
-              <span className="font-hanken text-[10px] font-medium text-[rgba(28,28,25,0.35)] tracking-[0.6px] uppercase">
-                {categories.length} option{categories.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-[12px] sm:gap-x-[24px] gap-y-[12px] sm:gap-y-[20px]">
-              {categories.map((cat) => {
-                const opts = catMap[cat];
-                return (
-                  <StyleDropdown
-                    key={`${garment}-${cat}`}
-                    label={opts[0]?.displayLabel || cat}
-                    opts={opts}
-                    selected={selections[`${garment}__${cat}`] ?? ""}
-                    onSelect={(val) =>
-                      onChange({
-                        ...selections,
-                        [`${garment}__${cat}`]: val,
-                      })
-                    }
-                  />
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function VariantSelector({ variants, fabricOptions, selected, onSelect }) {
-  return (
-    <div className="bg-white/40 rounded-[12px] p-[31px] border border-gc-border-input">
-      <h2 className="font-garamond text-[28px] font-semibold text-gc-primary mb-[20px]">
-        Variant
-      </h2>
-      <div className="w-full border-t border-gc-section-divider/30 pt-[20px]">
-        <label className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide block mb-[14px]">
-          Select Variant
-        </label>
-        <div className="flex flex-wrap gap-[10px]">
-          {variants.map((v) => {
-            const isSelected = selected?.id === v.id;
-            const fabric = fabricOptions.find(
-              (f) => f.label.toLowerCase() === v.title.toLowerCase(),
-            );
-            return (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => onSelect(v)}
-                style={{
-                  backgroundColor: "#fff",
-                  color: "#1c1c19",
-                  borderColor: isSelected ? "#a45d41" : "#d1cac6",
-                  borderWidth: isSelected ? 2 : 1,
-                  boxShadow: isSelected
-                    ? "0 0 0 3px rgba(164,93,65,0.12)"
-                    : "none",
-                }}
-                className="font-hanken flex items-center gap-[10px] pl-[6px] pr-[14px] h-[52px] rounded-[10px] text-[13px] font-medium transition-all cursor-pointer border"
-              >
-                {/* Swatch box — image fills box; color fills bg; else neutral */}
-                <div
-                  className="flex-shrink-0 rounded-[6px] overflow-hidden"
-                  style={{
-                    width: 40,
-                    height: 40,
-                    border: "1px solid rgba(0,0,0,0.08)",
-                    backgroundColor: fabric?.color ?? "#ede9e3",
-                  }}
-                >
-                  {fabric?.imageUrl && (
-                    <img
-                      src={fabric.imageUrl}
-                      alt={v.title}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        display: "block",
-                      }}
-                    />
-                  )}
-                </div>
-
-                <div className="flex flex-col items-start gap-[2px]">
-                  <span className="font-hanken text-[13px] font-semibold leading-tight text-[#1c1c19]">
-                    {v.title}
-                  </span>
-                  <span className="font-hanken text-[11px] font-medium text-[#7e7576]">
-                    {v.price}
-                  </span>
-                </div>
-
-                {isSelected && (
-                  <Check
-                    size={13}
-                    className="flex-shrink-0 ml-[2px] text-[#a45d41]"
-                  />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
@@ -1534,6 +620,9 @@ export default function CreateOrder() {
       (allVariants.length === 1 && allVariants[0].title !== "Default Title");
     const defaultVariant = hasVariantSelector ? allVariants[0] : null;
 
+    const fallbackPrice =
+      defaultVariant?.price || allVariants[0]?.price || "0.00";
+
     if (pastOrdersForProduct.length > 0) {
       const first = pastOrdersForProduct[0];
       setSelectedTemplate(first.orderId);
@@ -1543,14 +632,14 @@ export default function CreateOrder() {
         );
         if (match) {
           setSelectedVariant(match);
-          setPrice(match.price || "0.00");
+          setPrice(match.price || fallbackPrice);
         } else {
           setSelectedVariant(defaultVariant);
-          setPrice(defaultVariant?.price || "0.00");
+          setPrice(fallbackPrice);
         }
       } else {
         setSelectedVariant(defaultVariant);
-        setPrice(defaultVariant?.price || "0.00");
+        setPrice(fallbackPrice);
       }
 
       // Pre-fill fit size selections from past order attributes
@@ -1570,7 +659,7 @@ export default function CreateOrder() {
     } else {
       setSelectedTemplate(null);
       setSelectedVariant(defaultVariant);
-      setPrice(defaultVariant?.price || "0.00");
+      setPrice(fallbackPrice);
     }
   }, [pastOrdersForProduct, fitSizeOptions]);
 
@@ -1747,6 +836,7 @@ export default function CreateOrder() {
 
         <StepIndicator currentStep={currentStep} />
 
+        {/* ── Step 1: Select Customer ── */}
         <CustomerSelector
           value={selectedCustomer}
           onChange={(c) => {
@@ -1755,6 +845,7 @@ export default function CreateOrder() {
           }}
         />
 
+        {/* ── Step 2: Select Product ── */}
         {selectedCustomer && (
           <div className="flex flex-col gap-[23px]">
             <div className="flex flex-wrap items-center justify-between gap-[8px]">
@@ -1762,63 +853,13 @@ export default function CreateOrder() {
                 Select Product
               </span>
             </div>
-
-            {productsLoading ? (
-              <p className="font-hanken text-[14px] text-[#6b7280]">
-                Loading products…
-              </p>
-            ) : gcProducts.length === 0 ? (
-              <p className="font-hanken text-[14px] text-[#6b7280]">
-                No gc_builder products found in store.
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-[12px] sm:gap-[19px]">
-                {gcProducts.map((product) => {
-                  const isSelected = selectedProduct?.id === product.id;
-                  const variantPrice =
-                    product.variants?.edges?.[0]?.node?.price;
-                  const pastCount = customerOrders.filter((o) =>
-                    o.lineItems?.edges?.some(
-                      ({ node }) =>
-                        node.title?.toLowerCase() ===
-                        product.title?.toLowerCase(),
-                    ),
-                  ).length;
-                  return (
-                    <button
-                      key={product.id}
-                      onClick={() =>
-                        setSelectedProduct(isSelected ? null : product)
-                      }
-                      className={`flex flex-col items-start gap-[16px] sm:gap-[30px] p-[14px] sm:p-[22px] rounded-[8px] text-left transition-all cursor-pointer bg-white w-full ${isSelected ? "border-2 border-gc-near-black" : "border border-gc-section-divider/30"}`}
-                    >
-                      <div className="flex items-center justify-between w-full gap-[8px]">
-                        <span className="font-hanken text-[12px] font-bold tracking-[0.6px] uppercase text-[#1c1c19] leading-tight">
-                          {product.title}
-                        </span>
-                        {isSelected && (
-                          <span className="font-hanken text-[10px] font-bold px-[8px] py-[2px] rounded-full flex-shrink-0 text-white bg-black">
-                            Selected
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-col gap-[12px] w-full">
-                        {variantPrice && (
-                          <span className="font-hanken text-[11px] font-semibold text-[rgba(76,69,70,0.6)]">
-                            From {variantPrice}
-                          </span>
-                        )}
-                        {pastCount > 0 && (
-                          <span className="font-hanken text-[10px] font-semibold px-[12px] py-[4px] rounded-full self-start tracking-[0.9px] bg-gc-bg-image text-[#4c4546]">
-                            {pastCount} past order{pastCount !== 1 ? "s" : ""}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            <ProductSelector
+              products={gcProducts}
+              loading={productsLoading}
+              selectedProduct={selectedProduct}
+              onSelect={setSelectedProduct}
+              customerOrders={customerOrders}
+            />
           </div>
         )}
 
@@ -1947,7 +988,7 @@ export default function CreateOrder() {
             </div>
           )}
 
-        {/* ── Measurements + Details ── */}
+        {/* ── Step 3: Measurements + Details ── */}
         {selectedCustomer && selectedProduct && (
           <>
             <div className="bg-white/40 rounded-[12px] p-[31px] border border-gc-border-input">
@@ -2051,46 +1092,25 @@ export default function CreateOrder() {
             </div>
 
             {hasMissingMeasurements && (
-              <div className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px] bg-red-50 border border-red-200">
-                <AlertCircle
-                  size={16}
-                  className="text-red-500 flex-shrink-0 mt-[1px]"
-                />
-                <p className="font-hanken text-[13px] text-red-700">
-                  Please fill in all measurement fields before creating the
-                  order.
-                </p>
-              </div>
+              <AlertBanner
+                variant="error"
+                message="Please fill in all measurement fields before creating the order."
+              />
             )}
 
             {!measurementsValid && (
-              <div className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px] bg-amber-50 border border-amber-200">
-                <AlertCircle
-                  size={16}
-                  className="text-amber-500 flex-shrink-0 mt-[1px]"
-                />
-                <p className="font-hanken text-[13px] text-amber-700">
-                  Some measurements are outside the valid range. Fix the red
-                  fields before creating the order.
-                </p>
-              </div>
+              <AlertBanner
+                variant="warning"
+                message="Some measurements are outside the valid range. Fix the red fields before creating the order."
+              />
             )}
 
             {submitError && (
-              <div className="flex items-start gap-[10px] px-[16px] py-[12px] rounded-[8px] bg-red-50 border border-red-200">
-                <AlertCircle
-                  size={16}
-                  className="text-red-500 flex-shrink-0 mt-[1px]"
-                />
-                <div>
-                  <p className="font-hanken text-[13px] font-semibold text-red-700">
-                    Failed to create order
-                  </p>
-                  <p className="font-hanken text-[12px] text-red-600 mt-[2px]">
-                    {submitError}
-                  </p>
-                </div>
-              </div>
+              <AlertBanner
+                variant="error"
+                title="Failed to create order"
+                message={submitError}
+              />
             )}
 
             <div className="flex flex-wrap items-center justify-end gap-[12px] pb-[8px]">

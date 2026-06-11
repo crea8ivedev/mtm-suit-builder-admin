@@ -13,6 +13,7 @@ import {
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
+import { useClickOutside } from "../hooks/useClickOutside";
 import { useOrderDetail } from "../hooks/useOrderDetail";
 import { useSupplierSubmit, SUPPLIERS } from "../hooks/useSupplierSubmit";
 import {
@@ -170,15 +171,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
     if (supplierMeta.supplierName) setSelectedId(supplierMeta.supplierName);
   }, [supplierMeta.supplierName]);
 
-  useEffect(() => {
-    if (!dropdownOpen) return;
-    const handler = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
-        setDropdownOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [dropdownOpen]);
+  useClickOutside(dropdownRef, () => setDropdownOpen(false));
 
   const selectedSupplier = suppliers.find((s) => s.id === selectedId);
   const selectedLabel = selectedSupplier

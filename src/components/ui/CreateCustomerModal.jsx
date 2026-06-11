@@ -3,6 +3,7 @@ import { X, Plus, Loader } from "lucide-react";
 import { Country, State, City } from "country-state-city";
 import { cn } from "../../utils/cn";
 import { createCustomer } from "../../lib/shopify";
+import { useClickOutside } from "../../hooks/useClickOutside";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -87,16 +88,10 @@ function GCDropdown({
     ? items.filter((i) => i.label.toLowerCase().includes(search.toLowerCase()))
     : items;
 
-  useEffect(() => {
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) {
-        setOpen(false);
-        setSearch("");
-      }
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  useClickOutside(ref, () => {
+    setOpen(false);
+    setSearch("");
+  });
 
   useEffect(() => {
     if (open) setTimeout(() => searchRef.current?.focus(), 50);
@@ -184,13 +179,7 @@ function PhoneField({ phoneIso, onPhoneIsoChange, value, onChange }) {
   const allCountries = Country.getAllCountries();
   const current = allCountries.find((c) => c.isoCode === phoneIso);
 
-  useEffect(() => {
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  useClickOutside(ref, () => setOpen(false));
 
   return (
     <div className="flex gap-[8px]">

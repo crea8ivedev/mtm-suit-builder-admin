@@ -11,6 +11,8 @@ import {
   ChevronDown,
   Check,
 } from "lucide-react";
+import { useClickOutside } from "../hooks/useClickOutside";
+import StatusPill from "../components/ui/StatusPill";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
@@ -140,14 +142,7 @@ function categorize(measurements = {}, labelMap = {}) {
 function StyleOptionDropdown({ label, opts, value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+  useClickOutside(ref, () => setOpen(false));
   return (
     <div
       ref={ref}
@@ -300,23 +295,6 @@ function getRangeForKey(rangeMap, key) {
   return null;
 }
 
-const SP_CLASS = {
-  paid: "sp-paid",
-  verified: "sp-verified",
-  shipped: "sp-shipped",
-  processing: "sp-processing",
-  pending: "sp-pending",
-  failed: "sp-failed",
-};
-function StatusPill({ status }) {
-  const s = (status ?? "").toLowerCase();
-  return (
-    <span className={cn("status-pill", SP_CLASS[s] ?? "sp-default")}>
-      {s.charAt(0).toUpperCase() + s.slice(1)}
-    </span>
-  );
-}
-
 export default function CustomerDetail() {
   const { customerId } = useParams();
   const navigate = useNavigate();
@@ -336,15 +314,7 @@ export default function CustomerDetail() {
   const [contrastOptions, setContrastOptions] = useState([]);
   const profiles = useMemo(() => buildMeasurementProfiles(orders), [orders]);
 
-  useEffect(() => {
-    function handler(e) {
-      if (entriesRef.current && !entriesRef.current.contains(e.target)) {
-        setEntriesOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  useClickOutside(entriesRef, () => setEntriesOpen(false));
 
   useEffect(() => {
     fetchVestRanges()

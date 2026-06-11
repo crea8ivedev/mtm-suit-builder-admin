@@ -33,8 +33,8 @@ export async function checkSuperAdmin(email) {
 // Fetches one page of orders with cursor-based pagination.
 // lineItems(first: 10) keeps per-request cost well under Shopify's 1 000-point limit.
 const GET_ORDERS_QUERY = `
-  query GetOrders($first: Int!, $after: String) {
-    orders(first: $first, after: $after, sortKey: CREATED_AT, reverse: true) {
+  query GetOrders($first: Int!, $after: String, $query: String) {
+    orders(first: $first, after: $after, query: $query, sortKey: CREATED_AT, reverse: true) {
       pageInfo {
         hasNextPage
         endCursor
@@ -222,6 +222,11 @@ const GET_PRODUCTS_QUERY = `
           id
           title
           status
+          priceRangeV2 {
+            minVariantPrice {
+              amount
+            }
+          }
           variants(first: 100) {
             edges {
               node {
@@ -331,6 +336,23 @@ export function fetchAllOrders(onProgress) {
     });
 
   return _fetchPromise;
+}
+
+// ─── Single-page order fetch (for paginated UI) ────────────────────────────
+export async function fetchOrdersPage({
+  first = 20,
+  after = null,
+  searchQuery = "",
+}) {
+  const variables = { first, after: after || undefined };
+  if (searchQuery) variables.query = searchQuery;
+  const data = await shopifyGraphQL(GET_ORDERS_QUERY, variables);
+  const { edges, pageInfo } = data.orders;
+  return {
+    orders: edges.map((e) => e.node),
+    hasNextPage: pageInfo.hasNextPage,
+    endCursor: pageInfo.endCursor,
+  };
 }
 
 // ─── Customer queries ──────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronLeft,
@@ -11,29 +11,13 @@ import {
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
+import StatusPill from "../components/ui/StatusPill";
 import { useOrders } from "../hooks/useOrders";
+import { useClickOutside } from "../hooks/useClickOutside";
 import { cn } from "../utils/cn";
 import { generateCSV } from "../utils/exportUtils";
 
 const SUPPLIER_OPTIONS = ["Pending", "Verified"];
-
-const SP_CLASS = {
-  paid: "sp-paid",
-  verified: "sp-verified",
-  shipped: "sp-shipped",
-  processing: "sp-processing",
-  pending: "sp-pending",
-  failed: "sp-failed",
-};
-
-function StatusPill({ status }) {
-  const s = (status ?? "").toLowerCase();
-  return (
-    <span className={cn("status-pill", SP_CLASS[s] ?? "sp-default")}>
-      {s.charAt(0).toUpperCase() + s.slice(1)}
-    </span>
-  );
-}
 
 function ItemsBadge({ count }) {
   return <span className="items-badge">{count}</span>;
@@ -71,18 +55,8 @@ export default function Orders() {
     });
   }
 
-  useEffect(() => {
-    function handler(e) {
-      if (filterRef.current && !filterRef.current.contains(e.target)) {
-        setFilterOpen(false);
-      }
-      if (entriesRef.current && !entriesRef.current.contains(e.target)) {
-        setEntriesOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  useClickOutside(filterRef, () => setFilterOpen(false));
+  useClickOutside(entriesRef, () => setEntriesOpen(false));
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -301,7 +275,7 @@ export default function Orders() {
                     </button>
                     {entriesOpen && (
                       <div className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md border border-gc-border-warm bg-white min-w-full">
-                        {[10, 20, 40, 100].map((n) => (
+                        {[10, 20, 50, 100].map((n) => (
                           <button
                             key={n}
                             onClick={() => {

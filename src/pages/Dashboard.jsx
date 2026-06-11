@@ -4,8 +4,8 @@ import { ShoppingBag, Clock, Check, X, ArrowRight } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
+import StatusPill from "../components/ui/StatusPill";
 import { useOrders } from "../hooks/useOrders";
-import { cn } from "../utils/cn";
 
 const STAT_CONFIG = [
   { id: "total", label: "Total Orders", icon: ShoppingBag },
@@ -13,24 +13,6 @@ const STAT_CONFIG = [
   { id: "submitted", label: "Submitted Orders", icon: Check },
   { id: "failed", label: "Failed Orders", icon: X },
 ];
-
-const SP_CLASS = {
-  paid: "sp-paid",
-  verified: "sp-verified",
-  shipped: "sp-shipped",
-  processing: "sp-processing",
-  pending: "sp-pending",
-  failed: "sp-failed",
-};
-
-function StatusPill({ status }) {
-  const s = (status ?? "").toLowerCase();
-  return (
-    <span className={cn("status-pill", SP_CLASS[s] ?? "sp-default")}>
-      {s.charAt(0).toUpperCase() + s.slice(1)}
-    </span>
-  );
-}
 
 function ItemsBadge({ count }) {
   return <span className="items-badge">{count}</span>;
