@@ -1688,9 +1688,9 @@ export async function createStyleOption(garmentType, fields) {
   return metaobject;
 }
 
-const FABRIC_OPTIONS_QUERY = `
-  query FabricOptions($first: Int!, $after: String) {
-    metaobjects(type: "fabric_option", first: $first, after: $after) {
+const SHOPIFY_COLOR_PATTERN_QUERY = `
+  query ShopifyColorPattern($first: Int!, $after: String) {
+    metaobjects(type: "shopify-color-pattern", first: $first, after: $after) {
       pageInfo { hasNextPage endCursor }
       edges {
         node {
@@ -1720,16 +1720,16 @@ const RESOLVE_MEDIA_IMAGES_QUERY = `
   }
 `;
 
-let _fabricOptionsCache = null;
+let _shopifyColorPatternCache = null;
 
-export async function fetchFabricOptions() {
-  if (_fabricOptionsCache) return _fabricOptionsCache;
+export async function fetchShopifyColorPattern() {
+  if (_shopifyColorPatternCache) return _shopifyColorPatternCache;
   const all = [];
   let hasNextPage = true;
   let cursor = null;
 
   while (hasNextPage) {
-    const data = await shopifyGraphQL(FABRIC_OPTIONS_QUERY, {
+    const data = await shopifyGraphQL(SHOPIFY_COLOR_PATTERN_QUERY, {
       first: 250,
       after: cursor,
     });
@@ -1779,12 +1779,12 @@ export async function fetchFabricOptions() {
   }
 
   for (const f of all) delete f._imageGid;
-  _fabricOptionsCache = all;
+  _shopifyColorPatternCache = all;
   return all;
 }
 
-export function clearFabricOptionsCache() {
-  _fabricOptionsCache = null;
+export function clearShopifyColorPatternCache() {
+  _shopifyColorPatternCache = null;
 }
 
 export async function syncStyleOptionImageUrls(options) {
@@ -1882,3 +1882,6 @@ export async function addUpchargeLineItem(orderId, amount, currencyCode) {
 
   return commitData.orderEditCommit.order;
 }
+
+export const fetchFabricOptions = fetchShopifyColorPattern;
+export const clearFabricOptionsCache = clearShopifyColorPatternCache;
