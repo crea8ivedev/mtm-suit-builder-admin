@@ -80,7 +80,9 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* Nav */}
         <nav className="flex-1 flex flex-col gap-[4px] overflow-y-auto">
           {NAV_ITEMS.map(({ id, label, path, icon: Icon, disabled }) => {
-            const isActive = location.pathname === path;
+            const isActive =
+              location.pathname === path ||
+              location.pathname.startsWith(path + "/");
             if (disabled) {
               return (
                 <div

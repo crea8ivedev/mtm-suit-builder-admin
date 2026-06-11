@@ -1332,10 +1332,15 @@ export default function CreateOrder() {
 
   async function handleNewOrder() {
     setSelectedTemplate(null);
-    setSelectedVariant(null);
-    setPrice("0.00");
     setFitSizeSelections({});
     if (!selectedProduct) return;
+    const _variants = selectedProduct.variants?.edges?.map((e) => e.node) ?? [];
+    const _hasSelector =
+      _variants.length > 1 ||
+      (_variants.length === 1 && _variants[0].title !== "Default Title");
+    const _defaultV = _hasSelector ? _variants[0] : null;
+    setSelectedVariant(_defaultV);
+    setPrice(_defaultV?.price || "0.00");
 
     const pastNode = findPastLineItem(
       customerOrders,
@@ -1395,9 +1400,18 @@ export default function CreateOrder() {
       setSelectedTemplate(null);
       return;
     }
-    setSelectedVariant(null);
+    const variants = selectedProduct.variants?.edges?.map((e) => e.node) ?? [];
+    const hasVariantSelector =
+      variants.length > 1 ||
+      (variants.length === 1 && variants[0].title !== "Default Title");
     setSelectedFabric(null);
-    setPrice("0.00");
+    if (variants[0]) {
+      setSelectedVariant(hasVariantSelector ? variants[0] : null);
+      setPrice(variants[0].price || "0.00");
+    } else {
+      setSelectedVariant(null);
+      setPrice("0.00");
+    }
   }, [selectedProduct]);
 
   // Sync selectedFabric whenever variant changes
@@ -1513,25 +1527,30 @@ export default function CreateOrder() {
   }, [selectedProduct, fitSizeOptions]);
 
   useEffect(() => {
+    const allVariants =
+      selectedProduct?.variants?.edges?.map((e) => e.node) ?? [];
+    const hasVariantSelector =
+      allVariants.length > 1 ||
+      (allVariants.length === 1 && allVariants[0].title !== "Default Title");
+    const defaultVariant = hasVariantSelector ? allVariants[0] : null;
+
     if (pastOrdersForProduct.length > 0) {
       const first = pastOrdersForProduct[0];
       setSelectedTemplate(first.orderId);
       if (first.variantTitle && selectedProduct) {
-        const variants =
-          selectedProduct.variants?.edges?.map((e) => e.node) ?? [];
-        const match = variants.find(
+        const match = allVariants.find(
           (v) => v.title.toLowerCase() === first.variantTitle.toLowerCase(),
         );
         if (match) {
           setSelectedVariant(match);
           setPrice(match.price || "0.00");
         } else {
-          setSelectedVariant(null);
-          setPrice("0.00");
+          setSelectedVariant(defaultVariant);
+          setPrice(defaultVariant?.price || "0.00");
         }
       } else {
-        setSelectedVariant(null);
-        setPrice("0.00");
+        setSelectedVariant(defaultVariant);
+        setPrice(defaultVariant?.price || "0.00");
       }
 
       // Pre-fill fit size selections from past order attributes
@@ -1550,8 +1569,8 @@ export default function CreateOrder() {
       if (Object.keys(fitPrefill).length) setFitSizeSelections(fitPrefill);
     } else {
       setSelectedTemplate(null);
-      setSelectedVariant(null);
-      setPrice("0.00");
+      setSelectedVariant(defaultVariant);
+      setPrice(defaultVariant?.price || "0.00");
     }
   }, [pastOrdersForProduct, fitSizeOptions]);
 
@@ -1970,11 +1989,6 @@ export default function CreateOrder() {
                   fabricOptions={fabricOptions}
                   selected={selectedVariant}
                   onSelect={(v) => {
-                    if (selectedVariant?.id === v.id) {
-                      setSelectedVariant(null);
-                      setPrice("0.00");
-                      return;
-                    }
                     setSelectedVariant(v);
                     setPrice(v.price || "0.00");
                   }}

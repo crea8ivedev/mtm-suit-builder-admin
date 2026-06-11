@@ -34,9 +34,87 @@ import {
 
 const INLINE_KEYS = new Set(["fabric", "size type"]);
 
+function derivedGarmentsFromMeasurements(
+  measurements,
+  styleOptions,
+  contrastOptions,
+) {
+  const canonicalGarment = new Map(
+    [...styleOptions, ...contrastOptions].map((o) => [
+      o.garment.toLowerCase(),
+      o.garment,
+    ]),
+  );
+  const found = new Set();
+  for (const k of Object.keys(measurements)) {
+    if (k.startsWith("_")) continue;
+    if (k.includes(" - ")) {
+      // Style option key: "Jacket - canvas"
+      const g = k.split(" - ")[0].trim().toLowerCase();
+      if (canonicalGarment.has(g)) found.add(canonicalGarment.get(g));
+    } else {
+      // Measurement key: "Jacket Chest", "Trouser Waist"
+      for (const [glower, gcanon] of canonicalGarment) {
+        if (k.toLowerCase().startsWith(glower + " ")) {
+          found.add(gcanon);
+          break;
+        }
+      }
+    }
+  }
+  return [...found];
+}
+
+function normalizeEditingValues(measurements, styleOptions, contrastOptions) {
+  const allOpts = [...styleOptions, ...contrastOptions];
+  const normalized = {};
+  for (const [k, v] of Object.entries(measurements)) {
+    if (!k.startsWith("_") && k.includes(" - ")) {
+      const parts = k.split(" - ");
+      const g = parts[0].trim();
+      const c = parts.slice(1).join(" - ").trim();
+      const match = allOpts.find(
+        (o) =>
+          o.garment.trim().toLowerCase() === g.toLowerCase() &&
+          o.category.trim().toLowerCase() === c.toLowerCase(),
+      );
+      normalized[match ? `${match.garment} - ${match.category}` : k] = v;
+    } else {
+      normalized[k] = v;
+    }
+  }
+  return normalized;
+}
+
+function buildStyleOptionsByGarment(styleOptions, contrastOptions, garments) {
+  // Empty garments = no style option keys found → show nothing
+  if (!garments.length) return {};
+  const all = [
+    ...styleOptions.filter((o) => o.visible && garments.includes(o.garment)),
+    ...contrastOptions.filter((o) => o.visible && garments.includes(o.garment)),
+  ];
+  const byGarment = {};
+  for (const opt of all) {
+    const g = opt.garment || "General";
+    if (!byGarment[g]) byGarment[g] = {};
+    const cat = opt.category || "General";
+    if (!byGarment[g][cat]) byGarment[g][cat] = [];
+    byGarment[g][cat].push(opt);
+  }
+  for (const g in byGarment) {
+    for (const cat in byGarment[g]) {
+      byGarment[g][cat].sort((a, b) => a.sortOrder - b.sortOrder);
+    }
+  }
+  return byGarment;
+}
+
 function resolveLabel(rawKey, labelMap) {
   if (labelMap[rawKey]) return labelMap[rawKey];
-  if (rawKey.includes(" - ")) return rawKey.split(" - ").slice(1).join(" - ");
+  if (rawKey.includes(" - ")) {
+    const cat = rawKey.split(" - ").slice(1).join(" - ");
+    return cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
   return rawKey;
 }
 
@@ -50,7 +128,7 @@ function categorize(measurements = {}, labelMap = {}) {
     const value = val?.endsWith('"') ? val.slice(0, -1) : (val ?? "");
     if (INLINE_KEYS.has(key.toLowerCase())) continue;
     const entry = { rawKey, key, value };
-    if (measurementKeys.has(rawKey)) {
+    if (measurementKeys.has(rawKey) || !rawKey.includes(" - ")) {
       measureList.push(entry);
     } else {
       options.push(entry);
@@ -73,7 +151,7 @@ function StyleOptionDropdown({ label, opts, value, onChange }) {
   return (
     <div
       ref={ref}
-      className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[14px] min-w-0 overflow-visible border-r border-b border-gc-section-divider/40 relative"
+      className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[12px] min-w-0 overflow-visible border-r border-b border-gc-section-divider/40 relative h-[90px] sm:h-[100px]"
     >
       <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
         {label}
@@ -81,7 +159,7 @@ function StyleOptionDropdown({ label, opts, value, onChange }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="font-hanken w-full flex items-center justify-between gap-[4px] mt-[4px] text-[12px] sm:text-[14px] font-medium text-gc-near-black2 bg-gc-bg-warm rounded-[6px] px-[8px] py-[4px] border border-gc-border-input cursor-pointer"
+        className="font-hanken w-full flex items-center justify-between gap-[4px] mt-[4px] text-[12px] sm:text-[13px] font-medium text-gc-near-black2 bg-gc-bg-warm rounded-[6px] px-[8px] py-[8px] border border-gc-border-input cursor-pointer"
       >
         <span
           className={`truncate ${value ? "text-gc-near-black2" : "text-[#9ca3af]"}`}
@@ -189,6 +267,7 @@ function buildMeasurementProfiles(orders) {
       const measureAttrs = allAttrs.filter((a) => !a.key.startsWith("_"));
       if (!measureAttrs.length) continue;
       const productName = item.title;
+      if (productName.toLowerCase().includes("upcharge")) continue;
       if (!result[productName]) result[productName] = [];
       const profileName = allAttrs.find(
         (a) => a.key === "_profile_name",
@@ -324,6 +403,11 @@ export default function CustomerDetail() {
     return formatMoney({ amount: sum.toFixed(2), currencyCode });
   }, [orders, customer]);
 
+  const mergedRangeMap = useMemo(
+    () => ({ ...jacketMap, ...trouserMap, ...vestMap, ...shirtMap }),
+    [jacketMap, trouserMap, vestMap, shirtMap],
+  );
+
   const [committedProfiles, setCommittedProfiles] = useState(null);
   const [editingProfileId, setEditingProfileId] = useState(null);
   const [editingValues, setEditingValues] = useState({});
@@ -334,8 +418,10 @@ export default function CustomerDetail() {
   const activeProfiles = committedProfiles ?? profiles;
 
   const handleProfileEditStart = (entry) => {
+    setEditingValues(
+      normalizeEditingValues(entry.measurements, styleOptions, contrastOptions),
+    );
     setEditingProfileId(entry.id);
-    setEditingValues({ ...entry.measurements });
     setTouchedFields(new Set());
     setProfileErrors((prev) => ({ ...prev, [entry.id]: null }));
   };
@@ -350,30 +436,10 @@ export default function CustomerDetail() {
   };
 
   const handleProfileSave = async (entry) => {
-    const productLower = entry.productName.toLowerCase();
-    const isSuit =
-      productLower.includes("tuxedo") || productLower.includes("suit");
-    const isJacket =
-      productLower.includes("jacket") || productLower.includes("overcoat");
-    const isTrouser = productLower.includes("trouser");
-    const isVest = productLower.includes("vest");
-    const isShirt = productLower.includes("shirt");
-    const SAVE_RANGES = isSuit
-      ? { ...jacketMap, ...trouserMap, ...vestMap, ...shirtMap }
-      : isJacket
-        ? jacketMap
-        : isTrouser
-          ? trouserMap
-          : isVest
-            ? vestMap
-            : isShirt
-              ? shirtMap
-              : null;
-
-    if (SAVE_RANGES) {
+    if (Object.keys(mergedRangeMap).length) {
       const invalidKeys = Object.entries(editingValues)
         .filter(([key, val]) => {
-          const range = getRangeForKey(SAVE_RANGES, key);
+          const range = getRangeForKey(mergedRangeMap, key);
           if (!range || !val) return false;
           const n = parseFloat(val);
           return !isNaN(n) && (n < range.min || n > range.max);
@@ -748,27 +814,6 @@ export default function CustomerDetail() {
                   const isEditing = editingProfileId === entry.id;
                   const isSaving = savingProfileId === entry.id;
                   const profileError = profileErrors[entry.id];
-                  const productLower = entry.productName.toLowerCase();
-                  const isSuit =
-                    productLower.includes("tuxedo") ||
-                    productLower.includes("suit");
-                  const isJacket =
-                    productLower.includes("jacket") ||
-                    productLower.includes("overcoat");
-                  const isTrouser = productLower.includes("trouser");
-                  const isVest = productLower.includes("vest");
-                  const isShirt = productLower.includes("shirt");
-                  const RANGES = isSuit
-                    ? { ...jacketMap, ...trouserMap, ...vestMap, ...shirtMap }
-                    : isJacket
-                      ? jacketMap
-                      : isTrouser
-                        ? trouserMap
-                        : isVest
-                          ? vestMap
-                          : isShirt
-                            ? shirtMap
-                            : null;
                   const sizeTypeKey = Object.keys(entry.measurements).find(
                     (k) => k.toLowerCase() === "size type",
                   );
@@ -835,72 +880,225 @@ export default function CustomerDetail() {
                         const { options, measurements: measureList } =
                           categorize(source, labelMap);
 
+                        const productGarments = derivedGarmentsFromMeasurements(
+                          entry.measurements,
+                          styleOptions,
+                          contrastOptions,
+                        );
+                        const byGarment = buildStyleOptionsByGarment(
+                          styleOptions,
+                          contrastOptions,
+                          productGarments,
+                        );
+                        const garmentKeys = Object.keys(byGarment);
+
                         return (
                           <div className="flex flex-col gap-[20px]">
                             {/* Style Options */}
-                            {options.length > 0 && (
-                              <div className="flex flex-col gap-[10px]">
+                            {isEditing ? (
+                              garmentKeys.length > 0 ? (
+                                <div className="flex flex-col gap-[16px]">
+                                  <span className="font-hanken text-[10px] font-semibold uppercase tracking-[1.2px] text-[#929292]">
+                                    Style Options
+                                  </span>
+                                  {garmentKeys.map((garment) => {
+                                    const catMap = byGarment[garment];
+                                    const cats = Object.keys(catMap);
+                                    return (
+                                      <div
+                                        key={garment}
+                                        className="flex flex-col gap-[8px]"
+                                      >
+                                        <div className="flex items-center justify-between gap-[8px]">
+                                          <span className="font-hanken text-[11px] font-semibold text-[#a45d41] uppercase tracking-[0.8px]">
+                                            {garment}
+                                          </span>
+                                          <span className="font-hanken text-[10px] font-medium text-[rgba(28,28,25,0.35)] tracking-[0.6px] uppercase">
+                                            {cats.length} option
+                                            {cats.length !== 1 ? "s" : ""}
+                                          </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 border-l border-t border-gc-section-divider/40">
+                                          {cats.map((cat) => {
+                                            const opts = catMap[cat];
+                                            const rawKey = `${garment} - ${cat}`;
+                                            const rawKeyLower =
+                                              rawKey.toLowerCase();
+                                            const currentVal =
+                                              editingValues[rawKey] ??
+                                              Object.entries(
+                                                editingValues,
+                                              ).find(
+                                                ([k]) =>
+                                                  k.toLowerCase() ===
+                                                  rawKeyLower,
+                                              )?.[1] ??
+                                              "";
+                                            return (
+                                              <StyleOptionDropdown
+                                                key={rawKey}
+                                                label={
+                                                  opts[0]?.displayLabel || cat
+                                                }
+                                                opts={opts}
+                                                value={currentVal}
+                                                onChange={(val) =>
+                                                  handleProfileMeasurementChange(
+                                                    rawKey,
+                                                    val,
+                                                  )
+                                                }
+                                              />
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                options.length > 0 && (
+                                  <div className="flex flex-col gap-[10px]">
+                                    <span className="font-hanken text-[10px] font-semibold uppercase tracking-[1.2px] text-[#929292]">
+                                      Style Options
+                                    </span>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 border-l border-t border-gc-section-divider/40">
+                                      {options.map(({ rawKey, key, value }) => {
+                                        let displayKey = key;
+                                        if (rawKey.includes(" - ")) {
+                                          const g = rawKey
+                                            .split(" - ")[0]
+                                            .trim();
+                                          const c = rawKey
+                                            .split(" - ")
+                                            .slice(1)
+                                            .join(" - ")
+                                            .trim();
+                                          const match = [
+                                            ...styleOptions,
+                                            ...contrastOptions,
+                                          ].find(
+                                            (o) =>
+                                              o.garment.toLowerCase() ===
+                                                g.toLowerCase() &&
+                                              o.category.toLowerCase() ===
+                                                c.toLowerCase(),
+                                          );
+                                          if (match?.displayLabel)
+                                            displayKey = match.displayLabel;
+                                        }
+                                        return (
+                                          <div
+                                            key={rawKey}
+                                            className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[14px] min-w-0 overflow-visible border-r border-b border-gc-section-divider/40"
+                                          >
+                                            <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
+                                              {displayKey}
+                                            </span>
+                                            <input
+                                              type="text"
+                                              value={
+                                                editingValues[rawKey] ?? value
+                                              }
+                                              onChange={(e) =>
+                                                handleProfileMeasurementChange(
+                                                  rawKey,
+                                                  e.target.value,
+                                                )
+                                              }
+                                              className="font-hanken mt-[4px] w-full text-[12px] sm:text-[14px] font-medium text-gc-near-black2 bg-gc-bg-warm rounded-[6px] px-[8px] py-[4px] border border-gc-border-input outline-none focus:border-gc-primary"
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )
+                              )
+                            ) : garmentKeys.length > 0 ? (
+                              <div className="flex flex-col gap-[16px]">
                                 <span className="font-hanken text-[10px] font-semibold uppercase tracking-[1.2px] text-[#929292]">
                                   Style Options
                                 </span>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 border-l border-t border-gc-section-divider/40">
-                                  {options.map(({ rawKey, key, value }) => {
-                                    const currentVal = isEditing
-                                      ? (editingValues[rawKey] ?? value)
-                                      : value;
-                                    // parse "Garment - Category" to find dropdown opts
-                                    const parts = rawKey.split(" - ");
-                                    const garment =
-                                      parts.length >= 2 ? parts[0] : null;
-                                    const category =
-                                      parts.length >= 2
-                                        ? parts.slice(1).join(" - ")
-                                        : null;
-                                    const allStyleOpts = [
-                                      ...styleOptions,
-                                      ...contrastOptions,
-                                    ];
-                                    const dropdownOpts =
-                                      garment && category
-                                        ? allStyleOpts.filter(
+                                {garmentKeys.map((garment) => {
+                                  const catMap = byGarment[garment];
+                                  const cats = Object.keys(catMap);
+                                  return (
+                                    <div
+                                      key={garment}
+                                      className="flex flex-col gap-[8px]"
+                                    >
+                                      <div className="flex items-center justify-between gap-[8px]">
+                                        <span className="font-hanken text-[11px] font-semibold text-[#a45d41] uppercase tracking-[0.8px]">
+                                          {garment}
+                                        </span>
+                                        <span className="font-hanken text-[10px] font-medium text-[rgba(28,28,25,0.35)] tracking-[0.6px] uppercase">
+                                          {cats.length} option
+                                          {cats.length !== 1 ? "s" : ""}
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 border-l border-t border-gc-section-divider/40">
+                                        {cats.map((cat) => {
+                                          const rawKey = `${garment} - ${cat}`;
+                                          const rawKeyLower =
+                                            rawKey.toLowerCase();
+                                          const savedOpt = options.find(
                                             (o) =>
-                                              o.garment === garment &&
-                                              o.category === category,
-                                          )
-                                        : [];
-
-                                    if (isEditing && dropdownOpts.length > 0) {
-                                      return (
-                                        <StyleOptionDropdown
-                                          key={rawKey}
-                                          label={key}
-                                          opts={dropdownOpts}
-                                          value={currentVal}
-                                          onChange={(val) =>
-                                            handleProfileMeasurementChange(
-                                              rawKey,
-                                              val,
-                                            )
-                                          }
-                                        />
-                                      );
-                                    }
-                                    return (
+                                              o.rawKey === rawKey ||
+                                              o.rawKey.toLowerCase() ===
+                                                rawKeyLower,
+                                          );
+                                          const savedValue =
+                                            savedOpt?.value || "—";
+                                          const label =
+                                            catMap[cat][0]?.displayLabel ||
+                                            cat
+                                              .replace(/_/g, " ")
+                                              .replace(/\b\w/g, (c) =>
+                                                c.toUpperCase(),
+                                              );
+                                          return (
+                                            <div
+                                              key={rawKey}
+                                              className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[12px] min-w-0 overflow-hidden border-r border-b border-gc-section-divider/40 h-[90px] sm:h-[100px]"
+                                            >
+                                              <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
+                                                {label}
+                                              </span>
+                                              <span className="font-hanken text-[12px] sm:text-[16px] font-medium text-gc-near-black2 leading-[20px] sm:leading-[26px] break-words w-full">
+                                                {savedValue}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              options.length > 0 && (
+                                <div className="flex flex-col gap-[10px]">
+                                  <span className="font-hanken text-[10px] font-semibold uppercase tracking-[1.2px] text-[#929292]">
+                                    Style Options
+                                  </span>
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 border-l border-t border-gc-section-divider/40">
+                                    {options.map(({ rawKey, key, value }) => (
                                       <div
                                         key={rawKey}
-                                        className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[14px] min-w-0 overflow-hidden border-r border-b border-gc-section-divider/40"
+                                        className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[12px] min-w-0 overflow-hidden border-r border-b border-gc-section-divider/40 h-[90px] sm:h-[100px]"
                                       >
                                         <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
                                           {key}
                                         </span>
                                         <span className="font-hanken text-[12px] sm:text-[16px] font-medium text-gc-near-black2 leading-[20px] sm:leading-[26px] break-words w-full">
-                                          {currentVal || "—"}
+                                          {value || "—"}
                                         </span>
                                       </div>
-                                    );
-                                  })}
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
+                              )
                             )}
 
                             {/* Measurements */}
@@ -918,21 +1116,10 @@ export default function CustomerDetail() {
                                       const val = isEditing
                                         ? (editingValues[rawKey] ?? displayVal)
                                         : displayVal;
-                                      const metaEntry = isVest
-                                        ? getRangeForKey(vestMap, rawKey)
-                                        : isShirt
-                                          ? getRangeForKey(shirtMap, rawKey)
-                                          : isTrouser
-                                            ? getRangeForKey(trouserMap, rawKey)
-                                            : isJacket
-                                              ? getRangeForKey(
-                                                  jacketMap,
-                                                  rawKey,
-                                                )
-                                              : null;
-                                      const range =
-                                        metaEntry ??
-                                        getRangeForKey(RANGES, rawKey);
+                                      const range = getRangeForKey(
+                                        mergedRangeMap,
+                                        rawKey,
+                                      );
                                       const isTouched =
                                         touchedFields.has(rawKey);
                                       const numVal = parseFloat(val);

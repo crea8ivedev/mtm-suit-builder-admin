@@ -69,7 +69,10 @@ const INLINE_KEYS = new Set(["fabric", "size type"]);
 
 function resolveLabel(rawKey, labelMap) {
   if (labelMap[rawKey]) return labelMap[rawKey];
-  if (rawKey.includes(" - ")) return rawKey.split(" - ").slice(1).join(" - ");
+  if (rawKey.includes(" - ")) {
+    const cat = rawKey.split(" - ").slice(1).join(" - ");
+    return cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
   return rawKey;
 }
 
@@ -85,7 +88,7 @@ function categorize(customAttributes = [], labelMap = {}) {
       : (attr.value ?? "");
     if (INLINE_KEYS.has(key.toLowerCase())) continue;
     const entry = { key, value };
-    if (measurementKeys.has(attr.key)) {
+    if (measurementKeys.has(attr.key) || !attr.key.includes(" - ")) {
       measurements.push(entry);
     } else {
       options.push(entry);
@@ -616,6 +619,12 @@ export default function OrderDetail() {
                                   : "—"}
                               </span>
                             </div>
+                            {item.variant?.title &&
+                              item.variant.title !== "Default Title" && (
+                                <span className="font-hanken text-[13px] font-medium text-[#a45d41] uppercase tracking-[0.6px]">
+                                  {item.variant.title}
+                                </span>
+                              )}
                             <p className="font-hanken text-[14px] font-semibold text-[#6d6d6d]">
                               {sizeType ? `Size type: ${sizeType} • ` : ""}
                               {item.quantity} ×{" "}
