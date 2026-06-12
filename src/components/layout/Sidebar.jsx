@@ -1,10 +1,10 @@
 import { Link, useLocation } from "react-router-dom";
-import { useAdminUser } from "../../hooks/useAdminUser";
 import {
   LayoutDashboard,
   ShoppingBag,
   Users,
   Shirt,
+  Layers,
   LogOut,
   X,
 } from "lucide-react";
@@ -25,15 +25,16 @@ const NAV_ITEMS = [
     path: "/kuttailor",
     icon: Shirt,
   },
+  {
+    id: "fabric",
+    label: "Fabric",
+    path: "/fabric",
+    icon: Layers,
+  },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
-  const {
-    name: adminName,
-    email: adminEmail,
-    initial: adminInitial,
-  } = useAdminUser();
 
   const handleLogout = () => {
     localStorage.removeItem("suit_admin_auth");

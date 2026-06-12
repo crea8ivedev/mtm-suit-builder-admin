@@ -32,9 +32,15 @@ import {
   fetchStyleOptions,
   fetchContrastOptions,
   setCustomerProductsMetafield,
+  fetchCustomerGcMeasurements,
 } from "../lib/shopify";
 
 const INLINE_KEYS = new Set(["fabric", "size type"]);
+const PRICE_SKIP_KEYS = new Set([
+  "product price",
+  "style upcharge",
+  "order total",
+]);
 
 function derivedGarmentsFromMeasurements(
   measurements,
@@ -51,11 +57,9 @@ function derivedGarmentsFromMeasurements(
   for (const k of Object.keys(measurements)) {
     if (k.startsWith("_")) continue;
     if (k.includes(" - ")) {
-      // Style option key: "Jacket - canvas"
       const g = k.split(" - ")[0].trim().toLowerCase();
       if (canonicalGarment.has(g)) found.add(canonicalGarment.get(g));
     } else {
-      // Measurement key: "Jacket Chest", "Trouser Waist"
       for (const [glower, gcanon] of canonicalGarment) {
         if (k.toLowerCase().startsWith(glower + " ")) {
           found.add(gcanon);
@@ -67,11 +71,21 @@ function derivedGarmentsFromMeasurements(
   return [...found];
 }
 
-function normalizeEditingValues(measurements, styleOptions, contrastOptions) {
+function normalizeEditingValues(source, styleOptions, contrastOptions) {
   const allOpts = [...styleOptions, ...contrastOptions];
   const normalized = {};
-  for (const [k, v] of Object.entries(measurements)) {
-    if (!k.startsWith("_") && k.includes(" - ")) {
+  for (const [k, v] of Object.entries(source)) {
+    if (k.startsWith("_")) {
+      normalized[k] = v;
+      continue;
+    }
+    if (k.startsWith("Style: ")) {
+      // New format — match by displayLabel, store as "garment - category" for edit dropdowns
+      const displayLabel = k.slice("Style: ".length);
+      const match = allOpts.find((o) => o.displayLabel === displayLabel);
+      normalized[match ? `${match.garment} - ${match.category}` : k] = v;
+    } else if (k.includes(" - ")) {
+      // Old format — normalise garment/category casing
       const parts = k.split(" - ");
       const g = parts[0].trim();
       const c = parts.slice(1).join(" - ").trim();
@@ -89,7 +103,6 @@ function normalizeEditingValues(measurements, styleOptions, contrastOptions) {
 }
 
 function buildStyleOptionsByGarment(styleOptions, contrastOptions, garments) {
-  // Empty garments = no style option keys found → show nothing
   if (!garments.length) return {};
   const all = [
     ...styleOptions.filter((o) => o.visible && garments.includes(o.garment)),
@@ -113,6 +126,7 @@ function buildStyleOptionsByGarment(styleOptions, contrastOptions, garments) {
 
 function resolveLabel(rawKey, labelMap) {
   if (labelMap[rawKey]) return labelMap[rawKey];
+  if (rawKey.startsWith("Style: ")) return rawKey.slice("Style: ".length);
   if (rawKey.includes(" - ")) {
     const cat = rawKey.split(" - ").slice(1).join(" - ");
     return cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -120,20 +134,24 @@ function resolveLabel(rawKey, labelMap) {
   return rawKey;
 }
 
-function categorize(measurements = {}, labelMap = {}) {
+function categorize(source = {}, labelMap = {}) {
   const measurementKeys = new Set(Object.keys(labelMap));
   const options = [];
   const measureList = [];
-  for (const [rawKey, val] of Object.entries(measurements)) {
+  for (const [rawKey, val] of Object.entries(source)) {
     if (rawKey.startsWith("_")) continue;
+    if (PRICE_SKIP_KEYS.has(rawKey.toLowerCase())) continue;
     const key = resolveLabel(rawKey, labelMap);
-    const value = val?.endsWith('"') ? val.slice(0, -1) : (val ?? "");
+    const value = val?.endsWith?.('"') ? val.slice(0, -1) : (val ?? "");
     if (INLINE_KEYS.has(key.toLowerCase())) continue;
     const entry = { rawKey, key, value };
-    if (measurementKeys.has(rawKey) || !rawKey.includes(" - ")) {
-      measureList.push(entry);
-    } else {
+    if (
+      !measurementKeys.has(rawKey) &&
+      (rawKey.startsWith("Style: ") || rawKey.includes(" - "))
+    ) {
       options.push(entry);
+    } else {
+      measureList.push(entry);
     }
   }
   return { options, measurements: measureList };
@@ -146,72 +164,74 @@ function StyleOptionDropdown({ label, opts, value, onChange }) {
   return (
     <div
       ref={ref}
-      className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[12px] min-w-0 overflow-visible border-r border-b border-gc-section-divider/40 relative h-[90px] sm:h-[100px]"
+      className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[12px] min-w-0 overflow-visible border-r border-b border-gc-section-divider/40 h-[90px] sm:h-[100px]"
     >
       <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
         {label}
       </span>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="font-hanken w-full flex items-center justify-between gap-[4px] mt-[4px] text-[12px] sm:text-[13px] font-medium text-gc-near-black2 bg-gc-bg-warm rounded-[6px] px-[8px] py-[8px] border border-gc-border-input cursor-pointer"
-      >
-        <span
-          className={`truncate ${value ? "text-gc-near-black2" : "text-[#9ca3af]"}`}
+      <div className="relative w-full mt-[4px]">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="font-hanken w-full flex items-center justify-between gap-[4px] text-[12px] sm:text-[13px] font-medium text-gc-near-black2 bg-gc-bg-warm rounded-[6px] px-[8px] py-[8px] border border-gc-border-input cursor-pointer"
         >
-          {value || "— Select —"}
-        </span>
-        <ChevronDown
-          size={12}
-          className={`flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-[2px] z-50 bg-white rounded-[8px] shadow-lg border border-gc-border-input min-w-[160px]">
-          <ul className="max-h-[200px] overflow-y-auto py-[4px]">
-            <li>
-              <button
-                type="button"
-                onClick={() => {
-                  onChange("");
-                  setOpen(false);
-                }}
-                className="font-hanken w-full text-left px-[12px] py-[8px] text-[12px] text-[#9ca3af] hover:bg-gc-bg flex items-center justify-between cursor-pointer"
-              >
-                — Select —
-                {!value && <Check size={11} className="text-gc-primary" />}
-              </button>
-            </li>
-            {opts.map((opt) => (
-              <li key={opt.id}>
+          <span
+            className={`truncate ${value ? "text-gc-near-black2" : "text-[#9ca3af]"}`}
+          >
+            {value || "— Select —"}
+          </span>
+          <ChevronDown
+            size={12}
+            className={`flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+        {open && (
+          <div className="absolute left-0 top-full z-50 bg-white rounded-[8px] shadow-lg border border-gc-border-input min-w-[160px]">
+            <ul className="max-h-[200px] overflow-y-auto py-[4px]">
+              <li>
                 <button
                   type="button"
                   onClick={() => {
-                    onChange(opt.label);
+                    onChange("");
                     setOpen(false);
                   }}
-                  className="font-hanken w-full text-left px-[12px] py-[8px] text-[12px] text-gc-near-black2 hover:bg-gc-bg flex items-center justify-between gap-[6px] cursor-pointer"
+                  className="font-hanken w-full text-left px-[12px] py-[8px] text-[12px] text-[#9ca3af] hover:bg-gc-bg flex items-center justify-between cursor-pointer"
                 >
-                  <span className="flex items-center gap-[6px] min-w-0">
-                    <span className="truncate">{opt.label}</span>
-                    {opt.upcharge > 0 && (
-                      <span className="font-hanken text-[10px] font-semibold flex-shrink-0 px-[5px] py-[1px] rounded-[4px] bg-gc-primary/[8%] text-gc-primary">
-                        +{opt.upcharge}
-                      </span>
-                    )}
-                  </span>
-                  {value === opt.label && (
-                    <Check
-                      size={11}
-                      className="flex-shrink-0 text-gc-primary"
-                    />
-                  )}
+                  — Select —
+                  {!value && <Check size={11} className="text-gc-primary" />}
                 </button>
               </li>
-            ))}
-          </ul>
-        </div>
-      )}
+              {opts.map((opt) => (
+                <li key={opt.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.label);
+                      setOpen(false);
+                    }}
+                    className="font-hanken w-full text-left px-[12px] py-[8px] text-[12px] text-gc-near-black2 hover:bg-gc-bg flex items-center justify-between gap-[6px] cursor-pointer"
+                  >
+                    <span className="flex items-center gap-[6px] min-w-0">
+                      <span className="truncate">{opt.label}</span>
+                      {opt.upcharge > 0 && (
+                        <span className="font-hanken text-[10px] font-semibold flex-shrink-0 px-[5px] py-[1px] rounded-[4px] bg-gc-primary/[8%] text-gc-primary">
+                          +{opt.upcharge}
+                        </span>
+                      )}
+                    </span>
+                    {value === opt.label && (
+                      <Check
+                        size={11}
+                        className="flex-shrink-0 text-gc-primary"
+                      />
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -252,14 +272,29 @@ function itemsLabel(order) {
     : `${edges.length} ${edges.length === 1 ? "item" : "items"}`;
 }
 
-function buildMeasurementProfiles(orders) {
+function buildMeasurementProfiles(
+  orders,
+  displayKeyMap = {},
+  styleKeyMap = {},
+) {
   const result = {};
   let counter = Math.floor(Date.now() / 1000);
   for (const order of orders) {
     const created = (order.createdAt ?? "").split("T")[0];
     for (const { node: item } of order.lineItems?.edges ?? []) {
+      const gcBuilder = item.product?.metafield?.value;
+      if (
+        !gcBuilder ||
+        gcBuilder === "false" ||
+        gcBuilder === "0" ||
+        gcBuilder === "no"
+      )
+        continue;
       const allAttrs = item.customAttributes ?? [];
-      const measureAttrs = allAttrs.filter((a) => !a.key.startsWith("_"));
+      const measureAttrs = allAttrs.filter(
+        (a) =>
+          !a.key.startsWith("_") && !PRICE_SKIP_KEYS.has(a.key.toLowerCase()),
+      );
       if (!measureAttrs.length) continue;
       const productName = item.title;
       if (productName.toLowerCase().includes("upcharge")) continue;
@@ -268,21 +303,61 @@ function buildMeasurementProfiles(orders) {
         (a) => a.key === "_profile_name",
       )?.value;
       const idx = result[productName].length + 1;
-      const measurements = Object.fromEntries(
-        measureAttrs.map(({ key, value }) => [
-          key,
-          value?.endsWith('"') ? value.slice(0, -1) : value,
-        ]),
-      );
+      const style = {};
+      const measurements = {};
+      for (const { key, value } of measureAttrs) {
+        const clean = value?.endsWith('"') ? value.slice(0, -1) : value;
+        if (key.startsWith("Style: ") || key.includes(" - ")) {
+          const styleKey =
+            styleKeyMap[key] ?? styleKeyMap[key.toLowerCase()] ?? key;
+          style[styleKey] = clean;
+        } else {
+          measurements[displayKeyMap[key] ?? key] = clean;
+        }
+      }
       result[productName].push({
         id: `prof_${counter++}`,
         name: profileName || `Measurement ${idx}`,
         created,
+        style,
         measurements,
       });
     }
   }
   return result;
+}
+
+function mergeProfilesWithSaved(fromOrders, saved) {
+  if (!saved || !Object.keys(saved).length) return fromOrders;
+  const merged = {};
+  for (const [productName, orderProfiles] of Object.entries(fromOrders)) {
+    const savedList = saved[productName];
+    if (!savedList?.length) {
+      merged[productName] = orderProfiles;
+      continue;
+    }
+    merged[productName] = orderProfiles.map((profile, idx) => {
+      const byName = savedList.find((s) => s.name === profile.name);
+      const match = byName ?? savedList[idx];
+      if (!match) return profile;
+      // Check if saved data has style keys mixed into measurements (corrupted format)
+      const savedMeasurements = match.measurements ?? {};
+      const hasStyleInMeasurements = Object.keys(savedMeasurements).some(
+        (k) => k.startsWith("Style: ") || k.includes(" - "),
+      );
+      // If saved data is clean (style is defined and no style keys in measurements), use it
+      if (match.style !== undefined && !hasStyleInMeasurements) {
+        return {
+          ...profile,
+          style: match.style,
+          measurements: savedMeasurements,
+        };
+      }
+      // Corrupted/old flat format — use order-derived profile (already has correct format)
+      return profile;
+    });
+  }
+  return merged;
 }
 
 function getRangeForKey(rangeMap, key) {
@@ -310,9 +385,10 @@ export default function CustomerDetail() {
   const [trouserMap, setTrouserMap] = useState({});
   const [jacketMap, setJacketMap] = useState({});
   const [labelMap, setLabelMap] = useState({});
+  const [displayKeyMap, setDisplayKeyMap] = useState({});
   const [styleOptions, setStyleOptions] = useState([]);
   const [contrastOptions, setContrastOptions] = useState([]);
-  const profiles = useMemo(() => buildMeasurementProfiles(orders), [orders]);
+  const [gcMeasurements, setGcMeasurements] = useState({});
 
   useClickOutside(entriesRef, () => setEntriesOpen(false));
 
@@ -344,11 +420,19 @@ export default function CustomerDetail() {
       fetchShirtMeasurementFields(),
     ])
       .then(([jacket, trouser, vest, shirt]) => {
-        const map = {};
-        for (const f of [...jacket, ...trouser, ...vest, ...shirt]) {
-          if (f.key && f.label) map[f.key] = f.label;
-        }
-        setLabelMap(map);
+        const label = {};
+        const display = {};
+        const GARMENT = ["Jacket", "Trouser", "Vest", "Shirt"];
+        [jacket, trouser, vest, shirt].forEach((fields, i) => {
+          for (const f of fields) {
+            if (f.key && f.label) {
+              label[f.key] = f.label;
+              display[f.key] = `${GARMENT[i]} ${f.label}`;
+            }
+          }
+        });
+        setLabelMap(label);
+        setDisplayKeyMap(display);
       })
       .catch(() => {});
     fetchStyleOptions()
@@ -357,7 +441,12 @@ export default function CustomerDetail() {
     fetchContrastOptions()
       .then(setContrastOptions)
       .catch(() => {});
-  }, []);
+    fetchCustomerGcMeasurements(shopifyGid)
+      .then((data) => {
+        if (data && Object.keys(data).length) setGcMeasurements(data);
+      })
+      .catch(() => {});
+  }, [shopifyGid]);
 
   const totalSpent = useMemo(() => {
     if (!orders.length) return customer?.totalSpent || "—";
@@ -379,17 +468,115 @@ export default function CustomerDetail() {
   );
 
   const [committedProfiles, setCommittedProfiles] = useState(null);
+  const autoFixedRef = useRef(false);
   const [editingProfileId, setEditingProfileId] = useState(null);
   const [editingValues, setEditingValues] = useState({});
   const [touchedFields, setTouchedFields] = useState(new Set());
   const [savingProfileId, setSavingProfileId] = useState(null);
   const [profileErrors, setProfileErrors] = useState({});
 
-  const activeProfiles = committedProfiles ?? profiles;
+  const styleKeyMap = useMemo(() => {
+    const map = {};
+    for (const opt of [...styleOptions, ...contrastOptions]) {
+      if (opt.garment && opt.category && opt.displayLabel) {
+        const oldKey = `${opt.garment} - ${opt.category}`;
+        const newKey = `Style: ${opt.displayLabel}`;
+        map[oldKey] = newKey;
+        map[oldKey.toLowerCase()] = newKey;
+      }
+    }
+    return map;
+  }, [styleOptions, contrastOptions]);
+
+  const profiles = useMemo(
+    () => buildMeasurementProfiles(orders, displayKeyMap, styleKeyMap),
+    [orders, displayKeyMap, styleKeyMap],
+  );
+
+  const translatedGcMeasurements = useMemo(() => {
+    const out = {};
+    for (const [product, list] of Object.entries(gcMeasurements)) {
+      out[product] = list.map((p) => {
+        const measurements = {};
+        const style = {};
+        // Carry over existing style entries (re-translate keys if needed)
+        for (const [k, v] of Object.entries(p.style ?? {})) {
+          if (PRICE_SKIP_KEYS.has(k.toLowerCase())) continue;
+          style[styleKeyMap[k] ?? styleKeyMap[k.toLowerCase()] ?? k] = v;
+        }
+        // Process measurements: move any style keys out, translate raw measurement keys
+        for (const [k, v] of Object.entries(p.measurements ?? {})) {
+          if (PRICE_SKIP_KEYS.has(k.toLowerCase())) continue;
+          if (k.startsWith("Style: ") || k.includes(" - ")) {
+            style[styleKeyMap[k] ?? styleKeyMap[k.toLowerCase()] ?? k] = v;
+          } else {
+            measurements[displayKeyMap[k] ?? k] = v;
+          }
+        }
+        return { ...p, style, measurements };
+      });
+    }
+    return out;
+  }, [gcMeasurements, displayKeyMap, styleKeyMap]);
+
+  // Product names that have at least one order line item with gc_builder set
+  const gcBuilderProductNames = useMemo(() => {
+    const set = new Set();
+    for (const order of orders) {
+      for (const { node: item } of order.lineItems?.edges ?? []) {
+        const gcBuilder = item.product?.metafield?.value;
+        if (
+          !gcBuilder ||
+          gcBuilder === "false" ||
+          gcBuilder === "0" ||
+          gcBuilder === "no"
+        )
+          continue;
+        const name = item.title;
+        if (name && !name.toLowerCase().includes("upcharge")) set.add(name);
+      }
+    }
+    return set;
+  }, [orders]);
+
+  const activeProfiles = useMemo(() => {
+    const base =
+      committedProfiles ??
+      mergeProfilesWithSaved(profiles, translatedGcMeasurements);
+    if (!gcBuilderProductNames.size) return base;
+    const filtered = {};
+    for (const [name, list] of Object.entries(base)) {
+      if (gcBuilderProductNames.has(name)) filtered[name] = list;
+    }
+    return filtered;
+  }, [
+    committedProfiles,
+    profiles,
+    translatedGcMeasurements,
+    gcBuilderProductNames,
+  ]);
+
+  // Auto-fix: once maps + orders + gc_measurements are all loaded, silently save
+  // cleaned activeProfiles back to Shopify so the metafield stays correct without
+  // requiring a manual edit.
+  useEffect(() => {
+    if (autoFixedRef.current) return;
+    if (!orders.length) return;
+    if (!Object.keys(displayKeyMap).length || !Object.keys(styleKeyMap).length)
+      return;
+    if (!Object.keys(gcMeasurements).length) return;
+    if (!Object.keys(activeProfiles).length) return;
+    autoFixedRef.current = true;
+    setCustomerProductsMetafield(shopifyGid, activeProfiles).catch(() => {});
+  }, [orders, displayKeyMap, styleKeyMap, gcMeasurements, activeProfiles]);
 
   const handleProfileEditStart = (entry) => {
     setEditingValues(
-      normalizeEditingValues(entry.measurements, styleOptions, contrastOptions),
+      normalizeEditingValues(
+        { ...(entry.style ?? {}), ...entry.measurements },
+        styleOptions,
+        contrastOptions,
+      ),
     );
     setEditingProfileId(entry.id);
     setTouchedFields(new Set());
@@ -427,10 +614,26 @@ export default function CustomerDetail() {
 
     setSavingProfileId(entry.id);
     setProfileErrors((prev) => ({ ...prev, [entry.id]: null }));
+    const newStyle = {};
+    const newMeasurements = {};
+    for (const [k, v] of Object.entries(editingValues)) {
+      if (k.startsWith("Style: ")) {
+        newStyle[k] = v;
+      } else if (k.includes(" - ")) {
+        // editingValues uses "garment - category" format — translate to "Style: DisplayLabel"
+        const translatedKey =
+          styleKeyMap[k] ?? styleKeyMap[k.toLowerCase()] ?? k;
+        newStyle[translatedKey] = v;
+      } else {
+        newMeasurements[k] = v;
+      }
+    }
     const updatedProfiles = JSON.parse(JSON.stringify(activeProfiles));
     updatedProfiles[entry.productName] = updatedProfiles[entry.productName].map(
       (p) =>
-        p.id === entry.id ? { ...p, measurements: { ...editingValues } } : p,
+        p.id === entry.id
+          ? { ...p, style: newStyle, measurements: newMeasurements }
+          : p,
     );
     try {
       await setCustomerProductsMetafield(
@@ -438,6 +641,7 @@ export default function CustomerDetail() {
         updatedProfiles,
       );
       setCommittedProfiles(updatedProfiles);
+      setGcMeasurements(updatedProfiles);
       setEditingProfileId(null);
       setEditingValues({});
       setTouchedFields(new Set());
@@ -796,9 +1000,16 @@ export default function CustomerDetail() {
                     <div key={entry.id} className="flex flex-col gap-[24px]">
                       <div className="flex flex-wrap items-start sm:items-end justify-between gap-[12px] pb-[17px] border-b border-black/10">
                         <div className="flex flex-col gap-[4px]">
-                          <span className="font-garamond text-[20px] sm:text-[24px] font-medium text-gc-near-black2">
-                            {entry.productName}
-                          </span>
+                          <div className="flex items-center gap-[8px] flex-wrap">
+                            <span className="font-garamond text-[20px] sm:text-[24px] font-medium text-gc-near-black2">
+                              {entry.productName}
+                            </span>
+                            <span
+                              className={`font-hanken text-[10px] font-semibold uppercase tracking-[0.8px] px-[8px] py-[2px] rounded-full ${isStandard ? "bg-[#e8f0e8] text-[#3a6b3a]" : "bg-[#f0e8e4] text-[#a45d41]"}`}
+                            >
+                              {isStandard ? "Standard" : "Custom"}
+                            </span>
+                          </div>
                           <span className="font-hanken text-[12px] sm:text-[14px] font-semibold text-[#6d6d6d]">
                             Last updated: {entry.created}
                           </span>
@@ -844,14 +1055,18 @@ export default function CustomerDetail() {
                       </div>
 
                       {(() => {
+                        const combinedEntry = {
+                          ...(entry.style ?? {}),
+                          ...entry.measurements,
+                        };
                         const source = isEditing
                           ? editingValues
-                          : entry.measurements;
+                          : combinedEntry;
                         const { options, measurements: measureList } =
                           categorize(source, labelMap);
 
                         const productGarments = derivedGarmentsFromMeasurements(
-                          entry.measurements,
+                          combinedEntry,
                           styleOptions,
                           contrastOptions,
                         );
@@ -1012,11 +1227,16 @@ export default function CustomerDetail() {
                                           const rawKey = `${garment} - ${cat}`;
                                           const rawKeyLower =
                                             rawKey.toLowerCase();
+                                          const newStyleKey =
+                                            styleKeyMap[rawKey] ??
+                                            styleKeyMap[rawKeyLower];
                                           const savedOpt = options.find(
                                             (o) =>
                                               o.rawKey === rawKey ||
                                               o.rawKey.toLowerCase() ===
-                                                rawKeyLower,
+                                                rawKeyLower ||
+                                              (newStyleKey &&
+                                                o.rawKey === newStyleKey),
                                           );
                                           const savedValue =
                                             savedOpt?.value || "—";

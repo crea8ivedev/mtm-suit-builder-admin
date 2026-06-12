@@ -24,6 +24,7 @@ import {
   fetchTrouserMeasurementFields,
   fetchVestMeasurementFields,
   fetchShirtMeasurementFields,
+  fetchFitSizeOptions,
   addUpchargeLineItem,
   setOrderMetafields,
 } from "../lib/shopify";
@@ -62,23 +63,38 @@ function parseSupplierMeta(order) {
     supplierStatus: map.supplier_status ?? null,
     supplierError: map.supplier_error ?? null,
     supplierSubmittedAt: map.supplier_submitted_at ?? null,
+    supplierReference: map.supplier_reference ?? null,
     upchargeSynced: parseFloat(map.upcharge_synced || "0"),
   };
 }
 
-const INLINE_KEYS = new Set(["fabric", "size type"]);
+const INLINE_KEYS = new Set([
+  "fabric",
+  "size type",
+  "price",
+  "total",
+  "upcharge",
+  "upcharge value",
+  "product price",
+  "style upcharge",
+  "order total",
+]);
 
 function resolveLabel(rawKey, labelMap) {
   if (labelMap[rawKey]) return labelMap[rawKey];
+  if (rawKey.startsWith("Style: ")) return rawKey.slice("Style: ".length);
   if (rawKey.includes(" - ")) {
     const cat = rawKey.split(" - ").slice(1).join(" - ");
     return cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
-  return rawKey;
+  return rawKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function categorize(customAttributes = [], labelMap = {}) {
-  const measurementKeys = new Set(Object.keys(labelMap));
+function categorize(
+  customAttributes = [],
+  labelMap = {},
+  fitSizeKeySet = new Set(),
+) {
   const options = [];
   const measurements = [];
   for (const attr of customAttributes) {
@@ -89,10 +105,16 @@ function categorize(customAttributes = [], labelMap = {}) {
       : (attr.value ?? "");
     if (INLINE_KEYS.has(key.toLowerCase())) continue;
     const entry = { key, value };
-    if (measurementKeys.has(attr.key) || !attr.key.includes(" - ")) {
-      measurements.push(entry);
-    } else {
+    const isFitSize =
+      fitSizeKeySet.has(attr.key) ||
+      attr.key.toLowerCase().includes("fit_size");
+    const isStyleOption =
+      !isFitSize &&
+      (attr.key.startsWith("Style: ") || attr.key.includes(" - "));
+    if (isStyleOption) {
       options.push(entry);
+    } else {
+      measurements.push(entry);
     }
   }
   return { options, measurements };
@@ -310,6 +332,7 @@ export default function OrderDetail() {
 
   const [fabricOptions, setFabricOptions] = useState([]);
   const [labelMap, setLabelMap] = useState({});
+  const [fitSizeKeySet, setFitSizeKeySet] = useState(new Set());
   const [syncingUpcharge, setSyncingUpcharge] = useState(false);
   const [syncError, setSyncError] = useState(null);
   const upchargeSyncFiredRef = useRef(false);
@@ -332,13 +355,25 @@ export default function OrderDetail() {
         setLabelMap(map);
       })
       .catch(() => {});
+    fetchFitSizeOptions()
+      .then((opts) => {
+        const keys = new Set();
+        for (const o of opts) {
+          keys.add(`${o.garment} ${o.sizeType}`);
+          keys.add(`${o.garment} - ${o.sizeType}`);
+        }
+        setFitSizeKeySet(keys);
+      })
+      .catch(() => {});
   }, []);
 
   const lineItems = order?.lineItems?.edges?.map((e) => e.node) ?? [];
 
   const orderCurrencyCode =
     order?.totalPriceSet?.shopMoney?.currencyCode || "USD";
-  const totalUpchargeAmount = lineItems.reduce(
+
+  // Upcharges from _upcharge_* custom attributes (admin orders)
+  const attrUpchargeAmount = lineItems.reduce(
     (sum, item) =>
       sum +
       (item.customAttributes ?? [])
@@ -346,6 +381,24 @@ export default function OrderDetail() {
         .reduce((s, ua) => s + parseFloat(ua.value || 0), 0),
     0,
   );
+
+  // Upcharges as separate Shopify line items (site orders)
+  const separateUpchargeItems = lineItems.filter((item) =>
+    item.title.toLowerCase().includes("upcharge"),
+  );
+  const separateUpchargeAmount = separateUpchargeItems.reduce(
+    (sum, item) =>
+      sum +
+      parseFloat(
+        item.discountedTotalSet?.shopMoney?.amount ||
+          item.originalUnitPriceSet?.shopMoney?.amount ||
+          0,
+      ),
+    0,
+  );
+
+  const totalUpchargeAmount = attrUpchargeAmount + separateUpchargeAmount;
+
   const subtotalAmount = parseFloat(
     order?.subtotalPriceSet?.shopMoney?.amount || 0,
   );
@@ -353,22 +406,30 @@ export default function OrderDetail() {
   const shopifyTotal = parseFloat(order?.totalPriceSet?.shopMoney?.amount || 0);
 
   const supplierMeta = parseSupplierMeta(order);
-  const { supplierError, supplierStatus, supplierSubmittedAt, upchargeSynced } =
-    supplierMeta;
+  const {
+    supplierError,
+    supplierStatus,
+    supplierSubmittedAt,
+    supplierReference,
+    upchargeSynced,
+  } = supplierMeta;
   const isFailed = supplierStatus === "failed";
 
   // upchargeEmbedded = upcharge already added to Shopify line item price via order edit
   const upchargeEmbedded =
-    upchargeSynced > 0 && Math.abs(upchargeSynced - totalUpchargeAmount) < 0.01;
-  // display subtotal = strip out embedded upcharge so the breakdown shows base price
+    upchargeSynced > 0 && Math.abs(upchargeSynced - attrUpchargeAmount) < 0.01;
+  // display subtotal = strip out any embedded/separate upcharge so breakdown shows base price
   const displaySubtotalAmount = upchargeEmbedded
-    ? subtotalAmount - totalUpchargeAmount
-    : subtotalAmount;
-  // display total = shopifyTotal when embedded (already correct), computed when not
-  const displayTotal = upchargeEmbedded
-    ? shopifyTotal
-    : subtotalAmount + totalUpchargeAmount + taxAmount;
-  const needsUpchargeSync = totalUpchargeAmount > 0.01 && !upchargeEmbedded;
+    ? subtotalAmount - attrUpchargeAmount
+    : separateUpchargeAmount > 0
+      ? subtotalAmount - separateUpchargeAmount
+      : subtotalAmount;
+  // display total = shopifyTotal when upcharge already in Shopify pricing, computed otherwise
+  const displayTotal =
+    upchargeEmbedded || separateUpchargeAmount > 0
+      ? shopifyTotal
+      : subtotalAmount + totalUpchargeAmount + taxAmount;
+  const needsUpchargeSync = attrUpchargeAmount > 0.01 && !upchargeEmbedded;
 
   // Auto-sync: push upcharge as a separate line item and mark with metafield
   useEffect(() => {
@@ -395,10 +456,12 @@ export default function OrderDetail() {
   }, [order, needsUpchargeSync]);
 
   const allOptions = lineItems.flatMap(
-    (item) => categorize(item.customAttributes, labelMap).options,
+    (item) =>
+      categorize(item.customAttributes, labelMap, fitSizeKeySet).options,
   );
   const allMeasurements = lineItems.flatMap(
-    (item) => categorize(item.customAttributes, labelMap).measurements,
+    (item) =>
+      categorize(item.customAttributes, labelMap, fitSizeKeySet).measurements,
   );
 
   const storeDomain = (import.meta.env.VITE_SHOPIFY_STORE_DOMAIN ?? "").replace(
@@ -565,11 +628,14 @@ export default function OrderDetail() {
 
             <div className="flex flex-col gap-[20px] w-full flex-1 min-w-0">
               {lineItems
-                .filter((item) => item.title !== "Upcharge")
+                .filter(
+                  (item) => !item.title.toLowerCase().includes("upcharge"),
+                )
                 .map((item, idx) => {
                   const { options } = categorize(
                     item.customAttributes,
                     labelMap,
+                    fitSizeKeySet,
                   );
                   const sizeType = (item.customAttributes ?? []).find(
                     (a) => a.key.toLowerCase() === "size type",
@@ -732,6 +798,16 @@ export default function OrderDetail() {
                                   />
                                   <span className="font-hanken text-[14px] font-medium text-gc-near-black2">
                                     {formatDate(supplierSubmittedAt)}
+                                  </span>
+                                </div>
+                              )}
+                              {supplierReference && (
+                                <div className="flex items-center gap-[8px]">
+                                  <span className="font-hanken text-[11px] font-medium uppercase text-gc-label">
+                                    REF#
+                                  </span>
+                                  <span className="font-hanken text-[13px] font-semibold text-gc-near-black2">
+                                    {supplierReference}
                                   </span>
                                 </div>
                               )}

@@ -140,7 +140,7 @@ export default function Customers() {
                 : error
                   ? "COULD NOT LOAD CUSTOMERS"
                   : totalCount !== null
-                    ? `${(currentPage - 1) * 20 + customers.length} OF ${totalCount} CUSTOMERS`
+                    ? `${(currentPage - 1) * pageSize + customers.length} OF ${totalCount} CUSTOMERS`
                     : `${customers.length} CUSTOMERS`}
             </span>
           </div>

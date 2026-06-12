@@ -10,6 +10,7 @@ const CreateOrder = lazy(() => import("./pages/CreateOrder"));
 const Customers = lazy(() => import("./pages/Customers"));
 const CustomerDetail = lazy(() => import("./pages/CustomerDetail"));
 const StyleAdjustments = lazy(() => import("./pages/StyleAdjustments"));
+const Fabric = lazy(() => import("./pages/Fabric"));
 
 function PrivateRoute({ children }) {
   const isAuth = localStorage.getItem("suit_admin_auth") === "true";
@@ -75,6 +76,14 @@ export default function App() {
             element={
               <PrivateRoute>
                 <StyleAdjustments />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/fabric"
+            element={
+              <PrivateRoute>
+                <Fabric />
               </PrivateRoute>
             }
           />

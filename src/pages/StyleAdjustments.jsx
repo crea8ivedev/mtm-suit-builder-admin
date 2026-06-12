@@ -584,6 +584,9 @@ export default function StyleAdjustments() {
           <EditStyleOptionModal
             option={editingOption}
             garment={selectedGarment}
+            garmentOptions={options.filter(
+              (o) => o.garment === selectedGarment,
+            )}
             onClose={() => setEditingOption(null)}
             onUpdated={handleUpdated}
           />

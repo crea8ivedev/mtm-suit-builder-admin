@@ -47,6 +47,12 @@ import {
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
 
+const EXCLUDED_MEASUREMENT_KEYS = new Set([
+  "Product Price",
+  "Style Upcharge",
+  "Order Total",
+]);
+
 function buildProfilesFromOrders(orders) {
   const result = {};
   let counter = Math.floor(Date.now() / 1000);
@@ -54,7 +60,9 @@ function buildProfilesFromOrders(orders) {
     const created = (order.createdAt ?? "").split("T")[0];
     for (const { node: item } of order.lineItems?.edges ?? []) {
       const allAttrs = item.customAttributes ?? [];
-      const measureAttrs = allAttrs.filter((a) => !a.key.startsWith("_"));
+      const measureAttrs = allAttrs.filter(
+        (a) => !a.key.startsWith("_") && !EXCLUDED_MEASUREMENT_KEYS.has(a.key),
+      );
       if (!measureAttrs.length) continue;
       const productName = item.title;
       if (!result[productName]) result[productName] = [];
@@ -376,7 +384,12 @@ export default function CreateOrder() {
       Shirt: fetchShirtMeasurementFields,
     };
     const results = await Promise.all(
-      garments.filter((g) => FETCHERS[g]).map((g) => FETCHERS[g]()),
+      garments
+        .filter((g) => FETCHERS[g])
+        .map(async (g) => {
+          const fields = await FETCHERS[g]();
+          return fields.map((f) => ({ ...f, garment: g }));
+        }),
     );
     return results.flat();
   }
@@ -394,12 +407,18 @@ export default function CreateOrder() {
       }
     }
     return canonicalFields.map((f) => {
-      let value = directMap.get(f.key.toLowerCase()) ?? "";
+      const displayKey = f.garment ? `${f.garment} ${f.label}` : f.key;
+      let value =
+        directMap.get(displayKey.toLowerCase()) ??
+        directMap.get(f.key.toLowerCase()) ??
+        "";
       if (!value) {
-        const e = getRangeForKey(rangeMap, f.key);
+        const e =
+          getRangeForKey(rangeMap, f.key) ??
+          getRangeForKey(rangeMap, displayKey);
         if (e) value = fingerMap.get(`${e.label}|${e.min}|${e.max}`) ?? "";
       }
-      return { key: f.key, value };
+      return { key: displayKey, value };
     });
   }
 
@@ -408,7 +427,10 @@ export default function CreateOrder() {
     if (garments.length) {
       const canonical = await getCanonicalFieldsForGarments(garments);
       if (canonical.length)
-        return canonical.map((f) => ({ key: f.key, value: "" }));
+        return canonical.map((f) => ({
+          key: `${f.garment} ${f.label}`,
+          value: "",
+        }));
     }
     const serverFields = await getProductFields(product.id);
     if (serverFields.length > 0)
@@ -449,7 +471,10 @@ export default function CreateOrder() {
         const canonical = await getCanonicalFieldsForGarments(garments);
         setAttributes(
           applyDefaultSizeType(
-            canonical.map((f) => ({ key: f.key, value: "" })),
+            canonical.map((f) => ({
+              key: f.garment ? `${f.garment} ${f.label}` : f.key,
+              value: "",
+            })),
           ),
         );
       } catch {
@@ -645,14 +670,14 @@ export default function CreateOrder() {
       // Pre-fill fit size selections from past order attributes
       const fitPrefill = {};
       for (const attr of first.attributes) {
-        // attrs stored as "Jacket - Fit" → key "Jacket__Fit"
-        const match = attr.key.match(/^(.+?) - (.+)$/);
-        if (match) {
-          const [, garment, sizeType] = match;
-          const hasFitOpt = fitSizeOptions.some(
-            (o) => o.garment === garment && o.sizeType === sizeType,
-          );
-          if (hasFitOpt) fitPrefill[`${garment}__${sizeType}`] = attr.value;
+        for (const o of fitSizeOptions) {
+          if (
+            attr.key === `${o.garment} ${o.sizeType}` ||
+            attr.key === `${o.garment} - ${o.sizeType}`
+          ) {
+            fitPrefill[`${o.garment}__${o.sizeType}`] = attr.value;
+            break;
+          }
         }
       }
       if (Object.keys(fitPrefill).length) setFitSizeSelections(fitPrefill);
@@ -668,13 +693,20 @@ export default function CreateOrder() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      // styleSelections keys are "Garment__category" — store as "Garment - category" on the order
+      // styleSelections keys are "Garment__category" — store as "Style: DisplayLabel" to match site format
+      const allStyleOpts = [...styleOptions, ...contrastOptions];
       const styleAttrs = Object.entries(styleSelections)
         .filter(([, v]) => v)
-        .map(([key, value]) => ({
-          key: key.replace("__", " - "),
-          value,
-        }));
+        .map(([compKey, value]) => {
+          const [garment, category] = compKey.split("__");
+          const opt = allStyleOpts.find(
+            (o) => o.garment === garment && o.category === category,
+          );
+          return {
+            key: `Style: ${opt?.displayLabel || category}`,
+            value,
+          };
+        });
 
       const upchargeAttrs = Object.entries(styleSelections)
         .filter(([compKey, label]) => {
@@ -704,7 +736,7 @@ export default function CreateOrder() {
       const fitSizeAttrs = Object.entries(fitSizeSelections)
         .filter(([, v]) => v)
         .map(([key, value]) => ({
-          key: key.replace("__", " - "),
+          key: key.replace("__", " "),
           value,
         }));
 
@@ -744,7 +776,10 @@ export default function CreateOrder() {
       const numericId = order.id.split("/").pop();
 
       const measureAttrs = attributes.filter(
-        (a) => a.key && !a.key.startsWith("_"),
+        (a) =>
+          a.key &&
+          !a.key.startsWith("_") &&
+          !EXCLUDED_MEASUREMENT_KEYS.has(a.key),
       );
       if (measureAttrs.length > 0) {
         try {
@@ -765,8 +800,8 @@ export default function CreateOrder() {
             [productName]: [...existingList, newProfile],
           };
           await setCustomerProductsMetafield(selectedCustomer.id, fullProfiles);
-        } catch (err) {
-          console.error("Failed to save measurement profile:", err);
+        } catch {
+          // silent — profile save failure doesn't block order creation
         }
       }
 
@@ -957,15 +992,15 @@ export default function CreateOrder() {
                       // Pre-fill fit size from this past order's attributes
                       const fitPrefill = {};
                       for (const attr of o.attributes) {
-                        const m = attr.key.match(/^(.+?) - (.+)$/);
-                        if (m) {
-                          const [, garment, sizeType] = m;
-                          const hasFitOpt = fitSizeOptions.some(
-                            (f) =>
-                              f.garment === garment && f.sizeType === sizeType,
-                          );
-                          if (hasFitOpt)
-                            fitPrefill[`${garment}__${sizeType}`] = attr.value;
+                        for (const f of fitSizeOptions) {
+                          if (
+                            attr.key === `${f.garment} ${f.sizeType}` ||
+                            attr.key === `${f.garment} - ${f.sizeType}`
+                          ) {
+                            fitPrefill[`${f.garment}__${f.sizeType}`] =
+                              attr.value;
+                            break;
+                          }
                         }
                       }
                       setFitSizeSelections(fitPrefill);

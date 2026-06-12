@@ -212,6 +212,67 @@ const GET_ORDER_QUERY = `
   }
 `;
 
+// ─── Fabric products query (gc_builder metafield not null, with image) ──────
+const GET_FABRIC_PRODUCTS_QUERY = `
+  query GetFabricProducts($first: Int!, $after: String) {
+    products(first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          title
+          status
+          featuredImage {
+            url
+            altText
+          }
+          priceRangeV2 {
+            minVariantPrice { amount currencyCode }
+          }
+          metafield(namespace: "custom", key: "gc_builder") {
+            value
+          }
+        }
+      }
+    }
+  }
+`;
+
+let _fabricProductsCache = null;
+
+export async function fetchFabricProducts() {
+  if (_fabricProductsCache) return _fabricProductsCache;
+  const all = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(GET_FABRIC_PRODUCTS_QUERY, {
+      first: 50,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.products;
+    for (const { node } of edges) {
+      if (!node.metafield?.value) continue;
+      all.push({
+        id: node.id,
+        title: node.title,
+        price: node.priceRangeV2?.minVariantPrice?.amount ?? "0",
+        currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode ?? "USD",
+        imageUrl: node.featuredImage?.url ?? null,
+        imageAlt: node.featuredImage?.altText ?? node.title,
+      });
+    }
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+  _fabricProductsCache = all;
+  return all;
+}
+
+export function clearFabricProductsCache() {
+  _fabricProductsCache = null;
+}
+
 // ─── Products query ────────────────────────────────────────────────────────
 const GET_PRODUCTS_QUERY = `
   query GetProducts($first: Int!, $after: String) {
@@ -829,6 +890,7 @@ export async function fetchCustomerGcMeasurements(customerGid) {
 }
 
 export async function setCustomerProductsMetafield(customerGid, products) {
+  const payload = JSON.stringify(products);
   const data = await shopifyGraphQL(SET_METAFIELDS, {
     metafields: [
       {
@@ -836,13 +898,15 @@ export async function setCustomerProductsMetafield(customerGid, products) {
         namespace: "profiles",
         key: "gc_measurements",
         type: "json",
-        value: JSON.stringify(products),
+        value: payload,
       },
     ],
   });
-  const errors = data.metafieldsSet?.userErrors ?? [];
-  if (errors.length) throw new Error(errors[0].message);
-  return data.metafieldsSet.metafields;
+  const result = data.metafieldsSet;
+  const errors = result?.userErrors ?? [];
+  if (!result) throw new Error("Shopify returned no metafieldsSet response");
+  if (errors.length) throw new Error(errors.map((e) => e.message).join("; "));
+  return result.metafields;
 }
 
 const GET_ORDERS_FOR_PRODUCT = `

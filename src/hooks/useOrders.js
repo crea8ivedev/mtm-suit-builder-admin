@@ -82,6 +82,7 @@ export function useOrders() {
       pending: orders.filter((o) => o.status === "processing").length,
       submitted: orders.filter((o) => o.status === "shipped").length,
       failed: orders.filter((o) => o.status === "failed").length,
+      verified: orders.filter((o) => o.supplierStatus === "verified").length,
     }),
     [orders],
   );

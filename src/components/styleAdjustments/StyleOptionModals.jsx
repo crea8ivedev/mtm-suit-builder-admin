@@ -255,7 +255,7 @@ export function AddStyleOptionModal({
           return Object.keys(patch).length ? { ...prev, ...patch } : prev;
         });
       })
-      .catch((err) => console.warn("[StyleOptions] defs fetch failed:", err));
+      .catch(() => {});
   }, [garmentType]);
 
   function set(key, val) {
@@ -639,7 +639,13 @@ export function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
   );
 }
 
-export function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
+export function EditStyleOptionModal({
+  option,
+  garment,
+  garmentOptions = [],
+  onClose,
+  onUpdated,
+}) {
   const rawExtra = Object.keys(option.rawFields ?? {}).filter(
     (k) => !KNOWN_KEYS.has(k),
   );
@@ -708,7 +714,7 @@ export function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
           return Object.keys(patch).length ? { ...prev, ...patch } : prev;
         });
       })
-      .catch((err) => console.warn("[StyleOptions] defs fetch failed:", err));
+      .catch(() => {});
   }, [garmentType]);
 
   useEffect(() => {
@@ -744,6 +750,16 @@ export function EditStyleOptionModal({ option, garment, onClose, onUpdated }) {
     setSaving(true);
     setError(null);
     try {
+      if (form.is_default === "true") {
+        const cat = normalizeCategory(form.category);
+        const prevDefault = garmentOptions.find(
+          (o) => o.id !== option.id && o.category === cat && o.isDefault,
+        );
+        if (prevDefault) {
+          await updateStyleOption(prevDefault.id, { is_default: "false" });
+          onUpdated(prevDefault.id, { isDefault: false });
+        }
+      }
       await updateStyleOption(option.id, form);
       const resolvedImageUrl =
         form.image_url ||
