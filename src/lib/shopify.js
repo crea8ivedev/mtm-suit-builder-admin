@@ -273,6 +273,190 @@ export function clearFabricProductsCache() {
   _fabricProductsCache = null;
 }
 
+const GET_PRODUCT_OPTIONS_QUERY = `
+  query GetProductOptions($id: ID!) {
+    product(id: $id) {
+      options {
+        name
+        values
+      }
+    }
+  }
+`;
+
+export async function fetchProductOptions(productId) {
+  const data = await shopifyGraphQL(GET_PRODUCT_OPTIONS_QUERY, {
+    id: productId,
+  });
+  return data?.product?.options ?? [];
+}
+
+const GET_PRODUCT_VARIANTS_DETAIL_QUERY = `
+  query GetProductVariantsDetail($id: ID!) {
+    product(id: $id) {
+      options {
+        id
+        name
+        values
+        optionValues {
+          id
+          name
+        }
+        linkedMetafield {
+          namespace
+          key
+        }
+      }
+      variants(first: 250) {
+        edges {
+          node {
+            id
+            title
+            selectedOptions { name value }
+          }
+        }
+      }
+    }
+  }
+`;
+
+export async function fetchProductVariantsDetail(productId) {
+  const data = await shopifyGraphQL(GET_PRODUCT_VARIANTS_DETAIL_QUERY, {
+    id: productId,
+  });
+  const product = data?.product;
+  if (!product) return { options: [], variants: [] };
+  return {
+    options: product.options ?? [],
+    variants: (product.variants?.edges ?? []).map((e) => e.node),
+  };
+}
+
+// productOptionUpdate — optionValuesToAdd is a TOP-LEVEL arg, NOT inside option: {}
+const ADD_OPTION_VALUE_MUTATION = `
+  mutation ProductOptionUpdate(
+    $productId: ID!
+    $option: OptionUpdateInput!
+    $optionValuesToAdd: [OptionValueCreateInput!]
+    $variantStrategy: ProductOptionUpdateVariantStrategy
+  ) {
+    productOptionUpdate(
+      productId: $productId
+      option: $option
+      optionValuesToAdd: $optionValuesToAdd
+      variantStrategy: $variantStrategy
+    ) {
+      product {
+        options {
+          id
+          name
+          optionValues { id name }
+        }
+      }
+      userErrors { field message code }
+    }
+  }
+`;
+
+// Creates a new ProductOptionValue on a connected option by linking a metaobject.
+// Returns the new { id, name } so the caller can immediately create a variant with it.
+// Confirmed working syntax from Postman: option: { id } + optionValuesToAdd: [{ linkedMetafieldValue }]
+export async function createProductOptionValue(
+  productId,
+  optionId,
+  metaobjectGid,
+) {
+  const data = await shopifyGraphQL(ADD_OPTION_VALUE_MUTATION, {
+    productId,
+    option: { id: optionId },
+    optionValuesToAdd: [{ linkedMetafieldValue: metaobjectGid }],
+    variantStrategy: "LEAVE_AS_IS",
+  });
+  const { product, userErrors } = data.productOptionUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  // Find the updated option by ID and return its last-added value (newest is last)
+  const updatedOption = (product?.options ?? []).find((o) => o.id === optionId);
+  const values = updatedOption?.optionValues ?? [];
+  if (!values.length) throw new Error("Option value was not created.");
+  return values[values.length - 1];
+}
+
+const ADD_PRODUCT_VARIANT_MUTATION = `
+  mutation ProductVariantsBulkCreate(
+    $productId: ID!
+    $variants: [ProductVariantsBulkInput!]!
+    $media: [CreateMediaInput!]
+  ) {
+    productVariantsBulkCreate(productId: $productId, variants: $variants, media: $media) {
+      productVariants { id title selectedOptions { name value } }
+      userErrors { field message }
+    }
+  }
+`;
+
+// patternLabel: for plain-text (non-connected) options.
+// imageUrl: if provided, creates media and links it to the variant in one call.
+export async function addVariantToProduct(
+  productId,
+  optionValueId,
+  optionName,
+  existingVariants,
+  patternLabel = null,
+  imageUrl = null,
+) {
+  const primaryValue = patternLabel
+    ? { optionName, name: patternLabel }
+    : { id: optionValueId, optionName };
+
+  let optionValues = [primaryValue];
+  if (existingVariants.length > 0) {
+    const otherOpts = existingVariants[0].selectedOptions.filter(
+      (o) => o.name !== optionName,
+    );
+    if (otherOpts.length) {
+      optionValues = [
+        primaryValue,
+        ...otherOpts.map((o) => ({ optionName: o.name, name: o.value })),
+      ];
+    }
+  }
+
+  // When imageUrl is provided: pass it in both `media` (creates product media)
+  // and `variants[].mediaSrc` (links that media to this specific variant) in one call.
+  const variantInput = imageUrl
+    ? { optionValues, mediaSrc: [imageUrl] }
+    : { optionValues };
+
+  const variables = { productId, variants: [variantInput] };
+  if (imageUrl) {
+    variables.media = [{ originalSource: imageUrl, mediaContentType: "IMAGE" }];
+  }
+
+  const data = await shopifyGraphQL(ADD_PRODUCT_VARIANT_MUTATION, variables);
+  const { productVariants, userErrors } = data.productVariantsBulkCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return productVariants;
+}
+
+const REMOVE_PRODUCT_VARIANTS_MUTATION = `
+  mutation ProductVariantsBulkDelete($productId: ID!, $variantsIds: [ID!]!) {
+    productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+      product { id }
+      userErrors { field message }
+    }
+  }
+`;
+
+export async function removeVariantsFromProduct(productId, variantIds) {
+  const data = await shopifyGraphQL(REMOVE_PRODUCT_VARIANTS_MUTATION, {
+    productId,
+    variantsIds: variantIds,
+  });
+  const { userErrors } = data.productVariantsBulkDelete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.productVariantsBulkDelete.product;
+}
+
 // ─── Products query ────────────────────────────────────────────────────────
 const GET_PRODUCTS_QUERY = `
   query GetProducts($first: Int!, $after: String) {
@@ -1745,6 +1929,7 @@ const SHOPIFY_COLOR_PATTERN_QUERY = `
       pageInfo { hasNextPage endCursor }
       edges {
         node {
+          id
           handle
           displayName
           fields {
@@ -1795,10 +1980,13 @@ export async function fetchShopifyColorPattern() {
           ? fieldMap.image
           : null;
       all.push({
+        id: node.id,
         handle: node.handle,
         label: fieldMap.label ?? node.displayName,
         color: fieldMap.color ?? null,
+        code: fieldMap.code ?? null,
         imageUrl: null,
+        imageGid: imageGid,
         imageAlt: node.displayName,
         _imageGid: imageGid,
       });
@@ -1822,6 +2010,7 @@ export async function fetchShopifyColorPattern() {
         if (f._imageGid && urlMap[f._imageGid]) {
           f.imageUrl = urlMap[f._imageGid].url;
           f.imageAlt = urlMap[f._imageGid].alt ?? f.imageAlt;
+          f.imageGid = f._imageGid;
         }
       }
     } catch {
@@ -1932,6 +2121,46 @@ export async function addUpchargeLineItem(orderId, amount, currencyCode) {
   if (commitErrors.length) throw new Error(commitErrors[0].message);
 
   return commitData.orderEditCommit.order;
+}
+
+export async function createColorPattern({ label, color, imageGid, code }) {
+  const fields = [{ key: "label", value: label }];
+  if (color) fields.push({ key: "color", value: color });
+  if (imageGid) fields.push({ key: "image", value: imageGid });
+  if (code) fields.push({ key: "code", value: code });
+  const data = await shopifyGraphQL(CREATE_METAOBJECT_MUTATION, {
+    metaobject: {
+      type: "shopify-color-pattern",
+      fields,
+      capabilities: { publishable: { status: "ACTIVE" } },
+    },
+  });
+  const { metaobject, userErrors } = data.metaobjectCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return metaobject;
+}
+
+export async function updateColorPattern(id, { label, color, imageGid, code }) {
+  const fieldInputs = [
+    { key: "label", value: label || "" },
+    { key: "color", value: color == null ? null : color },
+    { key: "image", value: imageGid == null ? null : imageGid },
+    { key: "code", value: code == null ? null : code },
+  ];
+  const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
+    id,
+    metaobject: { fields: fieldInputs },
+  });
+  const { userErrors } = data.metaobjectUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectUpdate.metaobject;
+}
+
+export async function deleteColorPattern(id) {
+  const data = await shopifyGraphQL(DELETE_METAOBJECT_MUTATION, { id });
+  const { userErrors } = data.metaobjectDelete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectDelete.deletedId;
 }
 
 export const fetchFabricOptions = fetchShopifyColorPattern;

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
+import ColorPatternModal from "../components/ui/ColorPatternModal";
 import { fetchFabricProducts } from "../lib/shopify";
 
 function formatPrice(amount, currencyCode) {
@@ -19,6 +20,7 @@ export default function Fabric() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   function load() {
     setLoading(true);
@@ -59,42 +61,76 @@ export default function Fabric() {
       )}
 
       {!loading && !error && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-[16px] sm:gap-[20px]">
-          {products.map((product) => (
-            <div
-              key={product.id}
-              className="bg-white rounded-[12px] border border-gc-divider shadow-sm overflow-hidden flex flex-col"
-            >
-              <div className="w-full aspect-square bg-gc-bg-warm flex items-center justify-center overflow-hidden">
-                {product.imageUrl ? (
-                  <img
-                    src={product.imageUrl}
-                    alt={product.imageAlt}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gc-bg-warm" />
-                )}
-              </div>
-              <div className="p-[14px] flex flex-col gap-[4px]">
-                <p className="font-hanken text-[13px] font-semibold text-gc-near-black2 leading-[1.4] line-clamp-2">
-                  {product.title}
-                </p>
-                <p className="font-hanken text-[12px] text-gc-primary font-medium">
-                  {formatPrice(product.price, product.currencyCode)}
-                </p>
-              </div>
-            </div>
-          ))}
-
-          {products.length === 0 && (
-            <div className="col-span-full text-center py-[48px]">
+        <div className="bg-white rounded-[12px] border border-gc-divider overflow-hidden">
+          {products.length === 0 ? (
+            <div className="text-center py-[48px]">
               <p className="font-hanken text-[14px] text-gc-text">
                 No fabric products found.
               </p>
             </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gc-divider bg-gc-bg-warm">
+                  <th className="text-left font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest px-[20px] py-[12px] w-[64px]">
+                    Image
+                  </th>
+                  <th className="text-left font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest px-[12px] py-[12px]">
+                    Product
+                  </th>
+                  <th className="text-left font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest px-[12px] py-[12px] w-[120px]">
+                    Price
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((product, i) => (
+                  <tr
+                    key={product.id}
+                    onClick={() => setSelectedProduct(product)}
+                    className={[
+                      "cursor-pointer hover:bg-gc-bg-warm transition-colors",
+                      i !== products.length - 1
+                        ? "border-b border-gc-divider"
+                        : "",
+                    ].join(" ")}
+                  >
+                    <td className="px-[20px] py-[12px]">
+                      <div className="w-[72px] h-[72px] rounded-[8px] overflow-hidden border border-gc-divider bg-gc-bg-warm flex-shrink-0">
+                        {product.imageUrl ? (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.imageAlt}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gc-bg-warm" />
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-[12px] py-[12px]">
+                      <p className="font-hanken text-[14px] font-semibold text-gc-near-black2 leading-[1.4]">
+                        {product.title}
+                      </p>
+                    </td>
+                    <td className="px-[12px] py-[12px]">
+                      <p className="font-hanken text-[13px] text-gc-primary font-medium">
+                        {formatPrice(product.price, product.currencyCode)}
+                      </p>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
+      )}
+
+      {selectedProduct && (
+        <ColorPatternModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
       )}
     </DashboardLayout>
   );
