@@ -80,7 +80,7 @@ function PatternForm({
   imageUploading,
 }) {
   return (
-    <div className="grid grid-cols-2 gap-[10px]">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]">
       <div>
         <label className="block text-[11px] font-medium text-gray-500 mb-[4px]">
           Label <span className="text-red-400">*</span>
@@ -525,43 +525,43 @@ export default function ColorPatternModal({ product, onClose }) {
       )}
 
       <div
-        className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-[16px]"
+        className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-[8px] sm:p-[16px]"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
       >
         <div className="bg-white rounded-xl shadow-2xl w-full max-w-[900px] max-h-[90vh] flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-[24px] py-[16px] border-b border-gray-200 flex-shrink-0">
-            <div className="flex items-center gap-[12px]">
+          <div className="flex items-center justify-between px-[14px] sm:px-[24px] py-[12px] sm:py-[16px] border-b border-gray-200 flex-shrink-0 gap-[8px]">
+            <div className="flex items-center gap-[10px] sm:gap-[12px] min-w-0">
               {product.imageUrl && (
                 <img
                   src={product.imageUrl}
                   alt={product.title}
-                  className="w-[36px] h-[36px] rounded-md object-cover border border-gray-200 flex-shrink-0"
+                  className="w-[32px] h-[32px] sm:w-[36px] sm:h-[36px] rounded-md object-contain border border-gray-200 flex-shrink-0"
                 />
               )}
-              <div>
-                <h2 className="text-[16px] font-semibold text-gray-800">
+              <div className="min-w-0">
+                <h2 className="text-[14px] sm:text-[16px] font-semibold text-gray-800 truncate">
                   {product.title}
                 </h2>
-                <p className="text-[12px] text-gray-400">
+                <p className="text-[11px] sm:text-[12px] text-gray-400">
                   Color Patterns · {loading ? "…" : `${patterns.length} total`}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-[8px]">
+            <div className="flex items-center gap-[6px] sm:gap-[8px] flex-shrink-0">
               <button
                 onClick={() => {
                   loadPatterns(true);
                   loadVariants();
                 }}
                 disabled={loading || variantsLoading}
-                className="w-[32px] h-[32px] flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                className="w-[30px] h-[30px] sm:w-[32px] sm:h-[32px] flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors"
                 title="Refresh from Shopify"
               >
                 <RefreshCw
-                  size={15}
+                  size={14}
                   className={loading || variantsLoading ? "animate-spin" : ""}
                 />
               </button>
@@ -570,14 +570,14 @@ export default function ColorPatternModal({ product, onClose }) {
                   setShowAdd(true);
                   setEditingId(null);
                 }}
-                className="flex items-center gap-[6px] bg-gray-800 text-white text-[13px] font-medium px-[12px] py-[7px] rounded-lg hover:bg-gray-700 transition-colors"
+                className="flex items-center gap-[4px] sm:gap-[6px] bg-gc-primary text-white text-[12px] sm:text-[13px] font-medium px-[8px] sm:px-[12px] py-[6px] sm:py-[7px] rounded-lg hover:bg-gray-700 transition-colors"
               >
                 <Plus size={14} />
-                Add Pattern
+                <span className="hidden sm:inline">Add Pattern</span>
               </button>
               <button
                 onClick={onClose}
-                className="w-[32px] h-[32px] flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                className="w-[30px] h-[30px] sm:w-[32px] sm:h-[32px] flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
               >
                 <X size={18} />
               </button>
@@ -585,7 +585,7 @@ export default function ColorPatternModal({ product, onClose }) {
           </div>
 
           {/* Body */}
-          <div className="overflow-y-auto flex-1 p-[24px]">
+          <div className="overflow-y-auto flex-1 p-[16px] sm:p-[24px]">
             {/* ── Product Variants ── */}
             <div className="mb-[20px]">
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-[12px]">
@@ -623,8 +623,8 @@ export default function ColorPatternModal({ product, onClose }) {
 
                     return (
                       <div key={opt.name}>
-                        <div className="flex items-start gap-[10px]">
-                          <span className="text-[12px] font-medium text-gray-500 w-[64px] flex-shrink-0 pt-[6px]">
+                        <div className="flex flex-col sm:flex-row sm:items-start gap-[6px] sm:gap-[10px]">
+                          <span className="text-[12px] font-medium text-gray-500 sm:w-[64px] flex-shrink-0 sm:pt-[6px]">
                             {opt.name}
                           </span>
                           <div className="flex flex-wrap gap-[8px]">
@@ -708,7 +708,7 @@ export default function ColorPatternModal({ product, onClose }) {
 
                         {/* Inline edit form */}
                         {editingInThisOpt && (
-                          <div className="mt-[10px] ml-[74px] border border-blue-200 bg-blue-50 rounded-xl p-[14px]">
+                          <div className="mt-[10px] ml-0 sm:ml-[74px] border border-blue-200 bg-blue-50 rounded-xl p-[14px]">
                             <p className="text-[12px] font-semibold text-blue-700 mb-[10px]">
                               Editing:{" "}
                               {optValues.find((val) => {

@@ -80,7 +80,7 @@ export default function Orders() {
   );
 
   const visiblePages = useMemo(() => {
-    const range = 3;
+    const range = 2;
     const start = Math.max(1, currentPage - range);
     const end = Math.min(totalPages, currentPage + range);
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
@@ -90,7 +90,7 @@ export default function Orders() {
 
   return (
     <DashboardLayout onRefresh={retry} isRefreshing={loading}>
-      <div className="flex flex-wrap items-start justify-between gap-[16px] mb-[30px]">
+      <div className="flex flex-wrap items-start justify-between gap-[16px] mb-[30px] overflow-visible">
         <div>
           <h2 className="gc-page-title">Order Management</h2>
           <p className="gc-page-subtitle">
@@ -102,7 +102,7 @@ export default function Orders() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-[10px] w-full sm:w-auto justify-end sm:justify-start">
+        <div className="flex flex-wrap items-center gap-[10px] w-full sm:w-auto justify-start sm:justify-start">
           <div className="relative" ref={filterRef}>
             <button
               onClick={() => setFilterOpen((v) => !v)}
@@ -121,7 +121,7 @@ export default function Orders() {
             </button>
 
             {filterOpen && (
-              <div className="absolute right-0 top-[calc(100%+6px)] w-[180px] bg-white border border-gc-border rounded-[10px] shadow-lg z-[100] overflow-hidden py-[6px]">
+              <div className="absolute left-0 sm:left-auto sm:right-0 top-[calc(100%+6px)] w-[180px] bg-white border border-gc-border rounded-[10px] shadow-lg z-[100] overflow-hidden py-[6px]">
                 <p className="font-hanken px-[14px] pt-[6px] pb-[8px] text-[11px] font-semibold uppercase tracking-wider text-gc-text">
                   Supplier Status
                 </p>
@@ -257,7 +257,7 @@ export default function Orders() {
             </div>
 
             {filtered.length > 0 && (
-              <div className="gc-divider flex items-center justify-between px-[24px] py-[16px] flex-wrap gap-[12px]">
+              <div className="gc-divider flex items-center justify-between px-[14px] sm:px-[24px] py-[14px] sm:py-[16px] flex-wrap gap-[10px] sm:gap-[12px]">
                 <div className="flex items-center gap-[8px]" ref={entriesRef}>
                   <span className="font-hanken text-[13px] text-gc-text">
                     Entries
@@ -294,7 +294,7 @@ export default function Orders() {
                 </div>
 
                 {totalPages > 1 && (
-                  <div className="flex items-center gap-[4px]">
+                  <div className="flex items-center gap-[3px] sm:gap-[4px] flex-wrap justify-end">
                     <button
                       onClick={() =>
                         setCurrentPage(Math.max(1, currentPage - 1))

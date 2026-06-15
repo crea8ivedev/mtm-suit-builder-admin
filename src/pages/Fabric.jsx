@@ -69,59 +69,52 @@ export default function Fabric() {
               </p>
             </div>
           ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gc-divider bg-gc-bg-warm">
-                  <th className="text-left font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest px-[20px] py-[12px] w-[64px]">
-                    Image
-                  </th>
-                  <th className="text-left font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest px-[12px] py-[12px]">
-                    Product
-                  </th>
-                  <th className="text-left font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest px-[12px] py-[12px] w-[120px]">
-                    Price
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((product, i) => (
-                  <tr
-                    key={product.id}
-                    onClick={() => setSelectedProduct(product)}
-                    className={[
-                      "cursor-pointer hover:bg-gc-bg-warm transition-colors",
-                      i !== products.length - 1
-                        ? "border-b border-gc-divider"
-                        : "",
-                    ].join(" ")}
-                  >
-                    <td className="px-[20px] py-[12px]">
-                      <div className="w-[72px] h-[72px] rounded-[8px] overflow-hidden border border-gc-divider bg-gc-bg-warm flex-shrink-0">
-                        {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.imageAlt}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gc-bg-warm" />
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-[12px] py-[12px]">
-                      <p className="font-hanken text-[14px] font-semibold text-gc-near-black2 leading-[1.4]">
-                        {product.title}
-                      </p>
-                    </td>
-                    <td className="px-[12px] py-[12px]">
-                      <p className="font-hanken text-[13px] text-gc-primary font-medium">
-                        {formatPrice(product.price, product.currencyCode)}
-                      </p>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="divide-y divide-gc-divider">
+              {/* Header row — desktop only */}
+              <div className="hidden sm:grid sm:grid-cols-[100px_1fr_130px] bg-gc-bg-warm px-[20px] py-[10px]">
+                <span className="font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest">
+                  Image
+                </span>
+                <span className="font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest pl-[12px]">
+                  Product
+                </span>
+                <span className="font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest pl-[12px]">
+                  Price
+                </span>
+              </div>
+              {products.map((product) => (
+                <div
+                  key={product.id}
+                  onClick={() => setSelectedProduct(product)}
+                  className="flex sm:grid sm:grid-cols-[100px_1fr_130px] items-center gap-[12px] sm:gap-0 px-[16px] sm:px-[20px] py-[12px] cursor-pointer hover:bg-gc-bg-warm transition-colors"
+                >
+                  <div className="w-[64px] h-[64px] sm:w-[78px] sm:h-[78px] rounded-[8px] overflow-hidden border border-gc-divider bg-gc-bg-warm flex-shrink-0">
+                    {product.imageUrl ? (
+                      <img
+                        src={product.imageUrl}
+                        alt={product.imageAlt}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gc-bg-warm" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 sm:pl-[12px]">
+                    <p className="font-hanken text-[14px] font-semibold text-gc-near-black2 leading-[1.4]">
+                      {product.title}
+                    </p>
+                    <p className="font-hanken text-[13px] text-gc-primary font-medium mt-[2px] sm:hidden">
+                      {formatPrice(product.price, product.currencyCode)}
+                    </p>
+                  </div>
+                  <div className="hidden sm:block sm:pl-[12px]">
+                    <p className="font-hanken text-[13px] text-gc-primary font-medium">
+                      {formatPrice(product.price, product.currencyCode)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

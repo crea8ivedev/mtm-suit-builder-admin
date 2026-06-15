@@ -446,7 +446,7 @@ export default function CreateOrder() {
     const _hasSelector =
       _variants.length > 1 ||
       (_variants.length === 1 && _variants[0].title !== "Default Title");
-    const _defaultV = _hasSelector ? _variants[0] : null;
+    const _defaultV = _variants[0] ?? null;
     setSelectedVariant(_defaultV);
     setPrice(_defaultV?.price || "0.00");
 
@@ -517,7 +517,7 @@ export default function CreateOrder() {
       (variants.length === 1 && variants[0].title !== "Default Title");
     setSelectedFabric(null);
     if (variants[0]) {
-      setSelectedVariant(hasVariantSelector ? variants[0] : null);
+      setSelectedVariant(variants[0]);
       setPrice(variants[0].price || "0.00");
     } else {
       setSelectedVariant(null);
@@ -787,13 +787,42 @@ export default function CreateOrder() {
           const productName = selectedProduct.title;
           const existingList = allProfiles[productName] ?? [];
           const today = new Date().toISOString().split("T")[0];
+
+          // Build style field (selected options only)
+          const allStyleOpts = [...styleOptions, ...contrastOptions];
+          const profileStyle = {};
+          for (const [compKey, value] of Object.entries(styleSelections)) {
+            if (!value) continue;
+            const [garment, category] = compKey.split("__");
+            const opt = allStyleOpts.find(
+              (o) => o.garment === garment && o.category === category,
+            );
+            profileStyle[`Style: ${opt?.displayLabel || category}`] = value;
+          }
+
+          // Build styleOptions field (unselected style/contrast options only)
+          const _soMap = {};
+          for (const o of allStyleOpts) {
+            const key = o.displayLabel || o.category;
+            if (!key || o.visible === false) continue;
+            const selectedLabel =
+              styleSelections[`${o.garment}__${o.category}`];
+            if (selectedLabel && o.label === selectedLabel) continue;
+            if (!_soMap[key]) _soMap[key] = [];
+            if (!_soMap[key].includes(o.label)) _soMap[key].push(o.label);
+          }
+
           const newProfile = {
             id: `prof_${Date.now()}`,
             name: `Measurement ${existingList.length + 1}`,
             created: today,
+            ...(Object.keys(profileStyle).length > 0 && {
+              style: profileStyle,
+            }),
             measurements: Object.fromEntries(
               measureAttrs.map(({ key, value }) => [key, String(value)]),
             ),
+            ...(Object.keys(_soMap).length > 0 && { styleOptions: _soMap }),
           };
           const fullProfiles = {
             ...allProfiles,
