@@ -1,13 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import {
-  X,
-  FileText,
-  ChevronDown,
-  Plus,
-  History,
-  CheckCircle2,
-} from "lucide-react";
+import { X, FileText, Plus, History, CheckCircle2 } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import AlertBanner from "../components/ui/AlertBanner";
@@ -141,8 +134,6 @@ function attrsFromLineItem(node, emptyValues = false) {
     );
 }
 
-// Read garments purely from the gc_builder metafield value (a choice string).
-// e.g. "jacket" → ["Jacket"],  "Suit — 3 piece (jacket + trouser + vest)" → ["Jacket","Trouser","Vest"]
 function garmentsFromGcBuilderValue(value) {
   if (!value) return [];
   const v = value.toLowerCase();
@@ -151,7 +142,6 @@ function garmentsFromGcBuilderValue(value) {
   if (v.includes("trouser")) found.push("Trouser");
   if (v.includes("vest")) found.push("Vest");
   if (v.includes("shirt")) found.push("Shirt");
-  // plain "suit" with no explicit garment words → jacket + trouser
   if (!found.length && v.includes("suit")) {
     found.push("Jacket");
     found.push("Trouser");
@@ -446,7 +436,7 @@ export default function CreateOrder() {
     const _hasSelector =
       _variants.length > 1 ||
       (_variants.length === 1 && _variants[0].title !== "Default Title");
-    const _defaultV = _variants[0] ?? null;
+    const _defaultV = _hasSelector ? _variants[0] : null;
     setSelectedVariant(_defaultV);
     setPrice(_defaultV?.price || "0.00");
 
@@ -503,7 +493,6 @@ export default function CreateOrder() {
     }
   }
 
-  // Initialize variant + price when product changes (runs only on product change, not on orders load)
   useEffect(() => {
     if (!selectedProduct) {
       setSelectedVariant(null);
@@ -517,7 +506,7 @@ export default function CreateOrder() {
       (variants.length === 1 && variants[0].title !== "Default Title");
     setSelectedFabric(null);
     if (variants[0]) {
-      setSelectedVariant(variants[0]);
+      setSelectedVariant(hasVariantSelector ? variants[0] : null);
       setPrice(variants[0].price || "0.00");
     } else {
       setSelectedVariant(null);
@@ -525,7 +514,6 @@ export default function CreateOrder() {
     }
   }, [selectedProduct]);
 
-  // Sync selectedFabric whenever variant changes
   useEffect(() => {
     if (!selectedVariant) {
       setSelectedFabric(null);
@@ -667,7 +655,6 @@ export default function CreateOrder() {
         setPrice(fallbackPrice);
       }
 
-      // Pre-fill fit size selections from past order attributes
       const fitPrefill = {};
       for (const attr of first.attributes) {
         for (const o of fitSizeOptions) {
@@ -693,7 +680,6 @@ export default function CreateOrder() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      // styleSelections keys are "Garment__category" — store as "Style: DisplayLabel" to match site format
       const allStyleOpts = [...styleOptions, ...contrastOptions];
       const styleAttrs = Object.entries(styleSelections)
         .filter(([, v]) => v)
@@ -787,51 +773,20 @@ export default function CreateOrder() {
           const productName = selectedProduct.title;
           const existingList = allProfiles[productName] ?? [];
           const today = new Date().toISOString().split("T")[0];
-
-          // Build style field (selected options only)
-          const allStyleOpts = [...styleOptions, ...contrastOptions];
-          const profileStyle = {};
-          for (const [compKey, value] of Object.entries(styleSelections)) {
-            if (!value) continue;
-            const [garment, category] = compKey.split("__");
-            const opt = allStyleOpts.find(
-              (o) => o.garment === garment && o.category === category,
-            );
-            profileStyle[`Style: ${opt?.displayLabel || category}`] = value;
-          }
-
-          // Build styleOptions field (unselected style/contrast options only)
-          const _soMap = {};
-          for (const o of allStyleOpts) {
-            const key = o.displayLabel || o.category;
-            if (!key || o.visible === false) continue;
-            const selectedLabel =
-              styleSelections[`${o.garment}__${o.category}`];
-            if (selectedLabel && o.label === selectedLabel) continue;
-            if (!_soMap[key]) _soMap[key] = [];
-            if (!_soMap[key].includes(o.label)) _soMap[key].push(o.label);
-          }
-
           const newProfile = {
             id: `prof_${Date.now()}`,
             name: `Measurement ${existingList.length + 1}`,
             created: today,
-            ...(Object.keys(profileStyle).length > 0 && {
-              style: profileStyle,
-            }),
             measurements: Object.fromEntries(
               measureAttrs.map(({ key, value }) => [key, String(value)]),
             ),
-            ...(Object.keys(_soMap).length > 0 && { styleOptions: _soMap }),
           };
           const fullProfiles = {
             ...allProfiles,
             [productName]: [...existingList, newProfile],
           };
           await setCustomerProductsMetafield(selectedCustomer.id, fullProfiles);
-        } catch {
-          // silent — profile save failure doesn't block order creation
-        }
+        } catch {}
       }
 
       clearOrdersCache();
@@ -960,7 +915,6 @@ export default function CreateOrder() {
                     onClick={async () => {
                       setSelectedTemplate(o.orderId);
 
-                      // Auto-select the variant used in this past order, or clear if none
                       if (o.variantTitle) {
                         const variants =
                           selectedProduct.variants?.edges?.map((e) => e.node) ??
@@ -1018,7 +972,6 @@ export default function CreateOrder() {
                         );
                       }
 
-                      // Pre-fill fit size from this past order's attributes
                       const fitPrefill = {};
                       for (const attr of o.attributes) {
                         for (const f of fitSizeOptions) {
@@ -1079,7 +1032,6 @@ export default function CreateOrder() {
               </div>
             </div>
 
-            {/* ── Variant Selector (with fabric swatch) ── */}
             {(() => {
               const variants =
                 selectedProduct.variants?.edges?.map((e) => e.node) ?? [];

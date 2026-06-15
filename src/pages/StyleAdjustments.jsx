@@ -150,6 +150,37 @@ export default function StyleAdjustments() {
     return () => clearTimeout(timer);
   }, [options]);
 
+  // Restore default garment+category if URL params are missing but data is loaded
+  useEffect(() => {
+    if (!options.length || selectedGarment) return;
+    const garments = [
+      ...new Set(options.map((o) => o.garment).filter(Boolean)),
+    ].sort();
+    const first =
+      garments.find((g) => g.toLowerCase() === "jacket") ?? garments[0];
+    if (!first) return;
+    const cats = [
+      ...new Set(
+        options
+          .filter(
+            (o) => o.garment === first && o.category !== "contrast_option",
+          )
+          .map((o) => o.category),
+      ),
+    ];
+    const firstCat = cats[0] ?? null;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("garment", first);
+        if (firstCat) next.set("category", firstCat);
+        else next.delete("category");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [options, selectedGarment]);
+
   const garments = useMemo(
     () => [...new Set(options.map((o) => o.garment).filter(Boolean))].sort(),
     [options],
@@ -166,13 +197,15 @@ export default function StyleAdjustments() {
       if (!map.has(opt.category))
         map.set(opt.category, {
           displayLabel: opt.displayLabel,
-          sortOrder: opt.sortOrder,
+          sortOrder: 9999,
           total: 0,
           visible: 0,
         });
       const e = map.get(opt.category);
       e.total++;
       if (getVisible(opt)) e.visible++;
+      if (opt.categorySort > 0 && opt.categorySort < e.sortOrder)
+        e.sortOrder = opt.categorySort;
     }
     return [...map.entries()]
       .map(([slug, info]) => ({ slug, ...info }))
@@ -191,13 +224,16 @@ export default function StyleAdjustments() {
   );
 
   const filteredOptions = useMemo(() => {
-    setLiningPage(0);
     const q = optionFilter.trim().toLowerCase();
     if (!q) return categoryOptions;
     return categoryOptions.filter(
       (o) =>
         o.label.toLowerCase().includes(q) || o.handle.toLowerCase().includes(q),
     );
+  }, [categoryOptions, optionFilter]);
+
+  useEffect(() => {
+    setLiningPage(0);
   }, [categoryOptions, optionFilter]);
 
   const LINING_PAGE_SIZE = 8;

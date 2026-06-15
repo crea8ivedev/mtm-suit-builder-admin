@@ -415,20 +415,23 @@ export default function OrderDetail() {
   } = supplierMeta;
   const isFailed = supplierStatus === "failed";
 
-  // upchargeEmbedded = upcharge already added to Shopify line item price via order edit
   const upchargeEmbedded =
     upchargeSynced > 0 && Math.abs(upchargeSynced - attrUpchargeAmount) < 0.01;
-  // display subtotal = strip out any embedded/separate upcharge so breakdown shows base price
-  const displaySubtotalAmount = upchargeEmbedded
-    ? subtotalAmount - attrUpchargeAmount
-    : separateUpchargeAmount > 0
-      ? subtotalAmount - separateUpchargeAmount
-      : subtotalAmount;
-  // display total = shopifyTotal when upcharge already in Shopify pricing, computed otherwise
+
+  // Product price in Shopify always = base + attrUpcharge (set by CreateOrder).
+  // After auto-sync, a separate "Upcharge" line item is also added.
+  // Strip BOTH from Shopify subtotal to recover the true base price.
+  const displaySubtotalAmount =
+    subtotalAmount - attrUpchargeAmount - separateUpchargeAmount;
+
+  // Show attr-based upcharge for admin orders, separate line item for site orders.
+  const displayUpchargeAmount =
+    attrUpchargeAmount > 0 ? attrUpchargeAmount : separateUpchargeAmount;
+
+  // Always derive display total from display components to avoid Shopify double-count.
   const displayTotal =
-    upchargeEmbedded || separateUpchargeAmount > 0
-      ? shopifyTotal
-      : subtotalAmount + totalUpchargeAmount + taxAmount;
+    displaySubtotalAmount + displayUpchargeAmount + taxAmount;
+
   const needsUpchargeSync = attrUpchargeAmount > 0.01 && !upchargeEmbedded;
 
   // Auto-sync: push upcharge as a separate line item and mark with metafield
@@ -826,7 +829,7 @@ export default function OrderDetail() {
                                 )}
                               </span>
                             </div>
-                            {totalUpchargeAmount > 0 && (
+                            {displayUpchargeAmount > 0 && (
                               <div className="flex items-center justify-between">
                                 <span className="font-hanken text-[14px] text-[#44474c]">
                                   Upcharge
@@ -834,7 +837,7 @@ export default function OrderDetail() {
                                 <span className="font-hanken text-[14px] text-gc-near-black2">
                                   +
                                   {formatAmount(
-                                    totalUpchargeAmount,
+                                    displayUpchargeAmount,
                                     orderCurrencyCode,
                                   )}
                                 </span>

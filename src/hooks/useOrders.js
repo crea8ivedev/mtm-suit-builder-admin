@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { fetchOrdersPage, transformOrder } from "../lib/shopify";
 
-// Module-level cache so navigating away and back doesn't re-fetch
 let _cache = null;
 
 export function useOrders() {
@@ -40,7 +39,6 @@ export function useOrders() {
 
           if (cancelRef.current) return;
 
-          // Show first batch immediately — rest stream in behind the scenes
           setRawOrders([...all]);
           setProgress(all.length);
           if (firstBatch) {

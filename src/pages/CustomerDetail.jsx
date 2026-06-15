@@ -80,12 +80,10 @@ function normalizeEditingValues(source, styleOptions, contrastOptions) {
       continue;
     }
     if (k.startsWith("Style: ")) {
-      // New format — match by displayLabel, store as "garment - category" for edit dropdowns
       const displayLabel = k.slice("Style: ".length);
       const match = allOpts.find((o) => o.displayLabel === displayLabel);
       normalized[match ? `${match.garment} - ${match.category}` : k] = v;
     } else if (k.includes(" - ")) {
-      // Old format — normalise garment/category casing
       const parts = k.split(" - ");
       const g = parts[0].trim();
       const c = parts.slice(1).join(" - ").trim();
@@ -122,23 +120,6 @@ function buildStyleOptionsByGarment(styleOptions, contrastOptions, garments) {
     }
   }
   return byGarment;
-}
-
-function buildUnselectedStyleOptions(styleField, styleOpts, contrastOpts) {
-  const selected = {};
-  for (const [k, v] of Object.entries(styleField || {})) {
-    const displayLabel = k.startsWith("Style: ") ? k.slice(7) : k;
-    selected[displayLabel] = v;
-  }
-  const map = {};
-  for (const o of [...styleOpts, ...contrastOpts]) {
-    const key = o.displayLabel || o.category;
-    if (!key || o.visible === false) continue;
-    if (selected[key] === o.label) continue;
-    if (!map[key]) map[key] = [];
-    if (!map[key].includes(o.label)) map[key].push(o.label);
-  }
-  return Object.keys(map).length > 0 ? map : null;
 }
 
 function resolveLabel(rawKey, labelMap) {
@@ -353,13 +334,10 @@ function mergeProfilesWithSaved(fromOrders, saved) {
       merged[productName] = orderProfiles;
       continue;
     }
-    const usedSavedIdx = new Set();
-    const mergedList = orderProfiles.map((profile, idx) => {
-      const byNameIdx = savedList.findIndex((s) => s.name === profile.name);
-      const matchIdx = byNameIdx >= 0 ? byNameIdx : idx;
-      const match = savedList[matchIdx];
+    merged[productName] = orderProfiles.map((profile, idx) => {
+      const byName = savedList.find((s) => s.name === profile.name);
+      const match = byName ?? savedList[idx];
       if (!match) return profile;
-      usedSavedIdx.add(matchIdx);
       // Check if saved data has style keys mixed into measurements (corrupted format)
       const savedMeasurements = match.measurements ?? {};
       const hasStyleInMeasurements = Object.keys(savedMeasurements).some(
@@ -371,22 +349,11 @@ function mergeProfilesWithSaved(fromOrders, saved) {
           ...profile,
           style: match.style,
           measurements: savedMeasurements,
-          ...(match.styleOptions ? { styleOptions: match.styleOptions } : {}),
         };
       }
       // Corrupted/old flat format — use order-derived profile (already has correct format)
       return profile;
     });
-    // Append saved profiles that had no matching order profile
-    // (e.g. orders where item.product is null, so buildMeasurementProfiles skipped them)
-    const extra = savedList.filter((_, i) => !usedSavedIdx.has(i));
-    merged[productName] = [...mergedList, ...extra];
-  }
-  // Include saved profiles for products not found in any order at all
-  for (const [productName, savedList] of Object.entries(saved)) {
-    if (!merged[productName] && savedList?.length) {
-      merged[productName] = savedList;
-    }
   }
   return merged;
 }
@@ -530,12 +497,10 @@ export default function CustomerDetail() {
       out[product] = list.map((p) => {
         const measurements = {};
         const style = {};
-        // Carry over existing style entries (re-translate keys if needed)
         for (const [k, v] of Object.entries(p.style ?? {})) {
           if (PRICE_SKIP_KEYS.has(k.toLowerCase())) continue;
           style[styleKeyMap[k] ?? styleKeyMap[k.toLowerCase()] ?? k] = v;
         }
-        // Process measurements: move any style keys out, translate raw measurement keys
         for (const [k, v] of Object.entries(p.measurements ?? {})) {
           if (PRICE_SKIP_KEYS.has(k.toLowerCase())) continue;
           if (k.startsWith("Style: ") || k.includes(" - ")) {
@@ -550,7 +515,6 @@ export default function CustomerDetail() {
     return out;
   }, [gcMeasurements, displayKeyMap, styleKeyMap]);
 
-  // Product names that have at least one order line item with gc_builder set
   const gcBuilderProductNames = useMemo(() => {
     const set = new Set();
     for (const order of orders) {
@@ -587,9 +551,6 @@ export default function CustomerDetail() {
     gcBuilderProductNames,
   ]);
 
-  // Auto-fix: once maps + orders + gc_measurements are all loaded, silently save
-  // cleaned activeProfiles back to Shopify so the metafield stays correct.
-  // Also enriches profiles with styleOptions (unselected style options).
   useEffect(() => {
     if (autoFixedRef.current) return;
     if (!orders.length) return;
@@ -598,22 +559,7 @@ export default function CustomerDetail() {
     if (!Object.keys(gcMeasurements).length) return;
     if (!Object.keys(activeProfiles).length) return;
     autoFixedRef.current = true;
-    const profilesToSave = styleOptions.length
-      ? Object.fromEntries(
-          Object.entries(activeProfiles).map(([product, list]) => [
-            product,
-            list.map((p) => {
-              const soMap = buildUnselectedStyleOptions(
-                p.style,
-                styleOptions,
-                contrastOptions,
-              );
-              return soMap ? { ...p, styleOptions: soMap } : p;
-            }),
-          ]),
-        )
-      : activeProfiles;
-    setCustomerProductsMetafield(shopifyGid, profilesToSave).catch(() => {});
+    setCustomerProductsMetafield(shopifyGid, activeProfiles).catch(() => {});
   }, [orders, displayKeyMap, styleKeyMap, gcMeasurements, activeProfiles]);
 
   const handleProfileEditStart = (entry) => {
@@ -666,7 +612,6 @@ export default function CustomerDetail() {
       if (k.startsWith("Style: ")) {
         newStyle[k] = v;
       } else if (k.includes(" - ")) {
-        // editingValues uses "garment - category" format — translate to "Style: DisplayLabel"
         const translatedKey =
           styleKeyMap[k] ?? styleKeyMap[k.toLowerCase()] ?? k;
         newStyle[translatedKey] = v;
@@ -676,20 +621,10 @@ export default function CustomerDetail() {
     }
     const updatedProfiles = JSON.parse(JSON.stringify(activeProfiles));
     updatedProfiles[entry.productName] = updatedProfiles[entry.productName].map(
-      (p) => {
-        if (p.id !== entry.id) return p;
-        const soMap = buildUnselectedStyleOptions(
-          newStyle,
-          styleOptions,
-          contrastOptions,
-        );
-        return {
-          ...p,
-          style: newStyle,
-          measurements: newMeasurements,
-          ...(soMap ? { styleOptions: soMap } : {}),
-        };
-      },
+      (p) =>
+        p.id === entry.id
+          ? { ...p, style: newStyle, measurements: newMeasurements }
+          : p,
     );
     try {
       await setCustomerProductsMetafield(
@@ -1096,14 +1031,16 @@ export default function CustomerDetail() {
                               </button>
                             </>
                           ) : (
-                            <button
-                              onClick={() => handleProfileEditStart(entry)}
-                              disabled={!!editingProfileId}
-                              className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              <Pencil size={13} />
-                              EDIT
-                            </button>
+                            !isStandard && (
+                              <button
+                                onClick={() => handleProfileEditStart(entry)}
+                                disabled={!!editingProfileId}
+                                className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                <Pencil size={13} />
+                                EDIT
+                              </button>
+                            )
                           )}
                         </div>
                       </div>

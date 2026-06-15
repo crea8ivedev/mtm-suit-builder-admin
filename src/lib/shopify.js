@@ -31,7 +31,6 @@ export async function checkSuperAdmin(email) {
 
 // ─── GraphQL query ─────────────────────────────────────────────────────────
 // Fetches one page of orders with cursor-based pagination.
-// lineItems(first: 10) keeps per-request cost well under Shopify's 1 000-point limit.
 const GET_ORDERS_QUERY = `
   query GetOrders($first: Int!, $after: String, $query: String) {
     orders(first: $first, after: $after, query: $query, sortKey: CREATED_AT, reverse: true) {
@@ -332,7 +331,7 @@ export async function fetchProductVariantsDetail(productId) {
   };
 }
 
-// productOptionUpdate — optionValuesToAdd is a TOP-LEVEL arg, NOT inside option: {}
+// productOptionUpdate
 const ADD_OPTION_VALUE_MUTATION = `
   mutation ProductOptionUpdate(
     $productId: ID!
@@ -358,9 +357,6 @@ const ADD_OPTION_VALUE_MUTATION = `
   }
 `;
 
-// Creates a new ProductOptionValue on a connected option by linking a metaobject.
-// Returns the new { id, name } so the caller can immediately create a variant with it.
-// Confirmed working syntax from Postman: option: { id } + optionValuesToAdd: [{ linkedMetafieldValue }]
 export async function createProductOptionValue(
   productId,
   optionId,
@@ -374,7 +370,6 @@ export async function createProductOptionValue(
   });
   const { product, userErrors } = data.productOptionUpdate;
   if (userErrors?.length) throw new Error(userErrors[0].message);
-  // Find the updated option by ID and return its last-added value (newest is last)
   const updatedOption = (product?.options ?? []).find((o) => o.id === optionId);
   const values = updatedOption?.optionValues ?? [];
   if (!values.length) throw new Error("Option value was not created.");
@@ -394,8 +389,6 @@ const ADD_PRODUCT_VARIANT_MUTATION = `
   }
 `;
 
-// patternLabel: for plain-text (non-connected) options.
-// imageUrl: if provided, creates media and links it to the variant in one call.
 export async function addVariantToProduct(
   productId,
   optionValueId,
@@ -421,8 +414,6 @@ export async function addVariantToProduct(
     }
   }
 
-  // When imageUrl is provided: pass it in both `media` (creates product media)
-  // and `variants[].mediaSrc` (links that media to this specific variant) in one call.
   const variantInput = imageUrl
     ? { optionValues, mediaSrc: [imageUrl] }
     : { optionValues };
@@ -1489,6 +1480,7 @@ async function fetchStyleOptionsForType(type) {
         visible: fm.visible !== "false",
         isDefault: fm.is_default === "true",
         sortOrder: parseInt(fm.sort_order || "0", 10),
+        categorySort: parseInt(fm.style_sort || "0", 10),
         kutetailerCode: fm.kutetailer_code || null,
         conditionalHide: fm.conditional_hide || "",
         imageGid: fm.image || null,
@@ -1529,9 +1521,7 @@ async function resolveFileGidUrls(gids) {
       for (const node of data.nodes ?? []) {
         if (node?.image?.url) map[node.id] = node.image.url;
       }
-    } catch {
-      // non-fatal — missing URLs just won't display
-    }
+    } catch {}
   }
   return map;
 }
@@ -1600,7 +1590,7 @@ export function clearStyleOptionsCache() {
   _styleOptionsCacheAt = 0;
   _contrastOptionsCache = null;
   _contrastOptionsCacheAt = 0;
-  _fieldDefsCache.clear(); // force re-fetch so new Shopify fields appear immediately
+  _fieldDefsCache.clear();
 }
 
 // ─── Contrast Options (gc_contrast_option) ────────────────────────────────
@@ -1695,7 +1685,7 @@ export async function fetchContrastOptions() {
   return results;
 }
 
-// ─── Lining Codes (lining_code) ───────────────────────────────────────────
+// ─── Lining Codes ─────────────────────────────────────────────────────────
 
 const LINING_CODES_QUERY = `
   query GetLiningCodes($first: Int!, $after: String) {
@@ -1753,7 +1743,8 @@ export async function fetchLiningCodes() {
         upcharge: 0,
         visible: fm.visible !== "false",
         isDefault: fm.is_default === "true",
-        sortOrder: 9999,
+        sortOrder: parseInt(fm.sort_order || "9999", 10),
+        categorySort: parseInt(fm.style_sort || "0", 10),
         imageGid: fm.image || null,
         imageUrl: null,
         imageUrlStored: null,
@@ -2089,7 +2080,6 @@ export async function fetchShopifyColorPattern() {
     cursor = pageInfo.endCursor;
   }
 
-  // Resolve image GIDs via nodes query
   const toResolve = all.filter((f) => f._imageGid);
   if (toResolve.length) {
     try {
@@ -2107,9 +2097,7 @@ export async function fetchShopifyColorPattern() {
           f.imageGid = f._imageGid;
         }
       }
-    } catch {
-      // falls back to color swatch
-    }
+    } catch {}
   }
 
   for (const f of all) delete f._imageGid;
