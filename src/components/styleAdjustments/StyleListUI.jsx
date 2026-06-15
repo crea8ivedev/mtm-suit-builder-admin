@@ -82,7 +82,7 @@ export function OptionCard({
 }) {
   return (
     <div className="bg-white flex items-center h-[52px] md:h-[64px] rounded-[8px] px-[8px] md:px-[11px] py-[8px] md:py-[12px] border border-gc-border-warm">
-      {!option.isContrastOption && (
+      {!option.isContrastOption && !option.isLiningCode && (
         <span className="flex-shrink-0 flex items-center justify-center font-hanken font-bold text-[11px] rounded-[4px] mr-[8px] w-[24px] h-[24px] bg-gc-bg-warm text-gc-primary">
           {option.sortOrder ?? "—"}
         </span>
@@ -118,28 +118,32 @@ export function OptionCard({
         >
           <Eye size={12} className="text-gc-primary-deep" />
         </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit(option);
-          }}
-          className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 flex-shrink-0 w-[28px] h-[28px] bg-gc-bg-warm"
-          title="Edit option"
-        >
-          <Pencil size={12} className="text-gc-primary-deep" />
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(option);
-          }}
-          className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 flex-shrink-0 w-[28px] h-[28px] bg-red-50"
-          title="Delete option"
-        >
-          <Trash2 size={12} className="text-red-700" />
-        </button>
+        {!option.isLiningCode && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(option);
+            }}
+            className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 flex-shrink-0 w-[28px] h-[28px] bg-gc-bg-warm"
+            title="Edit option"
+          >
+            <Pencil size={12} className="text-gc-primary-deep" />
+          </button>
+        )}
+        {!option.isLiningCode && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(option);
+            }}
+            className="flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 flex-shrink-0 w-[28px] h-[28px] bg-red-50"
+            title="Delete option"
+          >
+            <Trash2 size={12} className="text-red-700" />
+          </button>
+        )}
         <span className="font-hanken font-semibold text-[12px] tracking-[0.6px] w-[24px] text-right text-gc-primary-deep">
           {visible ? "ON" : "OFF"}
         </span>

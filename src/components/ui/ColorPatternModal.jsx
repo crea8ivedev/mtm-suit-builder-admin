@@ -8,7 +8,7 @@ import {
   AlertCircle,
   Upload,
   RefreshCw,
-  Minus,
+  Trash2,
   CheckCircle2,
 } from "lucide-react";
 import {
@@ -37,23 +37,19 @@ function ConfirmRemoveDialog({ label, onConfirm, onCancel, loading }) {
   return (
     <div className="fixed inset-0 z-[200] bg-black/40 flex items-center justify-center p-[16px]">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-[420px] p-[24px]">
-        <h3 className="text-[16px] font-semibold text-gray-800 mb-[8px]">
+        <h3 className="text-[16px] font-semibold text-gc-near-black mb-[8px]">
           Remove from Variants?
         </h3>
-        <p className="text-[14px] text-gray-600 mb-[6px]">
+        <p className="text-[14px] text-gc-muted-warm mb-[6px]">
           This will remove{" "}
-          <span className="font-semibold text-gray-800">"{label}"</span> from
-          this product's variant options.
-        </p>
-        <p className="text-[13px] text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-[12px] py-[8px] mb-[20px]">
-          The color pattern itself will <strong>not</strong> be deleted — it
-          stays in Shopify. Only the product variant is removed.
+          <span className="font-semibold text-gc-near-black">"{label}"</span>{" "}
+          from this product's variant options.
         </p>
         <div className="flex gap-[10px] justify-end">
           <button
             onClick={onCancel}
             disabled={loading}
-            className="px-[16px] py-[8px] text-[13px] text-gray-600 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
+            className="px-[16px] py-[8px] text-[13px] text-gc-muted-warm rounded-lg hover:bg-gc-bg-warm transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
@@ -82,19 +78,19 @@ function PatternForm({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]">
       <div>
-        <label className="block text-[11px] font-medium text-gray-500 mb-[4px]">
+        <label className="block text-[11px] font-medium text-gc-muted-warm mb-[4px]">
           Label <span className="text-red-400">*</span>
         </label>
         <input
           type="text"
           value={form.label}
           onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
-          className="w-full border border-gray-300 rounded-md px-[10px] py-[6px] text-[13px] focus:outline-none focus:ring-1 focus:ring-gray-400"
+          className="w-full border border-gc-border-warm rounded-md px-[10px] py-[6px] text-[13px] focus:outline-none focus:ring-1 focus:ring-gc-primary/30"
           placeholder="e.g. Navy Blue"
         />
       </div>
       <div>
-        <label className="block text-[11px] font-medium text-gray-500 mb-[4px]">
+        <label className="block text-[11px] font-medium text-gc-muted-warm mb-[4px]">
           Color Hex
         </label>
         <div className="flex gap-[6px]">
@@ -102,35 +98,35 @@ function PatternForm({
             type="color"
             value={form.color || "#000000"}
             onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-            className="w-[36px] h-[34px] border border-gray-300 rounded-md cursor-pointer p-[2px] flex-shrink-0"
+            className="w-[36px] h-[34px] border border-gc-border-warm rounded-md cursor-pointer p-[2px] flex-shrink-0"
           />
           <input
             type="text"
             value={form.color || ""}
             onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-            className="flex-1 border border-gray-300 rounded-md px-[10px] py-[6px] text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-gray-400"
+            className="flex-1 border border-gc-border-warm rounded-md px-[10px] py-[6px] text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-gc-primary/30"
             placeholder="#000000"
           />
         </div>
       </div>
       <div>
-        <label className="block text-[11px] font-medium text-gray-500 mb-[4px]">
+        <label className="block text-[11px] font-medium text-gc-muted-warm mb-[4px]">
           Code
         </label>
         <input
           type="text"
           value={form.code || ""}
           onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-          className="w-full border border-gray-300 rounded-md px-[10px] py-[6px] text-[13px] focus:outline-none focus:ring-1 focus:ring-gray-400"
+          className="w-full border border-gc-border-warm rounded-md px-[10px] py-[6px] text-[13px] focus:outline-none focus:ring-1 focus:ring-gc-primary/30"
           placeholder="Optional code"
         />
       </div>
       <div>
-        <label className="block text-[11px] font-medium text-gray-500 mb-[4px]">
+        <label className="block text-[11px] font-medium text-gc-muted-warm mb-[4px]">
           Image
         </label>
         <div className="flex items-center gap-[8px]">
-          <div className="w-[34px] h-[34px] rounded-md overflow-hidden border border-gray-200 bg-gray-100 flex-shrink-0 flex items-center justify-center">
+          <div className="w-[34px] h-[34px] rounded-md overflow-hidden border border-gc-border-warm bg-gc-bg-warm flex-shrink-0 flex items-center justify-center">
             {form.imageUrl ? (
               <img
                 src={form.imageUrl}
@@ -138,14 +134,14 @@ function PatternForm({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <Upload size={12} className="text-gray-400" />
+              <Upload size={12} className="text-gc-muted" />
             )}
           </div>
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={imageUploading}
-            className="text-[12px] text-blue-600 hover:text-blue-800 disabled:opacity-50 transition-colors"
+            className="text-[12px] text-gc-primary hover:text-gc-primary-deep disabled:opacity-50 transition-colors"
           >
             {imageUploading
               ? "Uploading…"
@@ -179,10 +175,10 @@ function PatternCard({ pattern, isVariant, onAdd, adding }) {
       className={[
         "w-full border rounded-xl p-[12px] flex items-center gap-[12px] transition-all text-left",
         isVariant
-          ? "border-green-300 bg-green-50 cursor-default"
+          ? "border-gc-primary/40 bg-gc-bg-warm cursor-default"
           : adding
-            ? "border-gray-200 bg-white opacity-60 cursor-wait"
-            : "border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm cursor-pointer",
+            ? "border-gc-border-warm bg-white opacity-60 cursor-wait"
+            : "border-gc-border-warm bg-white hover:border-gc-primary/50 hover:shadow-sm cursor-pointer",
       ].join(" ")}
       title={
         isVariant
@@ -190,7 +186,7 @@ function PatternCard({ pattern, isVariant, onAdd, adding }) {
           : "Click to add as product variant"
       }
     >
-      <div className="w-[48px] h-[48px] rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
+      <div className="w-[48px] h-[48px] rounded-lg overflow-hidden flex-shrink-0 border border-gc-border-warm">
         {pattern.imageUrl ? (
           <img
             src={pattern.imageUrl}
@@ -205,27 +201,27 @@ function PatternCard({ pattern, isVariant, onAdd, adding }) {
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[14px] font-medium text-gray-800 truncate">
+        <p className="text-[14px] font-medium text-gc-near-black truncate">
           {pattern.label}
         </p>
         <div className="flex items-center gap-[6px] mt-[2px]">
           {pattern.color && (
-            <span className="text-[11px] font-mono text-gray-400">
+            <span className="text-[11px] font-mono text-gc-muted">
               {pattern.color}
             </span>
           )}
           {pattern.code && (
-            <span className="text-[11px] text-gray-400">· {pattern.code}</span>
+            <span className="text-[11px] text-gc-muted">· {pattern.code}</span>
           )}
         </div>
       </div>
       <div className="flex-shrink-0 w-[28px] flex items-center justify-center">
         {adding ? (
-          <Loader2 size={15} className="animate-spin text-gray-400" />
+          <Loader2 size={15} className="animate-spin text-gc-muted" />
         ) : isVariant ? (
-          <CheckCircle2 size={18} className="text-green-500" />
+          <CheckCircle2 size={18} className="text-gc-primary" />
         ) : (
-          <Plus size={16} className="text-blue-400" />
+          <Plus size={16} className="text-gc-primary" />
         )}
       </div>
     </button>
@@ -532,20 +528,20 @@ export default function ColorPatternModal({ product, onClose }) {
       >
         <div className="bg-white rounded-xl shadow-2xl w-full max-w-[900px] max-h-[90vh] flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-[14px] sm:px-[24px] py-[12px] sm:py-[16px] border-b border-gray-200 flex-shrink-0 gap-[8px]">
+          <div className="flex items-center justify-between px-[14px] sm:px-[24px] py-[12px] sm:py-[16px] border-b border-gc-border-warm flex-shrink-0 gap-[8px]">
             <div className="flex items-center gap-[10px] sm:gap-[12px] min-w-0">
               {product.imageUrl && (
                 <img
                   src={product.imageUrl}
                   alt={product.title}
-                  className="w-[32px] h-[32px] sm:w-[36px] sm:h-[36px] rounded-md object-contain border border-gray-200 flex-shrink-0"
+                  className="w-[32px] h-[32px] sm:w-[36px] sm:h-[36px] rounded-md object-contain border border-gc-border-warm flex-shrink-0"
                 />
               )}
               <div className="min-w-0">
-                <h2 className="text-[14px] sm:text-[16px] font-semibold text-gray-800 truncate">
+                <h2 className="text-[14px] sm:text-[16px] font-semibold text-gc-near-black truncate">
                   {product.title}
                 </h2>
-                <p className="text-[11px] sm:text-[12px] text-gray-400">
+                <p className="text-[11px] sm:text-[12px] text-gc-muted">
                   Color Patterns · {loading ? "…" : `${patterns.length} total`}
                 </p>
               </div>
@@ -557,7 +553,7 @@ export default function ColorPatternModal({ product, onClose }) {
                   loadVariants();
                 }}
                 disabled={loading || variantsLoading}
-                className="w-[30px] h-[30px] sm:w-[32px] sm:h-[32px] flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                className="w-[30px] h-[30px] sm:w-[32px] sm:h-[32px] flex items-center justify-center rounded-lg text-gc-muted hover:text-gc-near-black hover:bg-gc-bg-warm disabled:opacity-50 transition-colors cursor-pointer disabled:cursor-not-allowed"
                 title="Refresh from Shopify"
               >
                 <RefreshCw
@@ -570,14 +566,14 @@ export default function ColorPatternModal({ product, onClose }) {
                   setShowAdd(true);
                   setEditingId(null);
                 }}
-                className="flex items-center gap-[4px] sm:gap-[6px] bg-gc-primary text-white text-[12px] sm:text-[13px] font-medium px-[8px] sm:px-[12px] py-[6px] sm:py-[7px] rounded-lg hover:bg-gray-700 transition-colors"
+                className="flex items-center gap-[4px] sm:gap-[6px] bg-gc-primary text-white text-[12px] sm:text-[13px] font-medium px-[8px] sm:px-[12px] py-[6px] sm:py-[7px] rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
               >
                 <Plus size={14} />
                 <span className="hidden sm:inline">Add Pattern</span>
               </button>
               <button
                 onClick={onClose}
-                className="w-[30px] h-[30px] sm:w-[32px] sm:h-[32px] flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                className="w-[30px] h-[30px] sm:w-[32px] sm:h-[32px] flex items-center justify-center rounded-full text-gc-muted hover:text-gc-near-black hover:bg-gc-bg-warm transition-colors"
               >
                 <X size={18} />
               </button>
@@ -588,12 +584,12 @@ export default function ColorPatternModal({ product, onClose }) {
           <div className="overflow-y-auto flex-1 p-[16px] sm:p-[24px]">
             {/* ── Product Variants ── */}
             <div className="mb-[20px]">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-[12px]">
+              <p className="text-[11px] font-semibold text-gc-muted uppercase tracking-widest mb-[12px]">
                 Product Variants
               </p>
 
               {variantsLoading ? (
-                <div className="flex items-center gap-[8px] text-gray-400">
+                <div className="flex items-center gap-[8px] text-gc-muted">
                   <Loader2 size={14} className="animate-spin" />
                   <span className="text-[12px]">Loading variants…</span>
                 </div>
@@ -624,7 +620,7 @@ export default function ColorPatternModal({ product, onClose }) {
                     return (
                       <div key={opt.name}>
                         <div className="flex flex-col sm:flex-row sm:items-start gap-[6px] sm:gap-[10px]">
-                          <span className="text-[12px] font-medium text-gray-500 sm:w-[64px] flex-shrink-0 sm:pt-[6px]">
+                          <span className="text-[12px] font-medium text-gc-muted-warm sm:w-[64px] flex-shrink-0 sm:pt-[6px]">
                             {opt.name}
                           </span>
                           <div className="flex flex-wrap gap-[8px]">
@@ -641,12 +637,12 @@ export default function ColorPatternModal({ product, onClose }) {
                                   className={[
                                     "flex items-center gap-[6px] border rounded-full pl-[4px] py-[3px] transition-colors group",
                                     isThisEditing
-                                      ? "bg-blue-50 border-blue-300 pr-[6px]"
-                                      : "bg-gray-100 border-gray-200 pr-[6px]",
+                                      ? "bg-gc-bg-warm border-gc-primary/40 pr-[6px]"
+                                      : "bg-gc-bg-warm border-gc-border-warm pr-[6px]",
                                   ].join(" ")}
                                 >
                                   {/* Swatch */}
-                                  <div className="w-[20px] h-[20px] rounded-full overflow-hidden flex-shrink-0 border border-gray-300">
+                                  <div className="w-[20px] h-[20px] rounded-full overflow-hidden flex-shrink-0 border border-gc-border-warm">
                                     {matched?.imageUrl ? (
                                       <img
                                         src={matched.imageUrl}
@@ -664,7 +660,7 @@ export default function ColorPatternModal({ product, onClose }) {
                                     )}
                                   </div>
                                   {/* Label */}
-                                  <span className="text-[12px] text-gray-700 font-medium">
+                                  <span className="text-[12px] text-gc-near-black font-medium">
                                     {val}
                                   </span>
                                   {/* Actions */}
@@ -677,10 +673,10 @@ export default function ColorPatternModal({ product, onClose }) {
                                             : startEdit(matched)
                                         }
                                         className={[
-                                          "w-[20px] h-[20px] flex items-center justify-center rounded-full transition-colors",
+                                          "w-[20px] h-[20px] flex items-center justify-center rounded-full transition-colors cursor-pointer",
                                           isThisEditing
-                                            ? "text-blue-600 bg-blue-100"
-                                            : "text-gray-400 hover:text-gray-700 hover:bg-gray-200",
+                                            ? "text-gc-primary-deep bg-gc-bg-warm"
+                                            : "text-gc-muted hover:text-gc-near-black hover:bg-gc-bg-warm",
                                         ].join(" ")}
                                         title={
                                           isThisEditing
@@ -691,13 +687,12 @@ export default function ColorPatternModal({ product, onClose }) {
                                         <Pencil size={10} />
                                       </button>
                                     )}
-                                    {/* Remove from variants — NOT delete metaobject */}
                                     <button
                                       onClick={() => requestRemoveVariant(val)}
-                                      className="w-[20px] h-[20px] flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                      title="Remove from variants (color pattern stays)"
+                                      className="w-[20px] h-[20px] flex items-center justify-center rounded-full text-gc-muted hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                                      title="Remove from variants"
                                     >
-                                      <Minus size={10} />
+                                      <Trash2 size={10} />
                                     </button>
                                   </div>
                                 </div>
@@ -708,8 +703,8 @@ export default function ColorPatternModal({ product, onClose }) {
 
                         {/* Inline edit form */}
                         {editingInThisOpt && (
-                          <div className="mt-[10px] ml-0 sm:ml-[74px] border border-blue-200 bg-blue-50 rounded-xl p-[14px]">
-                            <p className="text-[12px] font-semibold text-blue-700 mb-[10px]">
+                          <div className="mt-[10px] ml-0 sm:ml-[74px] border border-gc-border-warm bg-gc-bg-warm rounded-xl p-[14px]">
+                            <p className="text-[12px] font-semibold text-gc-primary-deep mb-[10px]">
                               Editing:{" "}
                               {optValues.find((val) => {
                                 const m = patterns.find(
@@ -730,7 +725,7 @@ export default function ColorPatternModal({ product, onClose }) {
                               <button
                                 onClick={handleSave}
                                 disabled={saving || !editForm.label?.trim()}
-                                className="flex items-center gap-[6px] bg-gray-800 text-white text-[12px] px-[12px] py-[6px] rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors"
+                                className="flex items-center gap-[6px] bg-gc-primary-deep text-white text-[12px] px-[12px] py-[6px] rounded-lg disabled:opacity-50 hover:opacity-90 transition-opacity cursor-pointer disabled:cursor-not-allowed"
                               >
                                 {saving ? (
                                   <Loader2 size={12} className="animate-spin" />
@@ -741,7 +736,7 @@ export default function ColorPatternModal({ product, onClose }) {
                               </button>
                               <button
                                 onClick={cancelEdit}
-                                className="text-[12px] text-gray-600 px-[12px] py-[6px] rounded-lg hover:bg-blue-100 transition-colors"
+                                className="text-[12px] text-gc-muted-warm px-[12px] py-[6px] rounded-lg hover:bg-gc-bg-image transition-colors cursor-pointer"
                               >
                                 Cancel
                               </button>
@@ -755,22 +750,22 @@ export default function ColorPatternModal({ product, onClose }) {
               )}
             </div>
 
-            <div className="border-t border-gray-100 mb-[20px]" />
+            <div className="border-t border-gc-border-warm mb-[20px]" />
 
             {/* ── All Color Patterns ── */}
             <div className="flex items-center justify-between mb-[16px]">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">
+              <p className="text-[11px] font-semibold text-gc-muted uppercase tracking-widest">
                 All Color Patterns
               </p>
-              <p className="text-[11px] text-gray-400">
+              <p className="text-[11px] text-gc-muted">
                 Click a pattern to add it as a product variant
               </p>
             </div>
 
             {/* Add Form */}
             {showAdd && (
-              <div className="mb-[20px] border border-green-200 bg-green-50 rounded-xl p-[16px]">
-                <p className="text-[13px] font-semibold text-green-800 mb-[12px]">
+              <div className="mb-[20px] border border-gc-border-warm bg-gc-bg-warm rounded-xl p-[16px]">
+                <p className="text-[13px] font-semibold text-gc-near-black mb-[12px]">
                   New Color Pattern
                 </p>
                 <PatternForm
@@ -784,7 +779,7 @@ export default function ColorPatternModal({ product, onClose }) {
                   <button
                     onClick={handleCreate}
                     disabled={saving || !addForm.label.trim()}
-                    className="flex items-center gap-[6px] bg-gray-800 text-white text-[13px] px-[14px] py-[7px] rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors"
+                    className="flex items-center gap-[6px] bg-gc-primary-deep text-white text-[13px] px-[14px] py-[7px] rounded-lg disabled:opacity-50 hover:opacity-90 transition-opacity cursor-pointer disabled:cursor-not-allowed"
                   >
                     {saving ? (
                       <Loader2 size={14} className="animate-spin" />
@@ -798,7 +793,7 @@ export default function ColorPatternModal({ product, onClose }) {
                       setShowAdd(false);
                       setAddForm({ ...EMPTY_FORM });
                     }}
-                    className="text-[13px] text-gray-600 px-[14px] py-[7px] rounded-lg hover:bg-green-100 transition-colors"
+                    className="text-[13px] text-gc-muted-warm px-[14px] py-[7px] rounded-lg hover:bg-gc-bg-image transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -807,7 +802,7 @@ export default function ColorPatternModal({ product, onClose }) {
             )}
 
             {loading && (
-              <div className="flex items-center justify-center py-[48px] gap-[10px] text-gray-400">
+              <div className="flex items-center justify-center py-[48px] gap-[10px] text-gc-muted">
                 <Loader2 size={20} className="animate-spin" />
                 <span className="text-[13px]">Loading color patterns…</span>
               </div>
@@ -833,10 +828,10 @@ export default function ColorPatternModal({ product, onClose }) {
 
             {!loading && !error && patterns.length === 0 && !showAdd && (
               <div className="text-center py-[48px]">
-                <p className="text-[14px] text-gray-400">
+                <p className="text-[14px] text-gc-muted">
                   No color patterns found in Shopify.
                 </p>
-                <p className="text-[12px] text-gray-300 mt-[4px]">
+                <p className="text-[12px] text-gc-muted/60 mt-[4px]">
                   Use "Add Pattern" to create one.
                 </p>
               </div>

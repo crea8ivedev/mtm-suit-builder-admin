@@ -1,11 +1,21 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, Filter, ChevronRight, Save, Plus } from "lucide-react";
+import {
+  Search,
+  Filter,
+  ChevronRight,
+  Save,
+  Plus,
+  ChevronLeft,
+} from "lucide-react";
+import { useIsMobile } from "../hooks/useIsMobile";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import {
   fetchStyleOptions,
   fetchContrastOptions,
+  fetchLiningCodes,
+  clearLiningCodesCache,
   updateStyleOptionVisible,
   clearStyleOptionsCache,
   syncStyleOptionImageUrls,
@@ -21,6 +31,7 @@ import {
   ViewContrastOptionModal,
   EditContrastOptionModal,
 } from "../components/styleAdjustments/ContrastOptionModals";
+import { ViewLiningCodeModal } from "../components/styleAdjustments/LiningCodeModals";
 import {
   GarmentDropdown,
   OptionCard,
@@ -41,6 +52,8 @@ export default function StyleAdjustments() {
   const [editingOption, setEditingOption] = useState(null);
   const [deletingOption, setDeletingOption] = useState(null);
   const mainRef = useRef(null);
+  const isMobile = useIsMobile(768);
+  const [liningPage, setLiningPage] = useState(0);
 
   const selectedGarment = searchParams.get("garment") || null;
   const selectedCategory = searchParams.get("category") || null;
@@ -56,6 +69,7 @@ export default function StyleAdjustments() {
   }
 
   function setSelectedCategory(val) {
+    setLiningPage(0);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (val) next.set("category", val);
@@ -65,9 +79,25 @@ export default function StyleAdjustments() {
   }
 
   useEffect(() => {
-    Promise.all([fetchStyleOptions(), fetchContrastOptions()])
-      .then(([styleData, contrastData]) => {
-        const data = [...styleData, ...contrastData];
+    Promise.all([
+      fetchStyleOptions(),
+      fetchContrastOptions(),
+      fetchLiningCodes(),
+    ])
+      .then(([styleData, contrastData, liningData]) => {
+        const baseOptions = [...styleData, ...contrastData];
+        const allGarments = [
+          ...new Set(baseOptions.map((o) => o.garment).filter(Boolean)),
+        ];
+
+        // Expand lining codes per garment — empty garments array means show in all
+        const expandedLiningCodes = liningData.flatMap((item) => {
+          const targets =
+            item.garments.length > 0 ? item.garments : allGarments;
+          return targets.map((g) => ({ ...item, garment: g }));
+        });
+
+        const data = [...baseOptions, ...expandedLiningCodes];
         setOptions(data);
         if (data.length > 0) {
           const garments = [
@@ -161,6 +191,7 @@ export default function StyleAdjustments() {
   );
 
   const filteredOptions = useMemo(() => {
+    setLiningPage(0);
     const q = optionFilter.trim().toLowerCase();
     if (!q) return categoryOptions;
     return categoryOptions.filter(
@@ -168,6 +199,19 @@ export default function StyleAdjustments() {
         o.label.toLowerCase().includes(q) || o.handle.toLowerCase().includes(q),
     );
   }, [categoryOptions, optionFilter]);
+
+  const LINING_PAGE_SIZE = 8;
+  const isLiningCategory = selectedCategory === "lining_code";
+  const liningTotalPages = isLiningCategory
+    ? Math.ceil(filteredOptions.length / LINING_PAGE_SIZE)
+    : 0;
+  const displayedOptions =
+    isLiningCategory && isMobile
+      ? filteredOptions.slice(
+          liningPage * LINING_PAGE_SIZE,
+          (liningPage + 1) * LINING_PAGE_SIZE,
+        )
+      : filteredOptions;
 
   const categoryInfo = categoriesForGarment.find(
     (c) => c.slug === selectedCategory,
@@ -225,6 +269,7 @@ export default function StyleAdjustments() {
       );
       setOverrides(new Map());
       clearStyleOptionsCache();
+      clearLiningCodesCache();
     } catch (e) {
       setSaveError(e.message);
     } finally {
@@ -474,19 +519,53 @@ export default function StyleAdjustments() {
                     No options match your filter.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px] md:gap-[13px]">
-                    {filteredOptions.map((opt) => (
-                      <OptionCard
-                        key={opt.handle}
-                        option={opt}
-                        visible={getVisible(opt)}
-                        onChange={() => toggleOption(opt)}
-                        onView={setViewingOption}
-                        onEdit={setEditingOption}
-                        onDelete={setDeletingOption}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px] md:gap-[13px]">
+                      {displayedOptions.map((opt) => (
+                        <OptionCard
+                          key={opt.handle}
+                          option={opt}
+                          visible={getVisible(opt)}
+                          onChange={() => toggleOption(opt)}
+                          onView={setViewingOption}
+                          onEdit={setEditingOption}
+                          onDelete={setDeletingOption}
+                        />
+                      ))}
+                    </div>
+
+                    {isLiningCategory && liningTotalPages > 1 && (
+                      <div className="md:hidden flex items-center justify-between mt-[16px] pb-[8px]">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLiningPage((p) => Math.max(0, p - 1))
+                          }
+                          disabled={liningPage === 0}
+                          className="flex items-center gap-[4px] font-hanken font-semibold text-[12px] text-gc-primary-deep h-[34px] px-[12px] rounded-[8px] border border-gc-border-warm bg-white disabled:opacity-40 cursor-pointer disabled:cursor-default"
+                        >
+                          <ChevronLeft size={14} />
+                          Prev
+                        </button>
+                        <span className="font-hanken text-[12px] text-gc-muted-warm">
+                          {liningPage + 1} / {liningTotalPages}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLiningPage((p) =>
+                              Math.min(liningTotalPages - 1, p + 1),
+                            )
+                          }
+                          disabled={liningPage === liningTotalPages - 1}
+                          className="flex items-center gap-[4px] font-hanken font-semibold text-[12px] text-gc-primary-deep h-[34px] px-[12px] rounded-[8px] border border-gc-border-warm bg-white disabled:opacity-40 cursor-pointer disabled:cursor-default"
+                        >
+                          Next
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </>
@@ -553,7 +632,12 @@ export default function StyleAdjustments() {
         />
       )}
       {viewingOption &&
-        (viewingOption.isContrastOption ? (
+        (viewingOption.isLiningCode ? (
+          <ViewLiningCodeModal
+            option={viewingOption}
+            onClose={() => setViewingOption(null)}
+          />
+        ) : viewingOption.isContrastOption ? (
           <ViewContrastOptionModal
             option={viewingOption}
             onClose={() => setViewingOption(null)}
@@ -574,6 +658,7 @@ export default function StyleAdjustments() {
           />
         ))}
       {editingOption &&
+        !editingOption.isLiningCode &&
         (editingOption.isContrastOption ? (
           <EditContrastOptionModal
             option={editingOption}
@@ -591,7 +676,7 @@ export default function StyleAdjustments() {
             onUpdated={handleUpdated}
           />
         ))}
-      {deletingOption && (
+      {deletingOption && !deletingOption.isLiningCode && (
         <DeleteConfirmModal
           option={deletingOption}
           onClose={() => setDeletingOption(null)}

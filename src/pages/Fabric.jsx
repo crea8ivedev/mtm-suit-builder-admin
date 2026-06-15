@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
@@ -21,6 +22,14 @@ export default function Fabric() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [searchParams] = useSearchParams();
+  const search = searchParams.get("search") || "";
+
+  const filteredProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) => p.title.toLowerCase().includes(q));
+  }, [products, search]);
 
   function load() {
     setLoading(true);
@@ -44,7 +53,9 @@ export default function Fabric() {
             ? "Loading products…"
             : error
               ? "Could not load products"
-              : `${products.length} fabric product${products.length !== 1 ? "s" : ""}`}
+              : search
+                ? `${filteredProducts.length} of ${products.length} fabric product${products.length !== 1 ? "s" : ""}`
+                : `${products.length} fabric product${products.length !== 1 ? "s" : ""}`}
         </p>
       </div>
 
@@ -68,6 +79,12 @@ export default function Fabric() {
                 No fabric products found.
               </p>
             </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="text-center py-[48px]">
+              <p className="font-hanken text-[14px] text-gc-muted-warm">
+                No products match "{search}".
+              </p>
+            </div>
           ) : (
             <div className="divide-y divide-gc-divider">
               {/* Header row — desktop only */}
@@ -82,7 +99,7 @@ export default function Fabric() {
                   Price
                 </span>
               </div>
-              {products.map((product) => (
+              {filteredProducts.map((product) => (
                 <div
                   key={product.id}
                   onClick={() => setSelectedProduct(product)}

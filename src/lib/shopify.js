@@ -1695,6 +1695,100 @@ export async function fetchContrastOptions() {
   return results;
 }
 
+// ─── Lining Codes (lining_code) ───────────────────────────────────────────
+
+const LINING_CODES_QUERY = `
+  query GetLiningCodes($first: Int!, $after: String) {
+    metaobjects(type: "lining_code", first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          handle
+          fields { key value }
+        }
+      }
+    }
+  }
+`;
+
+let _liningCodesCache = null;
+let _liningCodesCacheAt = 0;
+
+export async function fetchLiningCodes() {
+  if (
+    _liningCodesCache &&
+    Date.now() - _liningCodesCacheAt < STYLE_OPTIONS_CACHE_TTL
+  ) {
+    return _liningCodesCache;
+  }
+
+  const results = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(LINING_CODES_QUERY, {
+      first: 250,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.metaobjects;
+    for (const { node } of edges) {
+      const fm = Object.fromEntries(
+        node.fields.map((f) => [f.key, f.value ?? ""]),
+      );
+      let garments = [];
+      try {
+        const parsed = JSON.parse(fm.garment || "[]");
+        garments = Array.isArray(parsed) ? parsed : [];
+      } catch {}
+      results.push({
+        id: node.id,
+        handle: node.handle,
+        label: fm.color_name || fm.code || node.handle,
+        code: fm.code || "",
+        category: "lining_code",
+        garments,
+        garment: "",
+        displayLabel: "Lining Code",
+        upcharge: 0,
+        visible: fm.visible !== "false",
+        isDefault: fm.is_default === "true",
+        sortOrder: 9999,
+        imageGid: fm.image || null,
+        imageUrl: null,
+        imageUrlStored: null,
+        rawFields: fm,
+        fieldTypes: {},
+        isLiningCode: true,
+      });
+    }
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+
+  const gids = [
+    ...new Set(results.filter((r) => r.imageGid).map((r) => r.imageGid)),
+  ];
+  if (gids.length) {
+    const urlMap = await resolveFileGidUrls(gids);
+    for (const r of results) {
+      if (r.imageGid && urlMap[r.imageGid]) {
+        r.imageUrl = urlMap[r.imageGid];
+        r.imageUrlStored = urlMap[r.imageGid];
+      }
+    }
+  }
+
+  _liningCodesCache = results;
+  _liningCodesCacheAt = Date.now();
+  return results;
+}
+
+export function clearLiningCodesCache() {
+  _liningCodesCache = null;
+  _liningCodesCacheAt = 0;
+}
+
 // ─── Fit Size Options ─────────────────────────────────────────────────────
 
 const FIT_SIZE_OPTIONS_QUERY = `

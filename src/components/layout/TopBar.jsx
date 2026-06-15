@@ -19,12 +19,19 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
   const isCustomerDetail = !!useMatch("/customers/:customerId");
   const isCustomersPage = location.pathname === "/customers";
   const isStyleAdjustmentsPage = location.pathname === "/kuttailor";
+  const isFabricPage = location.pathname === "/fabric";
   const isSearchablePage =
     !isOrderDetail &&
     !isCustomerDetail &&
     !isCustomersPage &&
     !isStyleAdjustmentsPage &&
-    (location.pathname === "/orders" || location.pathname === "/dashboard");
+    (location.pathname === "/orders" ||
+      location.pathname === "/dashboard" ||
+      isFabricPage);
+
+  const searchPlaceholder = isFabricPage
+    ? "Search products..."
+    : "Search orders...";
   const [searchParams, setSearchParams] = useSearchParams();
   const searchValue = searchParams.get("search") || "";
 
@@ -93,7 +100,7 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
               value={isSearchablePage ? searchValue : ""}
               onChange={isSearchablePage ? handleSearch : undefined}
               readOnly={!isSearchablePage}
-              placeholder="Search orders..."
+              placeholder={searchPlaceholder}
               className={`font-hanken flex-1 ml-[10px] bg-transparent text-[14px] font-medium text-gc-muted outline-none placeholder:text-gc-muted min-w-0 ${isSearchablePage ? "cursor-text" : "cursor-default"}`}
             />
           </div>
