@@ -30,7 +30,6 @@ export async function checkSuperAdmin(email) {
 }
 
 // ─── GraphQL query ─────────────────────────────────────────────────────────
-// Fetches one page of orders with cursor-based pagination.
 const GET_ORDERS_QUERY = `
   query GetOrders($first: Int!, $after: String, $query: String) {
     orders(first: $first, after: $after, query: $query, sortKey: CREATED_AT, reverse: true) {
@@ -519,7 +518,6 @@ export function clearOrderDetailCache(shopifyGid) {
   _orderDetailCache.delete(shopifyGid);
 }
 
-// ─── Fetch single order by Shopify GID ─────────────────────────────────────
 export async function fetchOrderById(shopifyGid) {
   if (_orderDetailCache.has(shopifyGid)) {
     return _orderDetailCache.get(shopifyGid);
@@ -1522,7 +1520,7 @@ async function resolveFileGidUrls(gids) {
       for (const node of data.nodes ?? []) {
         if (node?.image?.url) map[node.id] = node.image.url;
       }
-    } catch {}
+    } catch { }
   }
   return map;
 }
@@ -1816,7 +1814,7 @@ export async function fetchLiningCodes() {
         const parsed = JSON.parse(fm.garment || "[]");
         const arr = Array.isArray(parsed) ? parsed : [];
         garments = arr.some((g) => g.toLowerCase() === "all") ? [] : arr;
-      } catch {}
+      } catch { }
       results.push({
         id: node.id,
         handle: node.handle,
@@ -1912,7 +1910,7 @@ export async function fetchButtonCodes() {
         const parsed = JSON.parse(fm.garment || "[]");
         const arr = Array.isArray(parsed) ? parsed : [];
         garments = arr.some((g) => g.toLowerCase() === "all") ? [] : arr;
-      } catch {}
+      } catch { }
       results.push({
         id: node.id,
         handle: node.handle,
@@ -2243,7 +2241,7 @@ export async function fetchShopifyColorPattern() {
       );
       const imageGid =
         typeof fieldMap.image === "string" &&
-        fieldMap.image.startsWith("gid://")
+          fieldMap.image.startsWith("gid://")
           ? fieldMap.image
           : null;
       all.push({
@@ -2279,7 +2277,7 @@ export async function fetchShopifyColorPattern() {
           f.imageGid = f._imageGid;
         }
       }
-    } catch {}
+    } catch { }
   }
 
   for (const f of all) delete f._imageGid;
