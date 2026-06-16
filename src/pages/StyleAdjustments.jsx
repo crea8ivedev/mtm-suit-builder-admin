@@ -16,6 +16,8 @@ import {
   fetchContrastOptions,
   fetchLiningCodes,
   clearLiningCodesCache,
+  fetchButtonCodes,
+  clearButtonCodesCache,
   updateStyleOptionVisible,
   clearStyleOptionsCache,
   syncStyleOptionImageUrls,
@@ -32,6 +34,7 @@ import {
   EditContrastOptionModal,
 } from "../components/styleAdjustments/ContrastOptionModals";
 import { ViewLiningCodeModal } from "../components/styleAdjustments/LiningCodeModals";
+import { ViewButtonCodeModal } from "../components/styleAdjustments/ButtonCodeModals";
 import {
   GarmentDropdown,
   OptionCard,
@@ -83,8 +86,9 @@ export default function StyleAdjustments() {
       fetchStyleOptions(),
       fetchContrastOptions(),
       fetchLiningCodes(),
+      fetchButtonCodes(),
     ])
-      .then(([styleData, contrastData, liningData]) => {
+      .then(([styleData, contrastData, liningData, buttonData]) => {
         const baseOptions = [...styleData, ...contrastData];
         const allGarments = [
           ...new Set(baseOptions.map((o) => o.garment).filter(Boolean)),
@@ -97,7 +101,18 @@ export default function StyleAdjustments() {
           return targets.map((g) => ({ ...item, garment: g }));
         });
 
-        const data = [...baseOptions, ...expandedLiningCodes];
+        // Expand button codes per garment — same logic
+        const expandedButtonCodes = buttonData.flatMap((item) => {
+          const targets =
+            item.garments.length > 0 ? item.garments : allGarments;
+          return targets.map((g) => ({ ...item, garment: g }));
+        });
+
+        const data = [
+          ...baseOptions,
+          ...expandedLiningCodes,
+          ...expandedButtonCodes,
+        ];
         setOptions(data);
         if (data.length > 0) {
           const garments = [
@@ -238,11 +253,13 @@ export default function StyleAdjustments() {
 
   const LINING_PAGE_SIZE = 8;
   const isLiningCategory = selectedCategory === "lining_code";
-  const liningTotalPages = isLiningCategory
+  const isButtonCodeCategory = selectedCategory === "button_code";
+  const isPaginatedCategory = isLiningCategory || isButtonCodeCategory;
+  const liningTotalPages = isPaginatedCategory
     ? Math.ceil(filteredOptions.length / LINING_PAGE_SIZE)
     : 0;
   const displayedOptions =
-    isLiningCategory && isMobile
+    isPaginatedCategory && isMobile
       ? filteredOptions.slice(
           liningPage * LINING_PAGE_SIZE,
           (liningPage + 1) * LINING_PAGE_SIZE,
@@ -306,6 +323,7 @@ export default function StyleAdjustments() {
       setOverrides(new Map());
       clearStyleOptionsCache();
       clearLiningCodesCache();
+      clearButtonCodesCache();
     } catch (e) {
       setSaveError(e.message);
     } finally {
@@ -508,7 +526,9 @@ export default function StyleAdjustments() {
                   </h1>
                   {selectedGarment &&
                     GARMENT_TO_STYLE_TYPE[selectedGarment] &&
-                    selectedCategory !== "contrast_option" && (
+                    selectedCategory !== "contrast_option" &&
+                    selectedCategory !== "lining_code" &&
+                    selectedCategory !== "button_code" && (
                       <button
                         onClick={() => setAddModalOpen(true)}
                         className="flex items-center gap-[4px] font-hanken font-semibold text-[11px] md:text-[14px] uppercase text-white h-[32px] md:h-[44px] px-[8px] md:px-[16px] rounded-[8px] cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0 bg-gc-primary"
@@ -570,7 +590,7 @@ export default function StyleAdjustments() {
                       ))}
                     </div>
 
-                    {isLiningCategory && liningTotalPages > 1 && (
+                    {isPaginatedCategory && liningTotalPages > 1 && (
                       <div className="md:hidden flex items-center justify-between mt-[16px] pb-[8px]">
                         <button
                           type="button"
@@ -673,6 +693,11 @@ export default function StyleAdjustments() {
             option={viewingOption}
             onClose={() => setViewingOption(null)}
           />
+        ) : viewingOption.isButtonCode ? (
+          <ViewButtonCodeModal
+            option={viewingOption}
+            onClose={() => setViewingOption(null)}
+          />
         ) : viewingOption.isContrastOption ? (
           <ViewContrastOptionModal
             option={viewingOption}
@@ -695,6 +720,7 @@ export default function StyleAdjustments() {
         ))}
       {editingOption &&
         !editingOption.isLiningCode &&
+        !editingOption.isButtonCode &&
         (editingOption.isContrastOption ? (
           <EditContrastOptionModal
             option={editingOption}
@@ -712,13 +738,15 @@ export default function StyleAdjustments() {
             onUpdated={handleUpdated}
           />
         ))}
-      {deletingOption && !deletingOption.isLiningCode && (
-        <DeleteConfirmModal
-          option={deletingOption}
-          onClose={() => setDeletingOption(null)}
-          onDeleted={handleDeleted}
-        />
-      )}
+      {deletingOption &&
+        !deletingOption.isLiningCode &&
+        !deletingOption.isButtonCode && (
+          <DeleteConfirmModal
+            option={deletingOption}
+            onClose={() => setDeletingOption(null)}
+            onDeleted={handleDeleted}
+          />
+        )}
     </DashboardLayout>
   );
 }

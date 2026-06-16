@@ -1780,6 +1780,101 @@ export function clearLiningCodesCache() {
   _liningCodesCacheAt = 0;
 }
 
+// ─── Button Codes ──────────────────────────────────────────────────────────
+
+const BUTTON_CODES_QUERY = `
+  query GetButtonCodes($first: Int!, $after: String) {
+    metaobjects(type: "button_code", first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          handle
+          fields { key value }
+        }
+      }
+    }
+  }
+`;
+
+let _buttonCodesCache = null;
+let _buttonCodesCacheAt = 0;
+
+export async function fetchButtonCodes() {
+  if (
+    _buttonCodesCache &&
+    Date.now() - _buttonCodesCacheAt < STYLE_OPTIONS_CACHE_TTL
+  ) {
+    return _buttonCodesCache;
+  }
+
+  const results = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(BUTTON_CODES_QUERY, {
+      first: 250,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.metaobjects;
+    for (const { node } of edges) {
+      const fm = Object.fromEntries(
+        node.fields.map((f) => [f.key, f.value ?? ""]),
+      );
+      let garments = [];
+      try {
+        const parsed = JSON.parse(fm.garment || "[]");
+        garments = Array.isArray(parsed) ? parsed : [];
+      } catch {}
+      results.push({
+        id: node.id,
+        handle: node.handle,
+        label: fm.color_name || fm.code || node.handle,
+        code: fm.code || "",
+        category: "button_code",
+        garments,
+        garment: "",
+        displayLabel: "Button Code",
+        upcharge: 0,
+        visible: fm.visible !== "false",
+        isDefault: fm.is_default === "true",
+        sortOrder: parseInt(fm.sort_order || "9999", 10),
+        categorySort: parseInt(fm.style_sort || "0", 10),
+        imageGid: fm.image || null,
+        imageUrl: null,
+        imageUrlStored: null,
+        rawFields: fm,
+        fieldTypes: {},
+        isButtonCode: true,
+      });
+    }
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+
+  const gids = [
+    ...new Set(results.filter((r) => r.imageGid).map((r) => r.imageGid)),
+  ];
+  if (gids.length) {
+    const urlMap = await resolveFileGidUrls(gids);
+    for (const r of results) {
+      if (r.imageGid && urlMap[r.imageGid]) {
+        r.imageUrl = urlMap[r.imageGid];
+        r.imageUrlStored = urlMap[r.imageGid];
+      }
+    }
+  }
+
+  _buttonCodesCache = results;
+  _buttonCodesCacheAt = Date.now();
+  return results;
+}
+
+export function clearButtonCodesCache() {
+  _buttonCodesCache = null;
+  _buttonCodesCacheAt = 0;
+}
+
 // ─── Fit Size Options ─────────────────────────────────────────────────────
 
 const FIT_SIZE_OPTIONS_QUERY = `

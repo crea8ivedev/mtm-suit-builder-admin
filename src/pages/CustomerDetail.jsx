@@ -325,6 +325,33 @@ function buildMeasurementProfiles(
   return result;
 }
 
+function buildStyleOptionsMap(styleOptionsList, contrastOptionsList) {
+  const map = {};
+  for (const opt of [...styleOptionsList, ...contrastOptionsList]) {
+    if (!opt.visible) continue;
+    const garment = opt.garment;
+    const category = opt.displayLabel || opt.category;
+    if (!garment || !category) continue;
+    if (!map[garment]) map[garment] = {};
+    if (!map[garment][category]) map[garment][category] = [];
+    const entry = { label: opt.label };
+    if (opt.upcharge > 0) entry.upcharge = opt.upcharge;
+    map[garment][category].push(entry);
+  }
+  return map;
+}
+
+function injectStyleOptionsIntoProfiles(profiles, styleOptionsMap) {
+  const result = {};
+  for (const [productName, list] of Object.entries(profiles)) {
+    result[productName] = list.map((p) => ({
+      ...p,
+      styleOptions: styleOptionsMap,
+    }));
+  }
+  return result;
+}
+
 function mergeProfilesWithSaved(fromOrders, saved) {
   if (!saved || !Object.keys(saved).length) return fromOrders;
   const merged = {};
@@ -486,6 +513,11 @@ export default function CustomerDetail() {
     return map;
   }, [styleOptions, contrastOptions]);
 
+  const styleOptionsMap = useMemo(
+    () => buildStyleOptionsMap(styleOptions, contrastOptions),
+    [styleOptions, contrastOptions],
+  );
+
   const profiles = useMemo(
     () => buildMeasurementProfiles(orders, displayKeyMap, styleKeyMap),
     [orders, displayKeyMap, styleKeyMap],
@@ -558,9 +590,21 @@ export default function CustomerDetail() {
       return;
     if (!Object.keys(gcMeasurements).length) return;
     if (!Object.keys(activeProfiles).length) return;
+    if (!styleOptions.length) return;
     autoFixedRef.current = true;
-    setCustomerProductsMetafield(shopifyGid, activeProfiles).catch(() => {});
-  }, [orders, displayKeyMap, styleKeyMap, gcMeasurements, activeProfiles]);
+    const profilesToSave = Object.keys(styleOptionsMap).length
+      ? injectStyleOptionsIntoProfiles(activeProfiles, styleOptionsMap)
+      : activeProfiles;
+    setCustomerProductsMetafield(shopifyGid, profilesToSave).catch(() => {});
+  }, [
+    orders,
+    displayKeyMap,
+    styleKeyMap,
+    gcMeasurements,
+    activeProfiles,
+    styleOptions,
+    styleOptionsMap,
+  ]);
 
   const handleProfileEditStart = (entry) => {
     setEditingValues(
@@ -623,16 +667,24 @@ export default function CustomerDetail() {
     updatedProfiles[entry.productName] = updatedProfiles[entry.productName].map(
       (p) =>
         p.id === entry.id
-          ? { ...p, style: newStyle, measurements: newMeasurements }
-          : p,
+          ? {
+              ...p,
+              style: newStyle,
+              measurements: newMeasurements,
+              styleOptions: styleOptionsMap,
+            }
+          : { ...p, styleOptions: styleOptionsMap },
     );
+    const profilesToSave = Object.keys(styleOptionsMap).length
+      ? injectStyleOptionsIntoProfiles(updatedProfiles, styleOptionsMap)
+      : updatedProfiles;
     try {
       await setCustomerProductsMetafield(
         `gid://shopify/Customer/${customerId}`,
-        updatedProfiles,
+        profilesToSave,
       );
-      setCommittedProfiles(updatedProfiles);
-      setGcMeasurements(updatedProfiles);
+      setCommittedProfiles(profilesToSave);
+      setGcMeasurements(profilesToSave);
       setEditingProfileId(null);
       setEditingValues({});
       setTouchedFields(new Set());
@@ -1031,16 +1083,14 @@ export default function CustomerDetail() {
                               </button>
                             </>
                           ) : (
-                            !isStandard && (
-                              <button
-                                onClick={() => handleProfileEditStart(entry)}
-                                disabled={!!editingProfileId}
-                                className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                              >
-                                <Pencil size={13} />
-                                EDIT
-                              </button>
-                            )
+                            <button
+                              onClick={() => handleProfileEditStart(entry)}
+                              disabled={!!editingProfileId}
+                              className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <Pencil size={13} />
+                              EDIT
+                            </button>
                           )}
                         </div>
                       </div>

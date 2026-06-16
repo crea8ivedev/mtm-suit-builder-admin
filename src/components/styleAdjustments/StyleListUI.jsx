@@ -82,11 +82,13 @@ export function OptionCard({
 }) {
   return (
     <div className="bg-white flex items-center h-[52px] md:h-[64px] rounded-[8px] px-[8px] md:px-[11px] py-[8px] md:py-[12px] border border-gc-border-warm">
-      {!option.isContrastOption && !option.isLiningCode && (
-        <span className="flex-shrink-0 flex items-center justify-center font-hanken font-bold text-[11px] rounded-[4px] mr-[8px] w-[24px] h-[24px] bg-gc-bg-warm text-gc-primary">
-          {option.sortOrder ?? "—"}
-        </span>
-      )}
+      {!option.isContrastOption &&
+        !option.isLiningCode &&
+        !option.isButtonCode && (
+          <span className="flex-shrink-0 flex items-center justify-center font-hanken font-bold text-[11px] rounded-[4px] mr-[8px] w-[24px] h-[24px] bg-gc-bg-warm text-gc-primary">
+            {option.sortOrder ?? "—"}
+          </span>
+        )}
 
       <div className="flex-shrink-0 rounded-[8px] overflow-hidden flex items-center justify-center w-[40px] h-[40px] border border-gc-border-warm bg-white">
         {option.imageUrl ? (
@@ -118,7 +120,7 @@ export function OptionCard({
         >
           <Eye size={12} className="text-gc-primary-deep" />
         </button>
-        {!option.isLiningCode && (
+        {!option.isLiningCode && !option.isButtonCode && (
           <button
             type="button"
             onClick={(e) => {
@@ -131,7 +133,7 @@ export function OptionCard({
             <Pencil size={12} className="text-gc-primary-deep" />
           </button>
         )}
-        {!option.isLiningCode && (
+        {!option.isLiningCode && !option.isButtonCode && (
           <button
             type="button"
             onClick={(e) => {

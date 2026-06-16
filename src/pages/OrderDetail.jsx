@@ -418,17 +418,15 @@ export default function OrderDetail() {
   const upchargeEmbedded =
     upchargeSynced > 0 && Math.abs(upchargeSynced - attrUpchargeAmount) < 0.01;
 
-  // Product price in Shopify always = base + attrUpcharge (set by CreateOrder).
-  // After auto-sync, a separate "Upcharge" line item is also added.
-  // Strip BOTH from Shopify subtotal to recover the true base price.
-  const displaySubtotalAmount =
-    subtotalAmount - attrUpchargeAmount - separateUpchargeAmount;
+  // Shopify subtotal = true base price (upcharge stored separately in custom attributes).
+  // Only strip separate upcharge line items (added by auto-sync) to avoid double-count.
+  const displaySubtotalAmount = subtotalAmount - separateUpchargeAmount;
 
   // Show attr-based upcharge for admin orders, separate line item for site orders.
   const displayUpchargeAmount =
     attrUpchargeAmount > 0 ? attrUpchargeAmount : separateUpchargeAmount;
 
-  // Always derive display total from display components to avoid Shopify double-count.
+  // Total = base subtotal + upcharge + tax.
   const displayTotal =
     displaySubtotalAmount + displayUpchargeAmount + taxAmount;
 
@@ -654,6 +652,12 @@ export default function OrderDetail() {
                       )
                     : null;
 
+                  const itemBaseTotal = parseFloat(
+                    item.discountedTotalSet?.shopMoney?.amount || 0,
+                  );
+                  const qty = item.quantity || 1;
+                  const itemBaseUnitPrice = itemBaseTotal / qty;
+
                   return (
                     <div key={item.id} className="flex flex-col gap-[20px]">
                       <div className="bg-white rounded-[12px] overflow-hidden border border-gc-divider shadow-sm">
@@ -677,7 +681,10 @@ export default function OrderDetail() {
                               </span>
                               <span className="font-hanken text-[16px] font-semibold text-gc-primary">
                                 {item.discountedTotalSet
-                                  ? formatCurrency(item.discountedTotalSet)
+                                  ? formatAmount(
+                                      itemBaseTotal,
+                                      orderCurrencyCode,
+                                    )
                                   : "—"}
                               </span>
                             </div>
@@ -691,7 +698,10 @@ export default function OrderDetail() {
                               {sizeType ? `Size type: ${sizeType} • ` : ""}
                               {item.quantity} ×{" "}
                               {item.originalUnitPriceSet
-                                ? formatCurrency(item.originalUnitPriceSet)
+                                ? formatAmount(
+                                    itemBaseUnitPrice,
+                                    orderCurrencyCode,
+                                  )
                                 : "—"}
                             </p>
 
