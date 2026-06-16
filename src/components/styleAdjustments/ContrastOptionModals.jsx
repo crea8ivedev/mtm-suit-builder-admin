@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Loader2 } from "lucide-react";
 import ModalBase, { ModalHeader, ModalFooter } from "../ui/ModalBase";
 import {
   updateContrastOption,
   clearStyleOptionsCache,
+  updateContrastLocation,
+  deleteContrastLocation,
+  clearContrastLocationsCache,
 } from "../../lib/shopify";
 import { ImagePicker } from "./StyleOptionModals.jsx";
 
@@ -255,6 +258,223 @@ export function EditContrastOptionModal({ option, onClose, onUpdated }) {
           loadingLabel={imageUploading ? "Uploading image…" : "Saving…"}
         />
       </form>
+    </ModalBase>
+  );
+}
+
+export function ViewContrastLocationModal({ option, onClose, onEdit }) {
+  return (
+    <ModalBase onClose={onClose} maxWidth="max-w-[480px]">
+      <ModalHeader
+        onClose={onClose}
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onEdit(option);
+            }}
+            className="flex items-center gap-[5px] font-hanken font-semibold text-[12px] h-[30px] px-[10px] rounded-[6px] cursor-pointer hover:opacity-80 border border-gc-border-warm text-gc-primary-deep"
+          >
+            <Pencil size={11} />
+            Edit
+          </button>
+        }
+      >
+        <div>
+          <p className="font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[2px] text-gc-primary">
+            {option.garment} · Contrast Location
+          </p>
+          <h2 className="font-garamond font-bold text-[22px] text-gc-heading">
+            {option.label}
+          </h2>
+        </div>
+      </ModalHeader>
+      <div className="px-[20px] py-[16px] flex flex-col gap-[12px]">
+        <div className="flex flex-wrap gap-[8px]">
+          <span
+            className={`font-hanken font-semibold text-[11px] px-[10px] py-[4px] rounded-full ${option.visible ? "bg-green-100 text-green-800" : "bg-gc-bg-warm text-gc-primary-deep"}`}
+          >
+            {option.visible ? "Visible" : "Hidden"}
+          </span>
+        </div>
+        <div className="rounded-[8px] overflow-hidden border border-gc-border-warm">
+          {[
+            { label: "Label", value: option.label || "—" },
+            { label: "Garment", value: option.garment || "—" },
+          ].map(({ label, value }, i) => (
+            <div
+              key={label}
+              className={`grid grid-cols-2 gap-[12px] px-[14px] py-[10px] ${i > 0 ? "border-t border-gc-bg-warm" : ""} ${i % 2 !== 0 ? "bg-gc-row-alt" : "bg-white"}`}
+            >
+              <span className="font-hanken font-semibold text-[11px] tracking-[0.4px] text-gc-primary-deep">
+                {label}
+              </span>
+              <span className="font-hanken text-[13px] text-gc-near-black">
+                {value}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </ModalBase>
+  );
+}
+
+export function EditContrastLocationModal({ option, onClose, onUpdated }) {
+  const [form, setForm] = useState({
+    label: option.label || "",
+    garment: option.garment || "",
+    visible: option.visible ? "true" : "false",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  function set(key, val) {
+    setForm((prev) => ({ ...prev, [key]: val }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.label.trim()) {
+      setError("Label is required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await updateContrastLocation(option.id, {
+        label: form.label.trim(),
+        garment: form.garment,
+        visible: form.visible,
+      });
+      onUpdated(option.id, {
+        label: form.label.trim(),
+        garment: form.garment,
+        visible: form.visible === "true",
+      });
+      clearContrastLocationsCache();
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls =
+    "w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-gc-primary border border-gc-border-warm text-gc-near-black";
+  const labelCls =
+    "font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[4px] block text-gc-primary-deep";
+
+  return (
+    <ModalBase onClose={onClose}>
+      <ModalHeader title="Edit Contrast Location" onClose={onClose} />
+      <form
+        onSubmit={handleSubmit}
+        className="px-[20px] py-[16px] flex flex-col gap-[12px]"
+      >
+        <div>
+          <label className={labelCls}>
+            Label <span className="text-failed">*</span>
+          </label>
+          <input
+            className={inputCls}
+            value={form.label}
+            onChange={(e) => set("label", e.target.value)}
+            placeholder="e.g. Lapel"
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Garment</label>
+          <input
+            className={inputCls}
+            value={form.garment}
+            onChange={(e) => set("garment", e.target.value)}
+            placeholder="e.g. Jacket"
+          />
+        </div>
+        <div className="flex items-center gap-[8px] pt-[4px]">
+          <label className="flex items-center gap-[8px] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.visible === "true"}
+              onChange={(e) =>
+                set("visible", e.target.checked ? "true" : "false")
+              }
+              className="w-[15px] h-[15px] cursor-pointer gc-accent-primary"
+            />
+            <span className="font-hanken font-semibold text-[12px] text-gc-heading">
+              Visible
+            </span>
+          </label>
+        </div>
+        <p className="font-hanken text-[12px] h-[16px] text-failed">
+          {error || ""}
+        </p>
+        <ModalFooter
+          onClose={onClose}
+          submitLabel="Save Changes"
+          disabled={saving}
+          loading={saving}
+          loadingLabel="Saving…"
+        />
+      </form>
+    </ModalBase>
+  );
+}
+
+export function DeleteContrastLocationModal({ option, onClose, onDeleted }) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleDelete() {
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteContrastLocation(option.id);
+      clearContrastLocationsCache();
+      onDeleted(option.id);
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <ModalBase onClose={onClose} maxWidth="max-w-[420px]">
+      <ModalHeader title="Delete Location?" onClose={onClose} />
+      <div className="px-[20px] py-[16px] flex flex-col gap-[12px]">
+        <p className="font-hanken text-[14px] text-gc-text">
+          Delete{" "}
+          <span className="font-semibold text-gc-heading">
+            "{option.label}"
+          </span>
+          ? This cannot be undone.
+        </p>
+        {error && (
+          <p className="font-hanken text-[12px] text-failed">{error}</p>
+        )}
+        <div className="flex gap-[10px] justify-end pt-[4px]">
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            className="px-[16px] py-[8px] text-[13px] font-hanken font-semibold text-gc-text rounded-lg hover:bg-gc-bg-warm transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-[6px] px-[16px] py-[8px] text-[13px] font-hanken font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            {deleting && <Loader2 size={13} className="animate-spin" />}
+            Delete
+          </button>
+        </div>
+      </div>
     </ModalBase>
   );
 }

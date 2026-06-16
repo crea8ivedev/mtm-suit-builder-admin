@@ -1641,7 +1641,7 @@ export async function fetchContrastOptions() {
         label: fm.color_name || node.handle,
         category: "contrast_option",
         garment: fm.garment || "",
-        displayLabel: "Color",
+        displayLabel: "Contrast Color & Locations",
         upcharge: 0,
         visible: fm.visible !== "false",
         isDefault: false,
@@ -1684,6 +1684,90 @@ export async function fetchContrastOptions() {
   _contrastOptionsCache = results;
   _contrastOptionsCacheAt = Date.now();
   return results;
+}
+
+// ─── Contrast Locations (gc_contrast_location) ────────────────────────────
+
+const CONTRAST_LOCATIONS_QUERY = `
+  query GetContrastLocations($first: Int!, $after: String) {
+    metaobjects(type: "gc_contrast_location", first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          handle
+          displayName
+          fields { key value }
+        }
+      }
+    }
+  }
+`;
+
+let _contrastLocationsCache = null;
+let _contrastLocationsCacheAt = 0;
+
+export async function fetchContrastLocations() {
+  if (
+    _contrastLocationsCache &&
+    Date.now() - _contrastLocationsCacheAt < STYLE_OPTIONS_CACHE_TTL
+  ) {
+    return _contrastLocationsCache;
+  }
+  const results = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(CONTRAST_LOCATIONS_QUERY, {
+      first: 250,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.metaobjects;
+    for (const { node } of edges) {
+      const fm = Object.fromEntries(
+        node.fields.map((f) => [f.key, f.value ?? ""]),
+      );
+      results.push({
+        id: node.id,
+        handle: node.handle,
+        label: fm.label || node.displayName || node.handle,
+        garment: fm.garment || "",
+        visible: fm.visible !== "false",
+        isContrastLocation: true,
+      });
+    }
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+  _contrastLocationsCache = results;
+  _contrastLocationsCacheAt = Date.now();
+  return results;
+}
+
+export function clearContrastLocationsCache() {
+  _contrastLocationsCache = null;
+  _contrastLocationsCacheAt = 0;
+}
+
+export async function updateContrastLocation(id, fields) {
+  const fieldInputs = Object.entries(fields).map(([key, value]) => ({
+    key,
+    value: value == null ? null : String(value),
+  }));
+  const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
+    id,
+    metaobject: { fields: fieldInputs },
+  });
+  const { userErrors } = data.metaobjectUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectUpdate.metaobject;
+}
+
+export async function deleteContrastLocation(id) {
+  const data = await shopifyGraphQL(DELETE_METAOBJECT_MUTATION, { id });
+  const { userErrors } = data.metaobjectDelete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectDelete.deletedId;
 }
 
 // ─── Lining Codes ─────────────────────────────────────────────────────────

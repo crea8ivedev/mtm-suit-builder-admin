@@ -421,15 +421,28 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
 export function StyleOptionsSection({
   styleOptions,
   contrastOptions,
+  contrastLocations = [],
   selections,
   onChange,
   loading,
 }) {
   const byGarment = useMemo(() => {
     const map = {};
+    const mappedLocations = contrastLocations
+      .filter((l) => l.visible)
+      .map((l) => ({
+        ...l,
+        category: "contrast_location",
+        displayLabel: "Location",
+        sortOrder: 0,
+        garment: l.garment || "General",
+      }));
     const all = [
       ...styleOptions.filter((o) => o.visible),
-      ...contrastOptions.filter((o) => o.visible),
+      ...contrastOptions
+        .filter((o) => o.visible)
+        .map((o) => ({ ...o, displayLabel: "Color" })),
+      ...mappedLocations,
     ];
     for (const opt of all) {
       const g = opt.garment || "General";
@@ -440,11 +453,11 @@ export function StyleOptionsSection({
     }
     for (const g in map) {
       for (const cat in map[g]) {
-        map[g][cat].sort((a, b) => a.sortOrder - b.sortOrder);
+        map[g][cat].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
       }
     }
     return map;
-  }, [styleOptions, contrastOptions]);
+  }, [styleOptions, contrastOptions, contrastLocations]);
 
   const garments = Object.keys(byGarment);
 

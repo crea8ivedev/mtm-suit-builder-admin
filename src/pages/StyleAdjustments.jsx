@@ -14,6 +14,7 @@ import LoadingState from "../components/ui/LoadingState";
 import {
   fetchStyleOptions,
   fetchContrastOptions,
+  fetchContrastLocations,
   fetchLiningCodes,
   clearLiningCodesCache,
   fetchButtonCodes,
@@ -22,6 +23,9 @@ import {
   clearStyleOptionsCache,
   syncStyleOptionImageUrls,
   GARMENT_TO_STYLE_TYPE,
+  updateContrastLocation,
+  deleteContrastLocation,
+  clearContrastLocationsCache,
 } from "../lib/shopify";
 import {
   AddStyleOptionModal,
@@ -32,6 +36,9 @@ import {
 import {
   ViewContrastOptionModal,
   EditContrastOptionModal,
+  ViewContrastLocationModal,
+  EditContrastLocationModal,
+  DeleteContrastLocationModal,
 } from "../components/styleAdjustments/ContrastOptionModals";
 import { ViewLiningCodeModal } from "../components/styleAdjustments/LiningCodeModals";
 import { ViewButtonCodeModal } from "../components/styleAdjustments/ButtonCodeModals";
@@ -57,6 +64,11 @@ export default function StyleAdjustments() {
   const mainRef = useRef(null);
   const isMobile = useIsMobile(768);
   const [liningPage, setLiningPage] = useState(0);
+  const [contrastLocations, setContrastLocations] = useState([]);
+  const [locationOverrides, setLocationOverrides] = useState(new Map());
+  const [viewingLocation, setViewingLocation] = useState(null);
+  const [editingLocation, setEditingLocation] = useState(null);
+  const [deletingLocation, setDeletingLocation] = useState(null);
 
   const selectedGarment = searchParams.get("garment") || null;
   const selectedCategory = searchParams.get("category") || null;
@@ -87,72 +99,76 @@ export default function StyleAdjustments() {
       fetchContrastOptions(),
       fetchLiningCodes(),
       fetchButtonCodes(),
+      fetchContrastLocations(),
     ])
-      .then(([styleData, contrastData, liningData, buttonData]) => {
-        const baseOptions = [...styleData, ...contrastData];
-        const allGarments = [
-          ...new Set(baseOptions.map((o) => o.garment).filter(Boolean)),
-        ];
-
-        // Expand lining codes per garment — empty garments array means show in all
-        const expandedLiningCodes = liningData.flatMap((item) => {
-          const targets =
-            item.garments.length > 0 ? item.garments : allGarments;
-          return targets.map((g) => ({ ...item, garment: g }));
-        });
-
-        // Expand button codes per garment — same logic
-        const expandedButtonCodes = buttonData.flatMap((item) => {
-          const targets =
-            item.garments.length > 0 ? item.garments : allGarments;
-          return targets.map((g) => ({ ...item, garment: g }));
-        });
-
-        const data = [
-          ...baseOptions,
-          ...expandedLiningCodes,
-          ...expandedButtonCodes,
-        ];
-        setOptions(data);
-        if (data.length > 0) {
-          const garments = [
-            ...new Set(data.map((o) => o.garment).filter(Boolean)),
-          ].sort();
-          const urlGarment = searchParams.get("garment");
-          const first =
-            urlGarment && garments.includes(urlGarment)
-              ? urlGarment
-              : (garments.find((g) => g.toLowerCase() === "jacket") ??
-                garments[0]);
-          const urlCategory = searchParams.get("category");
-
-          const cats = [
-            ...new Set(
-              data
-                .filter(
-                  (o) =>
-                    o.garment === first && o.category !== "contrast_option",
-                )
-                .map((o) => o.category),
-            ),
+      .then(
+        ([styleData, contrastData, liningData, buttonData, locationData]) => {
+          setContrastLocations(locationData);
+          const baseOptions = [...styleData, ...contrastData];
+          const allGarments = [
+            ...new Set(baseOptions.map((o) => o.garment).filter(Boolean)),
           ];
-          const firstCat =
-            urlCategory && cats.includes(urlCategory)
-              ? urlCategory
-              : (cats[0] ?? null);
-          setSearchParams(
-            (prev) => {
-              const next = new URLSearchParams(prev);
-              if (first) next.set("garment", first);
-              else next.delete("garment");
-              if (firstCat) next.set("category", firstCat);
-              else next.delete("category");
-              return next;
-            },
-            { replace: true },
-          );
-        }
-      })
+
+          // Expand lining codes per garment — empty garments array means show in all
+          const expandedLiningCodes = liningData.flatMap((item) => {
+            const targets =
+              item.garments.length > 0 ? item.garments : allGarments;
+            return targets.map((g) => ({ ...item, garment: g }));
+          });
+
+          // Expand button codes per garment — same logic
+          const expandedButtonCodes = buttonData.flatMap((item) => {
+            const targets =
+              item.garments.length > 0 ? item.garments : allGarments;
+            return targets.map((g) => ({ ...item, garment: g }));
+          });
+
+          const data = [
+            ...baseOptions,
+            ...expandedLiningCodes,
+            ...expandedButtonCodes,
+          ];
+          setOptions(data);
+          if (data.length > 0) {
+            const garments = [
+              ...new Set(data.map((o) => o.garment).filter(Boolean)),
+            ].sort();
+            const urlGarment = searchParams.get("garment");
+            const first =
+              urlGarment && garments.includes(urlGarment)
+                ? urlGarment
+                : (garments.find((g) => g.toLowerCase() === "jacket") ??
+                  garments[0]);
+            const urlCategory = searchParams.get("category");
+
+            const cats = [
+              ...new Set(
+                data
+                  .filter(
+                    (o) =>
+                      o.garment === first && o.category !== "contrast_option",
+                  )
+                  .map((o) => o.category),
+              ),
+            ];
+            const firstCat =
+              urlCategory && cats.includes(urlCategory)
+                ? urlCategory
+                : (cats[0] ?? null);
+            setSearchParams(
+              (prev) => {
+                const next = new URLSearchParams(prev);
+                if (first) next.set("garment", first);
+                else next.delete("garment");
+                if (firstCat) next.set("category", firstCat);
+                else next.delete("category");
+                return next;
+              },
+              { replace: true },
+            );
+          }
+        },
+      )
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
@@ -222,10 +238,32 @@ export default function StyleAdjustments() {
       if (opt.categorySort > 0 && opt.categorySort < e.sortOrder)
         e.sortOrder = opt.categorySort;
     }
+    // Add location counts to contrast_option sidebar badge
+    if (map.has("contrast_option")) {
+      const e = map.get("contrast_option");
+      for (const loc of contrastLocations) {
+        if (
+          loc.garment &&
+          loc.garment.toLowerCase() !== selectedGarment.toLowerCase()
+        )
+          continue;
+        e.total++;
+        const vis = locationOverrides.has(loc.id)
+          ? locationOverrides.get(loc.id)
+          : loc.visible;
+        if (vis) e.visible++;
+      }
+    }
     return [...map.entries()]
       .map(([slug, info]) => ({ slug, ...info }))
       .sort((a, b) => a.sortOrder - b.sortOrder);
-  }, [options, selectedGarment, overrides]);
+  }, [
+    options,
+    selectedGarment,
+    overrides,
+    contrastLocations,
+    locationOverrides,
+  ]);
 
   const categoryOptions = useMemo(
     () =>
@@ -246,6 +284,19 @@ export default function StyleAdjustments() {
         o.label.toLowerCase().includes(q) || o.handle.toLowerCase().includes(q),
     );
   }, [categoryOptions, optionFilter]);
+
+  const filteredLocs = useMemo(() => {
+    if (selectedCategory !== "contrast_option") return [];
+    const garmentLocs = contrastLocations.filter(
+      (l) =>
+        !l.garment ||
+        l.garment.toLowerCase() === (selectedGarment || "").toLowerCase(),
+    );
+    const q = optionFilter.trim().toLowerCase();
+    return q
+      ? garmentLocs.filter((l) => l.label.toLowerCase().includes(q))
+      : garmentLocs;
+  }, [selectedCategory, contrastLocations, selectedGarment, optionFilter]);
 
   useEffect(() => {
     setLiningPage(0);
@@ -269,9 +320,30 @@ export default function StyleAdjustments() {
   const categoryInfo = categoriesForGarment.find(
     (c) => c.slug === selectedCategory,
   );
-  const catVisible = categoryOptions.filter((o) => getVisible(o)).length;
-  const totalHidden = options.filter((o) => !getVisible(o)).length;
-  const pendingCount = overrides.size;
+  const catVisible =
+    categoryOptions.filter((o) => getVisible(o)).length +
+    (selectedCategory === "contrast_option"
+      ? contrastLocations
+          .filter(
+            (l) =>
+              !l.garment ||
+              l.garment.toLowerCase() === (selectedGarment || "").toLowerCase(),
+          )
+          .filter((l) => getLocationVisible(l)).length
+      : 0);
+  const catTotal =
+    categoryOptions.length +
+    (selectedCategory === "contrast_option"
+      ? contrastLocations.filter(
+          (l) =>
+            !l.garment ||
+            l.garment.toLowerCase() === (selectedGarment || "").toLowerCase(),
+        ).length
+      : 0);
+  const totalHidden =
+    options.filter((o) => !getVisible(o)).length +
+    contrastLocations.filter((l) => !getLocationVisible(l)).length;
+  const pendingCount = overrides.size + locationOverrides.size;
 
   function toggleOption(opt) {
     setOverrides((prev) => {
@@ -292,6 +364,7 @@ export default function StyleAdjustments() {
       }
       return next;
     });
+    if (selectedCategory === "contrast_option") showAllLocations(filteredLocs);
   }
 
   function hideAll() {
@@ -303,6 +376,67 @@ export default function StyleAdjustments() {
       }
       return next;
     });
+    if (selectedCategory === "contrast_option") hideAllLocations(filteredLocs);
+  }
+
+  function getLocationVisible(loc) {
+    return locationOverrides.has(loc.id)
+      ? locationOverrides.get(loc.id)
+      : loc.visible;
+  }
+
+  function toggleLocation(loc) {
+    setLocationOverrides((prev) => {
+      const next = new Map(prev);
+      const cur = prev.has(loc.id) ? prev.get(loc.id) : loc.visible;
+      if (cur === loc.visible) next.set(loc.id, !cur);
+      else next.delete(loc.id);
+      return next;
+    });
+  }
+
+  function showAllLocations(locs) {
+    setLocationOverrides((prev) => {
+      const next = new Map(prev);
+      for (const loc of locs) {
+        if (loc.visible) next.delete(loc.id);
+        else next.set(loc.id, true);
+      }
+      return next;
+    });
+  }
+
+  function hideAllLocations(locs) {
+    setLocationOverrides((prev) => {
+      const next = new Map(prev);
+      for (const loc of locs) {
+        if (!loc.visible) next.delete(loc.id);
+        else next.set(loc.id, false);
+      }
+      return next;
+    });
+  }
+
+  function handleLocationUpdated(id, updatedFields) {
+    setContrastLocations((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, ...updatedFields } : l)),
+    );
+    setLocationOverrides((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  function handleLocationDeleted(id) {
+    setContrastLocations((prev) => prev.filter((l) => l.id !== id));
+    setLocationOverrides((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
   }
 
   async function handleSave() {
@@ -310,20 +444,32 @@ export default function StyleAdjustments() {
     setSaving(true);
     setSaveError(null);
     try {
-      await Promise.all(
-        [...overrides.entries()].map(([id, vis]) =>
+      await Promise.all([
+        ...[...overrides.entries()].map(([id, vis]) =>
           updateStyleOptionVisible(id, vis),
         ),
-      );
+        ...[...locationOverrides.entries()].map(([id, vis]) =>
+          updateContrastLocation(id, { visible: String(vis) }),
+        ),
+      ]);
       setOptions((prev) =>
         prev.map((o) =>
           overrides.has(o.id) ? { ...o, visible: overrides.get(o.id) } : o,
         ),
       );
+      setContrastLocations((prev) =>
+        prev.map((l) =>
+          locationOverrides.has(l.id)
+            ? { ...l, visible: locationOverrides.get(l.id) }
+            : l,
+        ),
+      );
       setOverrides(new Map());
+      setLocationOverrides(new Map());
       clearStyleOptionsCache();
       clearLiningCodesCache();
       clearButtonCodesCache();
+      clearContrastLocationsCache();
     } catch (e) {
       setSaveError(e.message);
     } finally {
@@ -539,8 +685,7 @@ export default function StyleAdjustments() {
                     )}
                 </div>
                 <p className="font-hanken font-semibold text-[13px] md:text-[14px] leading-[16px] mt-[2px] text-gc-primary">
-                  Total: {categoryOptions.length} options | Visible:{" "}
-                  {catVisible}
+                  Total: {catTotal} options | Visible: {catVisible}
                 </p>
               </div>
 
@@ -570,7 +715,65 @@ export default function StyleAdjustments() {
               </div>
 
               <div className="px-[16px] md:px-[24px] pt-[16px] md:pt-[20px]">
-                {filteredOptions.length === 0 ? (
+                {selectedCategory === "contrast_option" ? (
+                  <div className="flex flex-col gap-[32px]">
+                    {/* ── Color sub-section ── */}
+                    <div>
+                      <p className="font-hanken font-semibold text-[11px] uppercase tracking-[0.6px] text-gc-primary mb-[12px]">
+                        Color
+                      </p>
+                      {filteredOptions.length === 0 ? (
+                        <p className="font-hanken text-[13px] py-[20px] text-center text-gc-muted-warm">
+                          No color options match your filter.
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px] md:gap-[13px]">
+                          {filteredOptions.map((opt) => (
+                            <OptionCard
+                              key={opt.handle}
+                              option={opt}
+                              visible={getVisible(opt)}
+                              onChange={() => toggleOption(opt)}
+                              onView={setViewingOption}
+                              onEdit={setEditingOption}
+                              onDelete={setDeletingOption}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Location sub-section ── */}
+                    {(() => {
+                      return (
+                        <div>
+                          <p className="font-hanken font-semibold text-[11px] uppercase tracking-[0.6px] text-gc-primary mb-[12px]">
+                            Location
+                          </p>
+                          {filteredLocs.length === 0 ? (
+                            <p className="font-hanken text-[13px] py-[20px] text-center text-gc-muted-warm">
+                              No location options found.
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px] md:gap-[13px]">
+                              {filteredLocs.map((loc) => (
+                                <OptionCard
+                                  key={loc.handle}
+                                  option={loc}
+                                  visible={getLocationVisible(loc)}
+                                  onChange={() => toggleLocation(loc)}
+                                  onView={setViewingLocation}
+                                  onEdit={setEditingLocation}
+                                  onDelete={setDeletingLocation}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : filteredOptions.length === 0 ? (
                   <p className="font-hanken text-[13px] py-[40px] text-center text-gc-muted-warm">
                     No options match your filter.
                   </p>
@@ -747,6 +950,30 @@ export default function StyleAdjustments() {
             onDeleted={handleDeleted}
           />
         )}
+      {viewingLocation && (
+        <ViewContrastLocationModal
+          option={viewingLocation}
+          onClose={() => setViewingLocation(null)}
+          onEdit={(loc) => {
+            setViewingLocation(null);
+            setEditingLocation(loc);
+          }}
+        />
+      )}
+      {editingLocation && (
+        <EditContrastLocationModal
+          option={editingLocation}
+          onClose={() => setEditingLocation(null)}
+          onUpdated={handleLocationUpdated}
+        />
+      )}
+      {deletingLocation && (
+        <DeleteContrastLocationModal
+          option={deletingLocation}
+          onClose={() => setDeletingLocation(null)}
+          onDeleted={handleLocationDeleted}
+        />
+      )}
     </DashboardLayout>
   );
 }

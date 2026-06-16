@@ -34,6 +34,7 @@ import {
   fetchJacketMeasurementFields,
   fetchStyleOptions,
   fetchContrastOptions,
+  fetchContrastLocations,
   fetchFabricOptions,
   clearFabricOptionsCache,
   fetchFitSizeOptions,
@@ -234,6 +235,7 @@ export default function CreateOrder() {
 
   const [styleOptions, setStyleOptions] = useState([]);
   const [contrastOptions, setContrastOptions] = useState([]);
+  const [contrastLocations, setContrastLocations] = useState([]);
   const [styleSelections, setStyleSelections] = useState({});
   const [styleOptionsLoading, setStyleOptionsLoading] = useState(false);
 
@@ -603,12 +605,23 @@ export default function CreateOrder() {
       return;
     }
     setStyleOptionsLoading(true);
-    Promise.all([fetchStyleOptions(), fetchContrastOptions()])
-      .then(([allStyle, allContrast]) => {
+    Promise.all([
+      fetchStyleOptions(),
+      fetchContrastOptions(),
+      fetchContrastLocations(),
+    ])
+      .then(([allStyle, allContrast, allLocations]) => {
         const filtered = allStyle.filter((o) => garments.includes(o.garment));
         setStyleOptions(filtered);
         setContrastOptions(
           allContrast.filter((o) => garments.includes(o.garment)),
+        );
+        setContrastLocations(
+          allLocations.filter(
+            (l) =>
+              !l.garment ||
+              garments.some((g) => g.toLowerCase() === l.garment.toLowerCase()),
+          ),
         );
         const defaults = {};
         filtered
@@ -680,7 +693,16 @@ export default function CreateOrder() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const allStyleOpts = [...styleOptions, ...contrastOptions];
+      const allStyleOpts = [
+        ...styleOptions,
+        ...contrastOptions,
+        ...contrastLocations.map((l) => ({
+          ...l,
+          category: "contrast_location",
+          displayLabel: "Location",
+          sortOrder: 0,
+        })),
+      ];
       const styleAttrs = Object.entries(styleSelections)
         .filter(([, v]) => v)
         .map(([compKey, value]) => {
@@ -1057,6 +1079,7 @@ export default function CreateOrder() {
               <StyleOptionsSection
                 styleOptions={styleOptions}
                 contrastOptions={contrastOptions}
+                contrastLocations={contrastLocations}
                 selections={styleSelections}
                 onChange={setStyleSelections}
                 loading={styleOptionsLoading}

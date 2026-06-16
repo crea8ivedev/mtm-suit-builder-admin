@@ -84,7 +84,8 @@ export function OptionCard({
     <div className="bg-white flex items-center h-[52px] md:h-[64px] rounded-[8px] px-[8px] md:px-[11px] py-[8px] md:py-[12px] border border-gc-border-warm">
       {!option.isContrastOption &&
         !option.isLiningCode &&
-        !option.isButtonCode && (
+        !option.isButtonCode &&
+        !option.isContrastLocation && (
           <span className="flex-shrink-0 flex items-center justify-center font-hanken font-bold text-[11px] rounded-[4px] mr-[8px] w-[24px] h-[24px] bg-gc-bg-warm text-gc-primary">
             {option.sortOrder ?? "—"}
           </span>
