@@ -1401,6 +1401,7 @@ export async function shopifyGqlQuery(query, variables = {}) {
   return shopifyGraphQL(query, variables);
 }
 
+// To add a new garment: add "gc_<garment>_style_option" to this array.
 const STYLE_OPTION_TYPES = [
   "gc_jacket_style_option",
   "gc_trouser_style_option",
@@ -1729,7 +1730,8 @@ export async function fetchLiningCodes() {
       let garments = [];
       try {
         const parsed = JSON.parse(fm.garment || "[]");
-        garments = Array.isArray(parsed) ? parsed : [];
+        const arr = Array.isArray(parsed) ? parsed : [];
+        garments = arr.some((g) => g.toLowerCase() === "all") ? [] : arr;
       } catch {}
       results.push({
         id: node.id,
@@ -1824,7 +1826,8 @@ export async function fetchButtonCodes() {
       let garments = [];
       try {
         const parsed = JSON.parse(fm.garment || "[]");
-        garments = Array.isArray(parsed) ? parsed : [];
+        const arr = Array.isArray(parsed) ? parsed : [];
+        garments = arr.some((g) => g.toLowerCase() === "all") ? [] : arr;
       } catch {}
       results.push({
         id: node.id,
