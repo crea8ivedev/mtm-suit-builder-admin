@@ -35,6 +35,8 @@ import {
   fetchStyleOptions,
   fetchContrastOptions,
   fetchContrastLocations,
+  fetchLiningCodes,
+  fetchButtonCodes,
   fetchFabricOptions,
   clearFabricOptionsCache,
   fetchFitSizeOptions,
@@ -64,16 +66,22 @@ function buildProfilesFromOrders(orders) {
         (a) => a.key === "_profile_name",
       )?.value;
       const idx = result[productName].length + 1;
+      const style = {};
+      const measurements = {};
+      for (const { key, value } of measureAttrs) {
+        const clean = value?.endsWith('"') ? value.slice(0, -1) : value;
+        if (key.startsWith("Style: ") || key.includes(" - ")) {
+          style[key] = clean;
+        } else {
+          measurements[key] = clean;
+        }
+      }
       result[productName].push({
         id: `prof_${counter++}`,
         name: profileName || `Measurement ${idx}`,
         created,
-        measurements: Object.fromEntries(
-          measureAttrs.map(({ key, value }) => [
-            key,
-            value?.endsWith('"') ? value.slice(0, -1) : value,
-          ]),
-        ),
+        style,
+        measurements,
       });
     }
   }
@@ -152,6 +160,36 @@ function garmentsFromGcBuilderValue(value) {
 
 function styleGarmentsForProduct(product) {
   return garmentsFromGcBuilderValue(product?.metafield?.value);
+}
+
+function buildStyleOptionsForJson(
+  styleOptions,
+  contrastOptions,
+  contrastLocations,
+) {
+  const allOpts = [
+    ...styleOptions.filter((o) => o.visible),
+    ...contrastOptions.filter((o) => o.visible),
+    ...contrastLocations
+      .filter((l) => l.visible)
+      .map((l) => ({
+        ...l,
+        category: "contrast_location",
+        displayLabel: "Contrast Color Location",
+      })),
+  ];
+  const map = {};
+  for (const opt of allOpts) {
+    const garment = opt.garment;
+    const category = opt.displayLabel || opt.category;
+    if (!garment || !category) continue;
+    if (!map[garment]) map[garment] = {};
+    if (!map[garment][category]) map[garment][category] = [];
+    const entry = { label: opt.label };
+    if (opt.upcharge > 0) entry.upcharge = opt.upcharge;
+    map[garment][category].push(entry);
+  }
+  return map;
 }
 
 // ─── Step Indicator ─────────────────────────────────────────────────────────
@@ -239,6 +277,9 @@ export default function CreateOrder() {
   const [styleSelections, setStyleSelections] = useState({});
   const [styleOptionsLoading, setStyleOptionsLoading] = useState(false);
 
+  const [liningCodes, setLiningCodes] = useState([]);
+  const [buttonCodes, setButtonCodes] = useState([]);
+
   const [fabricOptions, setFabricOptions] = useState([]);
   const [fabricLoading, setFabricLoading] = useState(false);
   const [selectedFabric, setSelectedFabric] = useState(null);
@@ -268,6 +309,13 @@ export default function CreateOrder() {
         if (data && Object.keys(data).length > 0) setJacketRanges(data);
       })
       .catch(() => {});
+    fetchLiningCodes()
+      .then((codes) => setLiningCodes(codes))
+      .catch(() => {});
+    fetchButtonCodes()
+      .then((codes) => setButtonCodes(codes))
+      .catch(() => {});
+
     clearFabricOptionsCache();
     setFabricLoading(true);
     fetchFabricOptions()
@@ -298,6 +346,32 @@ export default function CreateOrder() {
       groups.push({ label: "Shirt", ranges: shirtRanges });
     return groups;
   }, [selectedProduct, jacketRanges, trouserRanges, vestRanges, shirtRanges]);
+
+  const expandedLiningCodes = useMemo(() => {
+    if (!selectedProduct || !liningCodes.length) return [];
+    const garments = styleGarmentsForProduct(selectedProduct);
+    if (!garments.length) return [];
+    return liningCodes.flatMap((item) => {
+      const targets =
+        item.garments.length > 0
+          ? item.garments.filter((g) => garments.includes(g))
+          : garments;
+      return targets.map((g) => ({ ...item, garment: g }));
+    });
+  }, [selectedProduct, liningCodes]);
+
+  const expandedButtonCodes = useMemo(() => {
+    if (!selectedProduct || !buttonCodes.length) return [];
+    const garments = styleGarmentsForProduct(selectedProduct);
+    if (!garments.length) return [];
+    return buttonCodes.flatMap((item) => {
+      const targets =
+        item.garments.length > 0
+          ? item.garments.filter((g) => garments.includes(g))
+          : garments;
+      return targets.map((g) => ({ ...item, garment: g }));
+    });
+  }, [selectedProduct, buttonCodes]);
 
   const pastOrdersForProduct = useMemo(() => {
     if (!selectedProduct || !customerOrders.length) return [];
@@ -699,9 +773,11 @@ export default function CreateOrder() {
         ...contrastLocations.map((l) => ({
           ...l,
           category: "contrast_location",
-          displayLabel: "Location",
+          displayLabel: "Contrast Color Location",
           sortOrder: 0,
         })),
+        ...expandedLiningCodes,
+        ...expandedButtonCodes,
       ];
       const styleAttrs = Object.entries(styleSelections)
         .filter(([, v]) => v)
@@ -799,8 +875,19 @@ export default function CreateOrder() {
             id: `prof_${Date.now()}`,
             name: `Measurement ${existingList.length + 1}`,
             created: today,
+            style: Object.fromEntries(
+              styleAttrs.map(({ key, value }) => [key, String(value)]),
+            ),
             measurements: Object.fromEntries(
-              measureAttrs.map(({ key, value }) => [key, String(value)]),
+              measureAttrs.map(({ key, value }) => {
+                const v = String(value);
+                return [key, v.endsWith('"') ? v.slice(0, -1) : v];
+              }),
+            ),
+            styleOptions: buildStyleOptionsForJson(
+              styleOptions,
+              contrastOptions,
+              contrastLocations,
             ),
           };
           const fullProfiles = {
@@ -1080,6 +1167,8 @@ export default function CreateOrder() {
                 styleOptions={styleOptions}
                 contrastOptions={contrastOptions}
                 contrastLocations={contrastLocations}
+                liningCodes={expandedLiningCodes}
+                buttonCodes={expandedButtonCodes}
                 selections={styleSelections}
                 onChange={setStyleSelections}
                 loading={styleOptionsLoading}

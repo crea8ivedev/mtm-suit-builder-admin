@@ -422,6 +422,8 @@ export function StyleOptionsSection({
   styleOptions,
   contrastOptions,
   contrastLocations = [],
+  liningCodes = [],
+  buttonCodes = [],
   selections,
   onChange,
   loading,
@@ -433,16 +435,16 @@ export function StyleOptionsSection({
       .map((l) => ({
         ...l,
         category: "contrast_location",
-        displayLabel: "Location",
+        displayLabel: "Contrast Color Location",
         sortOrder: 0,
         garment: l.garment || "General",
       }));
     const all = [
       ...styleOptions.filter((o) => o.visible),
-      ...contrastOptions
-        .filter((o) => o.visible)
-        .map((o) => ({ ...o, displayLabel: "Color" })),
+      ...contrastOptions.filter((o) => o.visible),
       ...mappedLocations,
+      ...liningCodes.filter((o) => o.visible),
+      ...buttonCodes.filter((o) => o.visible),
     ];
     for (const opt of all) {
       const g = opt.garment || "General";
@@ -457,7 +459,13 @@ export function StyleOptionsSection({
       }
     }
     return map;
-  }, [styleOptions, contrastOptions, contrastLocations]);
+  }, [
+    styleOptions,
+    contrastOptions,
+    contrastLocations,
+    liningCodes,
+    buttonCodes,
+  ]);
 
   const garments = Object.keys(byGarment);
 

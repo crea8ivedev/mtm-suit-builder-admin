@@ -1818,7 +1818,8 @@ export async function fetchLiningCodes() {
       results.push({
         id: node.id,
         handle: node.handle,
-        label: fm.color_name || fm.code || node.handle,
+        label: fm.code || node.handle,
+        colorName: fm.color_name || "",
         code: fm.code || "",
         category: "lining_code",
         garments,

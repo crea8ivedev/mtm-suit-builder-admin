@@ -31,6 +31,9 @@ import {
   fetchShirtMeasurementFields,
   fetchStyleOptions,
   fetchContrastOptions,
+  fetchContrastLocations,
+  fetchLiningCodes,
+  fetchButtonCodes,
   setCustomerProductsMetafield,
   fetchCustomerGcMeasurements,
 } from "../lib/shopify";
@@ -71,8 +74,19 @@ function derivedGarmentsFromMeasurements(
   return [...found];
 }
 
-function normalizeEditingValues(source, styleOptions, contrastOptions) {
-  const allOpts = [...styleOptions, ...contrastOptions];
+function normalizeEditingValues(
+  source,
+  styleOptions,
+  contrastOptions,
+  expandedLC = [],
+  expandedBC = [],
+) {
+  const allOpts = [
+    ...styleOptions,
+    ...contrastOptions,
+    ...expandedLC,
+    ...expandedBC,
+  ];
   const normalized = {};
   for (const [k, v] of Object.entries(source)) {
     if (k.startsWith("_")) {
@@ -100,11 +114,49 @@ function normalizeEditingValues(source, styleOptions, contrastOptions) {
   return normalized;
 }
 
-function buildStyleOptionsByGarment(styleOptions, contrastOptions, garments) {
+function buildStyleOptionsByGarment(
+  styleOptions,
+  contrastOptions,
+  contrastLocations,
+  liningCodes,
+  buttonCodes,
+  garments,
+) {
   if (!garments.length) return {};
+  const mappedLocations = contrastLocations
+    .filter((l) => l.visible)
+    .filter(
+      (l) =>
+        !l.garment ||
+        garments.some((g) => g.toLowerCase() === l.garment.toLowerCase()),
+    )
+    .map((l) => ({
+      ...l,
+      category: "contrast_location",
+      displayLabel: "Contrast Color Location",
+      sortOrder: l.sortOrder ?? 0,
+      garment: l.garment || garments[0] || "General",
+    }));
+  const expandedLC = liningCodes.flatMap((item) => {
+    const targets =
+      item.garments.length > 0
+        ? item.garments.filter((g) => garments.includes(g))
+        : garments;
+    return targets.map((g) => ({ ...item, garment: g }));
+  });
+  const expandedBC = buttonCodes.flatMap((item) => {
+    const targets =
+      item.garments.length > 0
+        ? item.garments.filter((g) => garments.includes(g))
+        : garments;
+    return targets.map((g) => ({ ...item, garment: g }));
+  });
   const all = [
     ...styleOptions.filter((o) => o.visible && garments.includes(o.garment)),
     ...contrastOptions.filter((o) => o.visible && garments.includes(o.garment)),
+    ...mappedLocations,
+    ...expandedLC.filter((o) => o.visible),
+    ...expandedBC.filter((o) => o.visible),
   ];
   const byGarment = {};
   for (const opt of all) {
@@ -325,9 +377,44 @@ function buildMeasurementProfiles(
   return result;
 }
 
-function buildStyleOptionsMap(styleOptionsList, contrastOptionsList) {
+function buildStyleOptionsMap(
+  styleOptionsList,
+  contrastOptionsList,
+  contrastLocations,
+  liningCodes,
+  buttonCodes,
+) {
   const map = {};
-  for (const opt of [...styleOptionsList, ...contrastOptionsList]) {
+  const allGarments = [
+    ...new Set(
+      [...styleOptionsList, ...contrastOptionsList]
+        .map((o) => o.garment)
+        .filter(Boolean),
+    ),
+  ];
+  const mappedLocations = contrastLocations
+    .filter((l) => l.visible)
+    .map((l) => ({
+      ...l,
+      category: "contrast_location",
+      displayLabel: "Contrast Color Location",
+      garment: l.garment || allGarments[0] || "",
+    }));
+  const expandedLC = liningCodes.flatMap((item) => {
+    const targets = item.garments.length > 0 ? item.garments : allGarments;
+    return targets.map((g) => ({ ...item, garment: g }));
+  });
+  const expandedBC = buttonCodes.flatMap((item) => {
+    const targets = item.garments.length > 0 ? item.garments : allGarments;
+    return targets.map((g) => ({ ...item, garment: g }));
+  });
+  for (const opt of [
+    ...styleOptionsList,
+    ...contrastOptionsList,
+    ...mappedLocations,
+    ...expandedLC,
+    ...expandedBC,
+  ]) {
     if (!opt.visible) continue;
     const garment = opt.garment;
     const category = opt.displayLabel || opt.category;
@@ -417,6 +504,9 @@ export default function CustomerDetail() {
   const [displayKeyMap, setDisplayKeyMap] = useState({});
   const [styleOptions, setStyleOptions] = useState([]);
   const [contrastOptions, setContrastOptions] = useState([]);
+  const [contrastLocations, setContrastLocations] = useState([]);
+  const [liningCodes, setLiningCodes] = useState([]);
+  const [buttonCodes, setButtonCodes] = useState([]);
   const [gcMeasurements, setGcMeasurements] = useState({});
 
   useClickOutside(entriesRef, () => setEntriesOpen(false));
@@ -470,6 +560,15 @@ export default function CustomerDetail() {
     fetchContrastOptions()
       .then(setContrastOptions)
       .catch(() => {});
+    fetchContrastLocations()
+      .then(setContrastLocations)
+      .catch(() => {});
+    fetchLiningCodes()
+      .then(setLiningCodes)
+      .catch(() => {});
+    fetchButtonCodes()
+      .then(setButtonCodes)
+      .catch(() => {});
     fetchCustomerGcMeasurements(shopifyGid)
       .then((data) => {
         if (data && Object.keys(data).length) setGcMeasurements(data);
@@ -504,9 +603,53 @@ export default function CustomerDetail() {
   const [savingProfileId, setSavingProfileId] = useState(null);
   const [profileErrors, setProfileErrors] = useState({});
 
+  const allGarments = useMemo(
+    () => [
+      ...new Set(
+        [...styleOptions, ...contrastOptions]
+          .map((o) => o.garment)
+          .filter(Boolean),
+      ),
+    ],
+    [styleOptions, contrastOptions],
+  );
+
+  const expandedLiningCodes = useMemo(
+    () =>
+      liningCodes.flatMap((item) => {
+        const targets = item.garments.length > 0 ? item.garments : allGarments;
+        return targets.map((g) => ({ ...item, garment: g }));
+      }),
+    [liningCodes, allGarments],
+  );
+
+  const expandedButtonCodes = useMemo(
+    () =>
+      buttonCodes.flatMap((item) => {
+        const targets = item.garments.length > 0 ? item.garments : allGarments;
+        return targets.map((g) => ({ ...item, garment: g }));
+      }),
+    [buttonCodes, allGarments],
+  );
+
   const styleKeyMap = useMemo(() => {
     const map = {};
-    for (const opt of [...styleOptions, ...contrastOptions]) {
+    const mappedLocations = contrastLocations.flatMap((l) => {
+      const targets = l.garment ? [l.garment] : allGarments;
+      return targets.map((g) => ({
+        ...l,
+        garment: g,
+        category: "contrast_location",
+        displayLabel: "Contrast Color Location",
+      }));
+    });
+    for (const opt of [
+      ...styleOptions,
+      ...contrastOptions,
+      ...mappedLocations,
+      ...expandedLiningCodes,
+      ...expandedButtonCodes,
+    ]) {
       if (opt.garment && opt.category && opt.displayLabel) {
         const oldKey = `${opt.garment} - ${opt.category}`;
         const newKey = `Style: ${opt.displayLabel}`;
@@ -515,11 +658,31 @@ export default function CustomerDetail() {
       }
     }
     return map;
-  }, [styleOptions, contrastOptions]);
+  }, [
+    styleOptions,
+    contrastOptions,
+    contrastLocations,
+    allGarments,
+    expandedLiningCodes,
+    expandedButtonCodes,
+  ]);
 
   const styleOptionsMap = useMemo(
-    () => buildStyleOptionsMap(styleOptions, contrastOptions),
-    [styleOptions, contrastOptions],
+    () =>
+      buildStyleOptionsMap(
+        styleOptions,
+        contrastOptions,
+        contrastLocations,
+        liningCodes,
+        buttonCodes,
+      ),
+    [
+      styleOptions,
+      contrastOptions,
+      contrastLocations,
+      liningCodes,
+      buttonCodes,
+    ],
   );
 
   const profiles = useMemo(
@@ -608,6 +771,8 @@ export default function CustomerDetail() {
     activeProfiles,
     styleOptions,
     styleOptionsMap,
+    liningCodes,
+    buttonCodes,
   ]);
 
   const handleProfileEditStart = (entry) => {
@@ -616,6 +781,8 @@ export default function CustomerDetail() {
         { ...(entry.style ?? {}), ...entry.measurements },
         styleOptions,
         contrastOptions,
+        expandedLiningCodes,
+        expandedButtonCodes,
       ),
     );
     setEditingProfileId(entry.id);
@@ -1118,6 +1285,9 @@ export default function CustomerDetail() {
                         const byGarment = buildStyleOptionsByGarment(
                           styleOptions,
                           contrastOptions,
+                          contrastLocations,
+                          liningCodes,
+                          buttonCodes,
                           productGarments,
                         );
                         const garmentKeys = Object.keys(byGarment);
