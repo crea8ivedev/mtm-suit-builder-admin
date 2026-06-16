@@ -426,22 +426,22 @@ export default function CustomerDetail() {
       .then((d) => {
         if (d) setVestMap(d);
       })
-      .catch(() => { });
+      .catch(() => {});
     fetchShirtRanges()
       .then((d) => {
         if (d) setShirtMap(d);
       })
-      .catch(() => { });
+      .catch(() => {});
     fetchTrouserRanges()
       .then((d) => {
         if (d) setTrouserMap(d);
       })
-      .catch(() => { });
+      .catch(() => {});
     fetchJacketRanges()
       .then((d) => {
         if (d) setJacketMap(d);
       })
-      .catch(() => { });
+      .catch(() => {});
     Promise.all([
       fetchJacketMeasurementFields(),
       fetchTrouserMeasurementFields(),
@@ -463,18 +463,18 @@ export default function CustomerDetail() {
         setLabelMap(label);
         setDisplayKeyMap(display);
       })
-      .catch(() => { });
+      .catch(() => {});
     fetchStyleOptions()
       .then(setStyleOptions)
-      .catch(() => { });
+      .catch(() => {});
     fetchContrastOptions()
       .then(setContrastOptions)
-      .catch(() => { });
+      .catch(() => {});
     fetchCustomerGcMeasurements(shopifyGid)
       .then((data) => {
         if (data && Object.keys(data).length) setGcMeasurements(data);
       })
-      .catch(() => { });
+      .catch(() => {});
   }, [shopifyGid]);
 
   const totalSpent = useMemo(() => {
@@ -599,7 +599,7 @@ export default function CustomerDetail() {
     const profilesToSave = Object.keys(styleOptionsMap).length
       ? injectStyleOptionsIntoProfiles(activeProfiles, styleOptionsMap)
       : activeProfiles;
-    setCustomerProductsMetafield(shopifyGid, profilesToSave).catch(() => { });
+    setCustomerProductsMetafield(shopifyGid, profilesToSave).catch(() => {});
   }, [
     orders,
     displayKeyMap,
@@ -672,11 +672,11 @@ export default function CustomerDetail() {
       (p) =>
         p.id === entry.id
           ? {
-            ...p,
-            style: newStyle,
-            measurements: newMeasurements,
-            styleOptions: styleOptionsMap,
-          }
+              ...p,
+              style: newStyle,
+              measurements: newMeasurements,
+              styleOptions: styleOptionsMap,
+            }
           : { ...p, styleOptions: styleOptionsMap },
     );
     const profilesToSave = Object.keys(styleOptionsMap).length
@@ -877,7 +877,7 @@ export default function CustomerDetail() {
                                 <StatusPill
                                   status={
                                     PAYMENT_BADGE[
-                                    order.displayFinancialStatus
+                                      order.displayFinancialStatus
                                     ] ?? "pending"
                                   }
                                 />
@@ -982,21 +982,21 @@ export default function CustomerDetail() {
 
                           {visiblePages[visiblePages.length - 1] <
                             totalPages && (
-                              <>
-                                {visiblePages[visiblePages.length - 1] <
-                                  totalPages - 1 && (
-                                    <span className="w-[28px] text-center text-gc-text text-[13px]">
-                                      …
-                                    </span>
-                                  )}
-                                <button
-                                  onClick={() => setCurrentPage(totalPages)}
-                                  className="gc-pagination-btn"
-                                >
-                                  {totalPages}
-                                </button>
-                              </>
-                            )}
+                            <>
+                              {visiblePages[visiblePages.length - 1] <
+                                totalPages - 1 && (
+                                <span className="w-[28px] text-center text-gc-text text-[13px]">
+                                  …
+                                </span>
+                              )}
+                              <button
+                                onClick={() => setCurrentPage(totalPages)}
+                                className="gc-pagination-btn"
+                              >
+                                {totalPages}
+                              </button>
+                            </>
+                          )}
 
                           <button
                             onClick={() =>
@@ -1041,7 +1041,7 @@ export default function CustomerDetail() {
                   const isStandard =
                     sizeTypeKey &&
                     entry.measurements[sizeTypeKey]?.toLowerCase() ===
-                    "standard";
+                      "standard";
 
                   return (
                     <div key={entry.id} className="flex flex-col gap-[24px]">
@@ -1210,9 +1210,9 @@ export default function CustomerDetail() {
                                           ].find(
                                             (o) =>
                                               o.garment.toLowerCase() ===
-                                              g.toLowerCase() &&
+                                                g.toLowerCase() &&
                                               o.category.toLowerCase() ===
-                                              c.toLowerCase(),
+                                                c.toLowerCase(),
                                           );
                                           if (match?.displayLabel)
                                             displayKey = match.displayLabel;
@@ -1279,7 +1279,7 @@ export default function CustomerDetail() {
                                             (o) =>
                                               o.rawKey === rawKey ||
                                               o.rawKey.toLowerCase() ===
-                                              rawKeyLower ||
+                                                rawKeyLower ||
                                               (newStyleKey &&
                                                 o.rawKey === newStyleKey),
                                           );

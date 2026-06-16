@@ -7,7 +7,7 @@ function JacketIcon() {
     <svg
       viewBox="0 0 80 90"
       fill="none"
-      stroke="#555"
+      stroke="#a45d41"
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -22,9 +22,9 @@ function JacketIcon() {
       <path d="M14 46 L22 46" />
       <path d="M14 54 L22 54" />
       <path d="M14 62 L22 62" />
-      <circle cx="44" cy="44" r="1.5" fill="#555" stroke="none" />
-      <circle cx="44" cy="52" r="1.5" fill="#555" stroke="none" />
-      <circle cx="44" cy="60" r="1.5" fill="#555" stroke="none" />
+      <circle cx="44" cy="44" r="1.5" fill="#a45d41" stroke="none" />
+      <circle cx="44" cy="52" r="1.5" fill="#a45d41" stroke="none" />
+      <circle cx="44" cy="60" r="1.5" fill="#a45d41" stroke="none" />
     </svg>
   );
 }
@@ -32,8 +32,8 @@ function JacketIcon() {
 function CraftIllustration({ code, category }) {
   const label = code ?? category?.charAt(0) ?? "?";
   return (
-    <div className="w-[64px] h-[64px] rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
-      <span className="text-[10px] font-mono text-gray-400 text-center leading-tight px-[2px]">
+    <div className="w-[64px] h-[64px] rounded-lg bg-gc-bg-warm border border-gc-border-warm flex items-center justify-center flex-shrink-0">
+      <span className="text-[10px] font-mono text-gc-muted text-center leading-tight px-[2px]">
         {label}
       </span>
     </div>
@@ -45,14 +45,14 @@ function CraftItem({ craft }) {
     <div className="flex items-center gap-[12px] py-[10px]">
       <CraftIllustration code={craft.code} category={craft.category} />
       <div className="min-w-0">
-        <p className="text-[11px] text-gray-400 leading-tight mb-[2px]">
+        <p className="font-hanken text-[11px] text-gc-muted leading-tight mb-[2px]">
           {craft.category}
         </p>
-        <p className="text-[14px] font-semibold text-gray-800 leading-tight">
+        <p className="font-hanken text-[14px] font-semibold text-gc-heading leading-tight">
           {craft.name}
         </p>
         {craft.code && (
-          <p className="text-[11px] text-gray-500 font-mono mt-[1px]">
+          <p className="text-[11px] text-gc-muted-warm font-mono mt-[1px]">
             {craft.code}
           </p>
         )}
@@ -100,34 +100,34 @@ export default function FabricDetailModal({ fabric, onClose }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-[960px] max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-[28px] py-[18px] border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-[18px] font-semibold text-gray-800">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-[960px] max-h-[90vh] flex flex-col overflow-hidden border border-gc-border-warm">
+        <div className="flex items-center justify-between px-[28px] py-[18px] border-b border-gc-border-warm flex-shrink-0">
+          <h2 className="font-garamond font-bold text-[22px] text-gc-heading">
             Product Detail
           </h2>
           <button
             onClick={onClose}
-            className="w-[28px] h-[28px] flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            className="w-[30px] h-[30px] flex items-center justify-center rounded-[6px] bg-gc-bg-warm hover:opacity-80 transition-opacity cursor-pointer"
           >
-            <X size={18} />
+            <X size={14} className="text-gc-primary-deep" />
           </button>
         </div>
 
         <div className="overflow-y-auto flex-1 px-[28px] py-[24px]">
           <div className="flex gap-[48px] mb-[28px]">
             <div className="flex-1 min-w-0">
-              <p className="text-[12px] text-gray-400 mb-[12px] font-medium">
+              <p className="font-hanken text-[12px] text-gc-muted mb-[12px] font-medium">
                 Category
               </p>
               <div className="flex items-start gap-[16px]">
-                <div className="w-[64px] h-[72px] border border-gray-200 rounded-lg flex items-center justify-center bg-gray-50 flex-shrink-0">
+                <div className="w-[64px] h-[72px] border border-gc-border-warm rounded-lg flex items-center justify-center bg-gc-bg-warm flex-shrink-0">
                   <JacketIcon />
                 </div>
                 <div className="flex flex-col gap-[6px] flex-1">
-                  <div className="bg-blue-50 text-blue-700 text-[14px] font-medium px-[14px] py-[8px] rounded-md">
+                  <div className="bg-gc-bg-warm text-gc-primary font-hanken text-[13px] font-semibold px-[14px] py-[8px] rounded-md border border-gc-border-warm">
                     Men
                   </div>
-                  <div className="bg-blue-50 text-blue-700 text-[14px] font-medium px-[14px] py-[8px] rounded-md">
+                  <div className="bg-gc-bg-warm text-gc-primary font-hanken text-[13px] font-semibold px-[14px] py-[8px] rounded-md border border-gc-border-warm">
                     Jacket
                   </div>
                 </div>
@@ -135,11 +135,11 @@ export default function FabricDetailModal({ fabric, onClose }) {
             </div>
 
             <div className="flex-1 min-w-0">
-              <p className="text-[12px] text-gray-400 mb-[12px] font-medium">
+              <p className="font-hanken text-[12px] text-gc-muted mb-[12px] font-medium">
                 Fabric
               </p>
               <div className="flex items-center gap-[16px]">
-                <div className="w-[80px] h-[80px] rounded-lg overflow-hidden border border-gray-200 bg-gray-100 flex-shrink-0">
+                <div className="w-[80px] h-[80px] rounded-lg overflow-hidden border border-gc-border-warm bg-gc-bg-warm flex-shrink-0">
                   {fabric.imageUrl && !imgError ? (
                     <img
                       src={fabric.imageUrl}
@@ -148,22 +148,22 @@ export default function FabricDetailModal({ fabric, onClose }) {
                       onError={() => setImgError(true)}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-[11px]">
+                    <div className="w-full h-full flex items-center justify-center text-gc-muted text-[11px] font-hanken">
                       No image
                     </div>
                   )}
                 </div>
-                <div className="border border-gray-300 rounded-md px-[14px] py-[10px] bg-white flex-1">
-                  <p className="text-[15px] font-semibold text-gray-700">
+                <div className="border border-gc-border-warm rounded-md px-[14px] py-[10px] bg-white flex-1">
+                  <p className="font-hanken text-[15px] font-semibold text-gc-heading">
                     {fabric.fabricCode}
                   </p>
                   {fabric.colorName && (
-                    <p className="text-[12px] text-gray-400 mt-[2px]">
+                    <p className="text-[12px] text-gc-muted mt-[2px]">
                       {fabric.colorName}
                     </p>
                   )}
                   {fabric.material && (
-                    <p className="text-[12px] text-gray-400">
+                    <p className="text-[12px] text-gc-muted">
                       {fabric.material}
                     </p>
                   )}
@@ -172,14 +172,14 @@ export default function FabricDetailModal({ fabric, onClose }) {
             </div>
           </div>
 
-          <div className="border-t border-gray-200 mb-[24px]" />
+          <div className="border-t border-gc-border mb-[24px]" />
 
-          <p className="text-[13px] font-bold text-gray-700 uppercase tracking-widest mb-[16px]">
+          <p className="font-hanken text-[11px] font-semibold uppercase tracking-[0.4px] text-gc-primary mb-[16px]">
             Customization
           </p>
 
           <div className="flex items-center gap-[10px] mb-[20px]">
-            <button className="bg-gray-800 text-white text-[12px] font-semibold px-[14px] py-[6px] rounded-md flex items-center gap-[6px]">
+            <button className="font-hanken bg-gc-primary hover:bg-gc-primary-dark text-white text-[12px] font-semibold px-[14px] py-[6px] rounded-md flex items-center gap-[6px] cursor-pointer transition-colors">
               JACKET ({crafts.length})
               <svg
                 viewBox="0 0 20 20"
@@ -205,9 +205,9 @@ export default function FabricDetailModal({ fabric, onClose }) {
           </div>
 
           {craftsLoading && (
-            <div className="flex items-center justify-center py-[48px] gap-[10px] text-gray-400">
+            <div className="flex items-center justify-center py-[48px] gap-[10px] text-gc-muted">
               <Loader2 size={20} className="animate-spin" />
-              <span className="text-[13px]">
+              <span className="font-hanken text-[13px]">
                 Loading customization options…
               </span>
             </div>
@@ -224,13 +224,13 @@ export default function FabricDetailModal({ fabric, onClose }) {
           )}
 
           {!craftsLoading && !craftsError && crafts.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 divide-y divide-x divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 divide-y divide-x divide-gc-border border border-gc-border rounded-lg overflow-hidden">
               {crafts.map((craft, i) => (
                 <div
                   key={craft.category}
                   className={[
                     "px-[16px]",
-                    i >= 3 ? "border-t border-gray-100" : "",
+                    i >= 3 ? "border-t border-gc-border" : "",
                   ].join(" ")}
                 >
                   <CraftItem craft={craft} />
