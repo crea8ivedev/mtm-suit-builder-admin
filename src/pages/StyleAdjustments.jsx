@@ -23,6 +23,7 @@ import {
   clearStyleOptionsCache,
   syncStyleOptionImageUrls,
   GARMENT_TO_STYLE_TYPE,
+  updateContrastOption,
   updateContrastLocation,
   deleteContrastLocation,
   clearContrastLocationsCache,
@@ -39,6 +40,7 @@ import {
   ViewContrastLocationModal,
   EditContrastLocationModal,
   DeleteContrastLocationModal,
+  AddContrastModal,
 } from "../components/styleAdjustments/ContrastOptionModals";
 import { ViewLiningCodeModal } from "../components/styleAdjustments/LiningCodeModals";
 import { ViewButtonCodeModal } from "../components/styleAdjustments/ButtonCodeModals";
@@ -58,6 +60,7 @@ export default function StyleAdjustments() {
   const [optionFilter, setOptionFilter] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addContrastModalOpen, setAddContrastModalOpen] = useState(false);
   const [viewingOption, setViewingOption] = useState(null);
   const [editingOption, setEditingOption] = useState(null);
   const [deletingOption, setDeletingOption] = useState(null);
@@ -103,7 +106,16 @@ export default function StyleAdjustments() {
     ])
       .then(
         ([styleData, contrastData, liningData, buttonData, locationData]) => {
-          setContrastLocations(locationData);
+          // Normalize locations: only first isDefault per garment is the default
+          const locDefaultSeen = new Set();
+          const normalizedLocations = locationData.map((l) => {
+            if (!l.isDefault) return l;
+            const key = l.garment || "";
+            if (locDefaultSeen.has(key)) return { ...l, isDefault: false };
+            locDefaultSeen.add(key);
+            return l;
+          });
+          setContrastLocations(normalizedLocations);
           const baseOptions = [...styleData, ...contrastData];
           const allGarments = [
             ...new Set(baseOptions.map((o) => o.garment).filter(Boolean)),
@@ -123,11 +135,20 @@ export default function StyleAdjustments() {
             return targets.map((g) => ({ ...item, garment: g }));
           });
 
-          const data = [
+          const allData = [
             ...baseOptions,
             ...expandedLiningCodes,
             ...expandedButtonCodes,
           ];
+          // Normalize: only first isDefault per garment+category counts
+          const optDefaultSeen = new Set();
+          const data = allData.map((o) => {
+            if (!o.isDefault) return o;
+            const key = `${o.garment}::${o.category}`;
+            if (optDefaultSeen.has(key)) return { ...o, isDefault: false };
+            optDefaultSeen.add(key);
+            return o;
+          });
           setOptions(data);
           if (data.length > 0) {
             const garments = [
@@ -281,7 +302,9 @@ export default function StyleAdjustments() {
     if (!q) return categoryOptions;
     return categoryOptions.filter(
       (o) =>
-        o.label.toLowerCase().includes(q) || o.handle.toLowerCase().includes(q),
+        o.label.toLowerCase().includes(q) ||
+        o.handle.toLowerCase().includes(q) ||
+        (o.colorName || "").toLowerCase().includes(q),
     );
   }, [categoryOptions, optionFilter]);
 
@@ -418,9 +441,42 @@ export default function StyleAdjustments() {
   }
 
   function handleLocationUpdated(id, updatedFields) {
-    setContrastLocations((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, ...updatedFields } : l)),
-    );
+    setContrastLocations((prev) => {
+      const updated = prev.map((l) =>
+        l.id === id ? { ...l, ...updatedFields } : l,
+      );
+      if (updatedFields.isDefault) {
+        const thisLoc = updated.find((l) => l.id === id);
+        const oldDefaults = prev.filter(
+          (l) =>
+            l.id !== id &&
+            l.isDefault &&
+            (l.garment || "") === (thisLoc?.garment || ""),
+        );
+        if (oldDefaults.length > 0) {
+          Promise.all(
+            oldDefaults.map((l) =>
+              updateContrastLocation(l.id, {
+                ...l.rawFields,
+                is_default: "false",
+              }),
+            ),
+          ).catch(console.error);
+        }
+        return updated.map((l) =>
+          l.id !== id &&
+          l.isDefault &&
+          (l.garment || "") === (thisLoc?.garment || "")
+            ? {
+                ...l,
+                isDefault: false,
+                rawFields: { ...l.rawFields, is_default: "false" },
+              }
+            : l,
+        );
+      }
+      return updated;
+    });
     setLocationOverrides((prev) => {
       if (!prev.has(id)) return prev;
       const next = new Map(prev);
@@ -511,9 +567,46 @@ export default function StyleAdjustments() {
   }
 
   function handleUpdated(id, updatedFields) {
-    setOptions((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, ...updatedFields } : o)),
-    );
+    setOptions((prev) => {
+      const updated = prev.map((o) =>
+        o.id === id ? { ...o, ...updatedFields } : o,
+      );
+      if (updatedFields.isDefault) {
+        const thisOpt = updated.find((o) => o.id === id);
+        if (thisOpt?.category === "contrast_option") {
+          const oldDefaults = prev.filter(
+            (o) =>
+              o.id !== id &&
+              o.isDefault &&
+              o.garment === thisOpt.garment &&
+              o.category === "contrast_option",
+          );
+          if (oldDefaults.length > 0) {
+            Promise.all(
+              oldDefaults.map((o) =>
+                updateContrastOption(o.id, {
+                  ...o.rawFields,
+                  is_default: "false",
+                }),
+              ),
+            ).catch(console.error);
+          }
+          return updated.map((o) =>
+            o.id !== id &&
+            o.isDefault &&
+            o.garment === thisOpt.garment &&
+            o.category === "contrast_option"
+              ? {
+                  ...o,
+                  isDefault: false,
+                  rawFields: { ...o.rawFields, is_default: "false" },
+                }
+              : o,
+          );
+        }
+      }
+      return updated;
+    });
     setOverrides((prev) => {
       if (!prev.has(id)) return prev;
       const next = new Map(prev);
@@ -523,7 +616,23 @@ export default function StyleAdjustments() {
   }
 
   function handleDeleted(id) {
-    setOptions((prev) => prev.filter((o) => o.id !== id));
+    setOptions((prev) => {
+      const next = prev.filter((o) => o.id !== id);
+      const remaining = next.filter(
+        (o) => o.garment === selectedGarment && o.category === selectedCategory,
+      );
+      if (remaining.length === 0) {
+        const firstCat =
+          next.find((o) => o.garment === selectedGarment)?.category ?? null;
+        setSearchParams((p) => {
+          const n = new URLSearchParams(p);
+          if (firstCat) n.set("category", firstCat);
+          else n.delete("category");
+          return n;
+        });
+      }
+      return next;
+    });
     setOverrides((prev) => {
       if (!prev.has(id)) return prev;
       const next = new Map(prev);
@@ -717,11 +826,24 @@ export default function StyleAdjustments() {
               <div className="px-[16px] md:px-[24px] pt-[16px] md:pt-[20px]">
                 {selectedCategory === "contrast_option" ? (
                   <div className="flex flex-col gap-[32px]">
+                    {/* ── Add button ── */}
+                    <div className="flex justify-end mb-[-16px]">
+                      <button
+                        onClick={() => setAddContrastModalOpen(true)}
+                        className="flex items-center gap-[4px] font-hanken font-semibold text-[11px] uppercase text-white h-[28px] px-[10px] rounded-[6px] cursor-pointer hover:opacity-90 bg-gc-primary"
+                      >
+                        <Plus size={12} />
+                        Add
+                      </button>
+                    </div>
+
                     {/* ── Color sub-section ── */}
                     <div>
-                      <p className="font-hanken font-semibold text-[11px] uppercase tracking-[0.6px] text-gc-primary mb-[12px]">
-                        Color
-                      </p>
+                      <div className="flex items-center mb-[12px]">
+                        <p className="font-hanken font-semibold text-[11px] uppercase tracking-[0.6px] text-gc-primary">
+                          Color
+                        </p>
+                      </div>
                       {filteredOptions.length === 0 ? (
                         <p className="font-hanken text-[13px] py-[20px] text-center text-gc-muted-warm">
                           No color options match your filter.
@@ -747,9 +869,11 @@ export default function StyleAdjustments() {
                     {(() => {
                       return (
                         <div>
-                          <p className="font-hanken font-semibold text-[11px] uppercase tracking-[0.6px] text-gc-primary mb-[12px]">
-                            Location
-                          </p>
+                          <div className="flex items-center mb-[12px]">
+                            <p className="font-hanken font-semibold text-[11px] uppercase tracking-[0.6px] text-gc-primary">
+                              Location
+                            </p>
+                          </div>
                           {filteredLocs.length === 0 ? (
                             <p className="font-hanken text-[13px] py-[20px] text-center text-gc-muted-warm">
                               No location options found.
@@ -888,6 +1012,82 @@ export default function StyleAdjustments() {
           garmentOptions={options.filter((o) => o.garment === selectedGarment)}
           onClose={() => setAddModalOpen(false)}
           onCreated={handleCreated}
+        />
+      )}
+      {addContrastModalOpen && (
+        <AddContrastModal
+          garment={selectedGarment || ""}
+          onClose={() => setAddContrastModalOpen(false)}
+          onCreatedColor={(newOpt) => {
+            setOptions((prev) => {
+              if (newOpt.isDefault) {
+                const oldDefaults = prev.filter(
+                  (o) =>
+                    o.isDefault &&
+                    o.garment === newOpt.garment &&
+                    o.category === "contrast_option",
+                );
+                if (oldDefaults.length > 0) {
+                  Promise.all(
+                    oldDefaults.map((o) =>
+                      updateContrastOption(o.id, {
+                        ...o.rawFields,
+                        is_default: "false",
+                      }),
+                    ),
+                  ).catch(console.error);
+                }
+                return [
+                  ...prev.map((o) =>
+                    o.isDefault &&
+                    o.garment === newOpt.garment &&
+                    o.category === "contrast_option"
+                      ? {
+                          ...o,
+                          isDefault: false,
+                          rawFields: { ...o.rawFields, is_default: "false" },
+                        }
+                      : o,
+                  ),
+                  newOpt,
+                ];
+              }
+              return [...prev, newOpt];
+            });
+          }}
+          onCreatedLocation={(newLoc) => {
+            setContrastLocations((prev) => {
+              if (newLoc.isDefault) {
+                const oldDefaults = prev.filter(
+                  (l) =>
+                    l.isDefault && (l.garment || "") === (newLoc.garment || ""),
+                );
+                if (oldDefaults.length > 0) {
+                  Promise.all(
+                    oldDefaults.map((l) =>
+                      updateContrastLocation(l.id, {
+                        ...l.rawFields,
+                        is_default: "false",
+                      }),
+                    ),
+                  ).catch(console.error);
+                }
+                return [
+                  ...prev.map((l) =>
+                    l.isDefault && (l.garment || "") === (newLoc.garment || "")
+                      ? {
+                          ...l,
+                          isDefault: false,
+                          rawFields: { ...l.rawFields, is_default: "false" },
+                        }
+                      : l,
+                  ),
+                  newLoc,
+                ];
+              }
+              return [...prev, newLoc];
+            });
+          }}
         />
       )}
       {viewingOption &&

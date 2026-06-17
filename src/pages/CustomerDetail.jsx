@@ -416,8 +416,6 @@ function buildStyleOptionsMap(
     ...styleOptionsList,
     ...contrastOptionsList,
     ...mappedLocations,
-    ...expandedLC,
-    ...expandedBC,
   ]) {
     if (!opt.visible) continue;
     const garment = opt.garment;

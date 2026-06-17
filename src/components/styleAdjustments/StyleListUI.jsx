@@ -98,6 +98,11 @@ export function OptionCard({
             alt={option.label}
             className="object-cover pointer-events-none w-[30px] h-[30px]"
           />
+        ) : option.colorHex ? (
+          <div
+            className="w-[30px] h-[30px] rounded-sm border border-gc-border-warm/40"
+            style={{ backgroundColor: option.colorHex }}
+          />
         ) : (
           <div className="w-[30px] h-[30px] bg-gc-scrollbar-track rounded-sm" />
         )}

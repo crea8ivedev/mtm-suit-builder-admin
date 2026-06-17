@@ -394,7 +394,11 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
                     className="font-hanken w-full text-left px-[14px] py-[9px] text-[13px] text-gc-near-black2 hover:bg-gc-bg flex items-center justify-between gap-[8px] cursor-pointer"
                   >
                     <span className="flex items-center gap-[6px] min-w-0">
-                      <span className="truncate">{opt.label}</span>
+                      <span className="truncate">
+                        {opt.isLiningCode && opt.colorName
+                          ? `${opt.label} - ${opt.colorName}`
+                          : opt.label}
+                      </span>
                       {opt.upcharge > 0 && (
                         <span className="font-hanken text-[10px] font-semibold flex-shrink-0 px-[5px] py-[1px] rounded-[4px] bg-gc-primary/[8%] text-gc-primary">
                           +{opt.upcharge}
@@ -502,7 +506,11 @@ export function StyleOptionsSection({
                 return (
                   <StyleDropdown
                     key={`${garment}-${cat}`}
-                    label={opts[0]?.displayLabel || cat}
+                    label={
+                      cat === "contrast_option"
+                        ? "Contrast Color"
+                        : opts[0]?.displayLabel || cat
+                    }
                     opts={opts}
                     selected={selections[`${garment}__${cat}`] ?? ""}
                     onSelect={(val) =>

@@ -24,6 +24,11 @@ export const KNOWN_KEYS = new Set([
   "kutetailer_code",
   "image",
   "image_url",
+  "garment",
+  "color_name",
+  "color_hex",
+  "color_image",
+  "code",
 ]);
 
 export function normalizeCategory(val) {
@@ -118,7 +123,13 @@ export function inputTypeFor(rawTypeName) {
   return "text";
 }
 
-export function ImagePicker({ currentUrl, gid, onUploaded, onUploadChange }) {
+export function ImagePicker({
+  currentUrl,
+  gid,
+  onUploaded,
+  onUploadChange,
+  onCleared,
+}) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState(null);
   const [uploadError, setUploadError] = useState(null);
@@ -148,6 +159,12 @@ export function ImagePicker({ currentUrl, gid, onUploaded, onUploadChange }) {
     }
   }
 
+  function handleClear() {
+    setLocalPreview(null);
+    setUploadError(null);
+    onCleared?.();
+  }
+
   return (
     <div className="flex items-center gap-[12px]">
       <div className="flex-shrink-0 rounded-[6px] overflow-hidden flex items-center justify-center w-40 h-40 border border-gc-border-warm bg-gc-bg-image">
@@ -158,14 +175,24 @@ export function ImagePicker({ currentUrl, gid, onUploaded, onUploadChange }) {
         )}
       </div>
       <div className="flex flex-col gap-[4px]">
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => inputRef.current?.click()}
-          className="font-hanken font-semibold text-[12px] h-[32px] px-[12px] rounded-[6px] cursor-pointer hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed border border-gc-border-warm text-gc-primary-deep"
-        >
-          {uploading ? "Uploading…" : gid ? "Change Image" : "Select Image"}
-        </button>
+        <div className="flex items-center gap-[8px]">
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => inputRef.current?.click()}
+            className="font-hanken font-semibold text-[12px] h-[32px] px-[12px] rounded-[6px] cursor-pointer hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed border border-gc-border-warm text-gc-primary-deep"
+          >
+            {uploading ? "Uploading…" : gid ? "Change Image" : "Select Image"}
+          </button>
+          <button
+            type="button"
+            disabled={!gid || uploading}
+            onClick={handleClear}
+            className="font-hanken font-semibold text-[12px] h-[32px] px-[12px] rounded-[6px] border border-gc-border-warm text-red-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer hover:opacity-80"
+          >
+            Clear
+          </button>
+        </div>
         {gid && !uploading && (
           <span className="font-hanken text-[10px] truncate text-gc-muted-warm max-w-[200px]">
             {gid.split("/").pop()}
@@ -296,7 +323,7 @@ export function AddStyleOptionModal({
       const node = await createStyleOption(garmentType, payload);
       onCreated(node, garment, {
         ...form,
-        sort_order: String(computedSortOrder),
+        sort_order: String(form.sort_order || computedSortOrder),
       });
       onClose();
     } catch (err) {
@@ -417,7 +444,12 @@ export function AddStyleOptionModal({
         {extraFields
           .filter((d) => {
             const t = inputTypeFor(d.type?.name);
-            return t !== "checkbox" && t !== "file" && t !== "textarea";
+            return (
+              t !== "checkbox" &&
+              t !== "file" &&
+              t !== "textarea" &&
+              t !== "color"
+            );
           })
           .reduce((rows, d, i) => {
             if (i % 2 === 0) rows.push([d]);
@@ -909,6 +941,14 @@ export function EditStyleOptionModal({
               set("image_url", cdnUrl);
             }}
             onUploadChange={setImageUploading}
+            onCleared={
+              form.image
+                ? () => {
+                    set("image", "");
+                    set("image_url", "");
+                  }
+                : undefined
+            }
           />
         </div>
 

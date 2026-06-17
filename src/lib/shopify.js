@@ -1427,6 +1427,7 @@ const STYLE_OPTIONS_QUERY = `
           id
           handle
           fields { key value type }
+          capabilities { publishable { status } }
         }
       }
     }
@@ -1459,6 +1460,8 @@ async function fetchStyleOptionsForType(type) {
     });
     const { edges, pageInfo } = data.metaobjects;
     for (const { node } of edges) {
+      const pubStatus = node.capabilities?.publishable?.status;
+      if (pubStatus && pubStatus !== "ACTIVE") continue;
       const fm = Object.fromEntries(
         node.fields.map((f) => [f.key, f.value ?? ""]),
       );
@@ -1602,7 +1605,8 @@ const CONTRAST_OPTIONS_QUERY = `
         node {
           id
           handle
-          fields { key value }
+          displayName
+          fields { key value type }
         }
       }
     }
@@ -1630,33 +1634,31 @@ export async function fetchContrastOptions() {
     });
     const { edges, pageInfo } = data.metaobjects;
     for (const { node } of edges) {
-      const fm = Object.fromEntries(
-        node.fields.map((f) => [f.key, f.value ?? ""]),
+      const fm = Object.fromEntries(node.fields.map((f) => [f.key, f.value]));
+      const fieldTypes = Object.fromEntries(
+        node.fields.map((f) => [
+          f.key,
+          f.type ? f.type.toLowerCase().trim() : null,
+        ]),
       );
       results.push({
         id: node.id,
         handle: node.handle,
-        label: fm.color_name || node.handle,
+        label: fm.color_name || node.displayName || node.handle,
         category: "contrast_option",
         garment: fm.garment || "",
         displayLabel: "Contrast Color & Locations",
-        upcharge: 0,
+        upcharge: parseFloat(fm.upcharge || 0),
         visible: fm.visible !== "false",
-        isDefault: false,
-        sortOrder: 9999,
-        kutetailerCode: null,
-        conditionalHide: "",
+        isDefault: fm.is_default === "true",
+        sortOrder: parseInt(fm.sort_order || "9999", 10),
+        kutetailerCode: fm.kutetailer_code || null,
+        conditionalHide: fm.conditional_hide || "",
         imageGid: fm.color_image || null,
-        imageUrlStored: null,
-        imageUrl: null,
+        imageUrlStored: fm.image_url || null,
+        imageUrl: fm.image_url || null,
         rawFields: fm,
-        fieldTypes: {
-          color_image: "file_reference",
-          color_hex: "color",
-          color_name: "single_line_text_field",
-          visible: "boolean",
-          garment: "single_line_text_field",
-        },
+        fieldTypes,
         isContrastOption: true,
         colorHex: fm.color_hex || null,
       });
@@ -1695,7 +1697,7 @@ const CONTRAST_LOCATIONS_QUERY = `
           id
           handle
           displayName
-          fields { key value }
+          fields { key value type }
         }
       }
     }
@@ -1722,8 +1724,12 @@ export async function fetchContrastLocations() {
     });
     const { edges, pageInfo } = data.metaobjects;
     for (const { node } of edges) {
-      const fm = Object.fromEntries(
-        node.fields.map((f) => [f.key, f.value ?? ""]),
+      const fm = Object.fromEntries(node.fields.map((f) => [f.key, f.value]));
+      const fieldTypes = Object.fromEntries(
+        node.fields.map((f) => [
+          f.key,
+          f.type ? f.type.toLowerCase().trim() : null,
+        ]),
       );
       results.push({
         id: node.id,
@@ -1731,6 +1737,9 @@ export async function fetchContrastLocations() {
         label: fm.label || node.displayName || node.handle,
         garment: fm.garment || "",
         visible: fm.visible !== "false",
+        isDefault: fm.is_default === "true",
+        rawFields: fm,
+        fieldTypes,
         isContrastLocation: true,
       });
     }
@@ -1750,7 +1759,7 @@ export function clearContrastLocationsCache() {
 export async function updateContrastLocation(id, fields) {
   const fieldInputs = Object.entries(fields).map(([key, value]) => ({
     key,
-    value: value == null ? null : String(value),
+    value: value == null ? "" : String(value),
   }));
   const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
     id,
@@ -2018,10 +2027,42 @@ export async function fetchFitSizeOptions() {
   return results;
 }
 
+export async function createContrastOption(fields) {
+  const fieldInputs = Object.entries(fields)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([key, value]) => ({ key, value: String(value) }));
+  const data = await shopifyGraphQL(CREATE_METAOBJECT_MUTATION, {
+    metaobject: {
+      type: "gc_contrast_option",
+      fields: fieldInputs,
+      capabilities: { publishable: { status: "ACTIVE" } },
+    },
+  });
+  const { metaobject, userErrors } = data.metaobjectCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return metaobject;
+}
+
+export async function createContrastLocation(fields) {
+  const fieldInputs = Object.entries(fields)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([key, value]) => ({ key, value: String(value) }));
+  const data = await shopifyGraphQL(CREATE_METAOBJECT_MUTATION, {
+    metaobject: {
+      type: "gc_contrast_location",
+      fields: fieldInputs,
+      capabilities: { publishable: { status: "ACTIVE" } },
+    },
+  });
+  const { metaobject, userErrors } = data.metaobjectCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return metaobject;
+}
+
 export async function updateContrastOption(id, fields) {
   const fieldInputs = Object.entries(fields).map(([key, value]) => ({
     key,
-    value: value == null ? null : String(value),
+    value: value == null ? "" : String(value),
   }));
   const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
     id,

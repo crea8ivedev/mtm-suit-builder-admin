@@ -514,7 +514,7 @@ export default function CreateOrder() {
       (_variants.length === 1 && _variants[0].title !== "Default Title");
     const _defaultV = _hasSelector ? _variants[0] : null;
     setSelectedVariant(_defaultV);
-    setPrice(_defaultV?.price || "0.00");
+    setPrice(_defaultV?.price || _variants[0]?.price || "0.00");
 
     const pastNode = findPastLineItem(
       customerOrders,
