@@ -332,22 +332,26 @@ function buildMeasurementProfiles(
   for (const order of orders) {
     const created = (order.createdAt ?? "").split("T")[0];
     for (const { node: item } of order.lineItems?.edges ?? []) {
-      const gcBuilder = item.product?.metafield?.value;
-      if (
-        !gcBuilder ||
-        gcBuilder === "false" ||
-        gcBuilder === "0" ||
-        gcBuilder === "no"
-      )
+      const productName = item.title;
+      if (!productName || productName.toLowerCase().includes("upcharge"))
         continue;
+      const gcBuilder = item.product?.metafield?.value;
       const allAttrs = item.customAttributes ?? [];
       const measureAttrs = allAttrs.filter(
         (a) =>
           !a.key.startsWith("_") && !PRICE_SKIP_KEYS.has(a.key.toLowerCase()),
       );
+      // Include if: has gc_builder metafield OR has measurement custom attributes
+      const hasMeasurements = measureAttrs.some(
+        (a) => !a.key.startsWith("Style: ") && !a.key.includes(" - "),
+      );
+      const isGcBuilder =
+        gcBuilder &&
+        gcBuilder !== "false" &&
+        gcBuilder !== "0" &&
+        gcBuilder !== "no";
+      if (!isGcBuilder && !hasMeasurements) continue;
       if (!measureAttrs.length) continue;
-      const productName = item.title;
-      if (productName.toLowerCase().includes("upcharge")) continue;
       if (!result[productName]) result[productName] = [];
       const profileName = allAttrs.find(
         (a) => a.key === "_profile_name",
@@ -449,8 +453,11 @@ function mergeProfilesWithSaved(fromOrders, saved) {
       continue;
     }
     const savedList = saved[productName];
-    // saved is authoritative: empty array means all profiles were deleted in Shopify
-    if (!savedList?.length) continue;
+    // Fall back to order profiles when saved list is empty (corrupt save, not intentional delete)
+    if (!savedList?.length) {
+      merged[productName] = orderProfiles;
+      continue;
+    }
     // Iterate saved (not fromOrders) so deleted profiles don't reappear
     merged[productName] = savedList.map((match, idx) => {
       const byName = orderProfiles.find((p) => p.name === match.name);
@@ -718,16 +725,23 @@ export default function CustomerDetail() {
     const set = new Set();
     for (const order of orders) {
       for (const { node: item } of order.lineItems?.edges ?? []) {
-        const gcBuilder = item.product?.metafield?.value;
-        if (
-          !gcBuilder ||
-          gcBuilder === "false" ||
-          gcBuilder === "0" ||
-          gcBuilder === "no"
-        )
-          continue;
         const name = item.title;
-        if (name && !name.toLowerCase().includes("upcharge")) set.add(name);
+        if (!name || name.toLowerCase().includes("upcharge")) continue;
+        const gcBuilder = item.product?.metafield?.value;
+        const isGcBuilder =
+          gcBuilder &&
+          gcBuilder !== "false" &&
+          gcBuilder !== "0" &&
+          gcBuilder !== "no";
+        const attrs = item.customAttributes ?? [];
+        const hasMeasurements = attrs.some(
+          (a) =>
+            !a.key.startsWith("_") &&
+            !PRICE_SKIP_KEYS.has(a.key.toLowerCase()) &&
+            !a.key.startsWith("Style: ") &&
+            !a.key.includes(" - "),
+        );
+        if (isGcBuilder || hasMeasurements) set.add(name);
       }
     }
     return set;

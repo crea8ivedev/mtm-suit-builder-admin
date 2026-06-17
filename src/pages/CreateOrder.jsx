@@ -824,9 +824,7 @@ export default function CreateOrder() {
           value,
         }));
 
-      const finalPrice = (parseFloat(price || "0.00") + totalUpcharge).toFixed(
-        2,
-      );
+      const finalPrice = parseFloat(price || "0.00").toFixed(2);
 
       const lineItemBase = selectedVariant?.id
         ? { variantId: selectedVariant.id }

@@ -1520,7 +1520,7 @@ async function resolveFileGidUrls(gids) {
       for (const node of data.nodes ?? []) {
         if (node?.image?.url) map[node.id] = node.image.url;
       }
-    } catch { }
+    } catch {}
   }
   return map;
 }
@@ -1814,7 +1814,7 @@ export async function fetchLiningCodes() {
         const parsed = JSON.parse(fm.garment || "[]");
         const arr = Array.isArray(parsed) ? parsed : [];
         garments = arr.some((g) => g.toLowerCase() === "all") ? [] : arr;
-      } catch { }
+      } catch {}
       results.push({
         id: node.id,
         handle: node.handle,
@@ -1911,7 +1911,7 @@ export async function fetchButtonCodes() {
         const parsed = JSON.parse(fm.garment || "[]");
         const arr = Array.isArray(parsed) ? parsed : [];
         garments = arr.some((g) => g.toLowerCase() === "all") ? [] : arr;
-      } catch { }
+      } catch {}
       results.push({
         id: node.id,
         handle: node.handle,
@@ -2242,7 +2242,7 @@ export async function fetchShopifyColorPattern() {
       );
       const imageGid =
         typeof fieldMap.image === "string" &&
-          fieldMap.image.startsWith("gid://")
+        fieldMap.image.startsWith("gid://")
           ? fieldMap.image
           : null;
       all.push({
@@ -2278,7 +2278,7 @@ export async function fetchShopifyColorPattern() {
           f.imageGid = f._imageGid;
         }
       }
-    } catch { }
+    } catch {}
   }
 
   for (const f of all) delete f._imageGid;
