@@ -765,6 +765,26 @@ export function EditStyleOptionModal({
     setForm((prev) => ({ ...prev, [key]: val }));
   }
 
+  const isDirty =
+    form.label !== (option.label || "") ||
+    form.category !== (option.category || "") ||
+    form.display_label !== (option.displayLabel || "") ||
+    form.is_default !== (option.isDefault ? "true" : "false") ||
+    form.upcharge !== (option.upcharge ? String(option.upcharge) : "") ||
+    form.sort_order !== (option.sortOrder ? String(option.sortOrder) : "") ||
+    form.conditional_hide !== (option.conditionalHide || "") ||
+    form.kutetailer_code !== (option.kutetailerCode || "") ||
+    form.visible !== (option.visible ? "true" : "false") ||
+    form.image !== (option.imageGid || "") ||
+    form.image_url !== (option.imageUrlStored || "") ||
+    rawExtra.some(
+      (k) =>
+        form[k] !==
+        (option.rawFields[k] != null && option.rawFields[k] !== ""
+          ? String(option.rawFields[k])
+          : ""),
+    );
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.label.trim()) {
@@ -1074,7 +1094,7 @@ export function EditStyleOptionModal({
         <ModalFooter
           onClose={onClose}
           submitLabel="Save Changes"
-          disabled={saving || imageUploading}
+          disabled={saving || imageUploading || !isDirty}
           loading={saving}
           loadingLabel={imageUploading ? "Uploading image…" : "Saving…"}
         />

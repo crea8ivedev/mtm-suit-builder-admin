@@ -311,6 +311,7 @@ const GET_PRODUCT_VARIANTS_DETAIL_QUERY = `
             id
             title
             selectedOptions { name value }
+            inventoryItem { id }
           }
         }
       }
@@ -382,7 +383,7 @@ const ADD_PRODUCT_VARIANT_MUTATION = `
     $media: [CreateMediaInput!]
   ) {
     productVariantsBulkCreate(productId: $productId, variants: $variants, media: $media) {
-      productVariants { id title selectedOptions { name value } }
+      productVariants { id title selectedOptions { name value } inventoryItem { id } }
       userErrors { field message }
     }
   }
@@ -445,6 +446,44 @@ export async function removeVariantsFromProduct(productId, variantIds) {
   const { userErrors } = data.productVariantsBulkDelete;
   if (userErrors?.length) throw new Error(userErrors[0].message);
   return data.productVariantsBulkDelete.product;
+}
+
+// ─── Inventory ────────────────────────────────────────────────────────────
+const GET_PRIMARY_LOCATION_QUERY = `
+  query { locations(first: 1) { edges { node { id } } } }
+`;
+
+const SET_INVENTORY_QUANTITIES_MUTATION = `
+  mutation inventorySetQuantities($input: InventorySetQuantitiesInput!) {
+    inventorySetQuantities(input: $input) {
+      inventoryAdjustmentGroup { id }
+      userErrors { field message }
+    }
+  }
+`;
+
+let _primaryLocationId = null;
+
+async function fetchPrimaryLocationId() {
+  if (_primaryLocationId) return _primaryLocationId;
+  const data = await shopifyGraphQL(GET_PRIMARY_LOCATION_QUERY, {});
+  const id = data.locations?.edges?.[0]?.node?.id ?? null;
+  _primaryLocationId = id;
+  return id;
+}
+
+export async function setVariantInventoryQuantity(inventoryItemId, quantity) {
+  const locationId = await fetchPrimaryLocationId();
+  if (!locationId) throw new Error("No Shopify location found.");
+  const data = await shopifyGraphQL(SET_INVENTORY_QUANTITIES_MUTATION, {
+    input: {
+      name: "available",
+      reason: "correction",
+      quantities: [{ inventoryItemId, locationId, quantity: Number(quantity) }],
+    },
+  });
+  const { userErrors } = data.inventorySetQuantities;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
 }
 
 // ─── Products query ────────────────────────────────────────────────────────
@@ -2447,9 +2486,9 @@ export async function createColorPattern({ label, color, imageGid, code }) {
 export async function updateColorPattern(id, { label, color, imageGid, code }) {
   const fieldInputs = [
     { key: "label", value: label || "" },
-    { key: "color", value: color == null ? null : color },
-    { key: "image", value: imageGid == null ? null : imageGid },
-    { key: "code", value: code == null ? null : code },
+    { key: "color", value: color ?? "" },
+    { key: "image", value: imageGid ?? "" },
+    { key: "code", value: code ?? "" },
   ];
   const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
     id,

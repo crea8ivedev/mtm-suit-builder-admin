@@ -22,12 +22,14 @@ import {
   createProductOptionValue,
   addVariantToProduct,
   removeVariantsFromProduct,
+  setVariantInventoryQuantity,
 } from "../../lib/shopify";
 
 const EMPTY_FORM = {
   label: "",
   color: "#000000",
   code: "",
+  quantity: "",
   imageGid: null,
   imageUrl: null,
 };
@@ -119,6 +121,20 @@ function PatternForm({
           onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
           className="w-full border border-gc-border-input rounded-md px-[10px] py-[8px] sm:py-[6px] text-[13px] focus:outline-none focus:ring-1 focus:ring-gc-primary"
           placeholder="Optional code"
+        />
+      </div>
+      <div>
+        <label className="block text-[11px] font-medium text-gc-muted mb-[4px]">
+          Quantity <span className="text-red-400">*</span>
+        </label>
+        <input
+          type="number"
+          min="0"
+          value={form.quantity ?? ""}
+          onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
+          className="w-full border border-gc-border-input rounded-md px-[10px] py-[8px] sm:py-[6px] text-[13px] focus:outline-none focus:ring-1 focus:ring-gc-primary"
+          placeholder="e.g. 100"
+          required
         />
       </div>
       <div>
@@ -243,6 +259,7 @@ export default function ColorPatternModal({ product, onClose }) {
 
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ ...EMPTY_FORM });
+  const [editOriginal, setEditOriginal] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
 
   const [showAdd, setShowAdd] = useState(false);
@@ -366,7 +383,7 @@ export default function ColorPatternModal({ product, onClose }) {
           );
         }
 
-        await addVariantToProduct(
+        const createdVariants = await addVariantToProduct(
           product.id,
           optionValue.id,
           opt.name,
@@ -374,8 +391,18 @@ export default function ColorPatternModal({ product, onClose }) {
           null,
           pattern.imageUrl,
         );
+        if (
+          pattern.quantity != null &&
+          pattern.quantity !== "" &&
+          createdVariants?.[0]?.inventoryItem?.id
+        ) {
+          await setVariantInventoryQuantity(
+            createdVariants[0].inventoryItem.id,
+            pattern.quantity,
+          ).catch(() => {});
+        }
       } else {
-        await addVariantToProduct(
+        const createdVariants = await addVariantToProduct(
           product.id,
           null,
           opt.name,
@@ -383,6 +410,16 @@ export default function ColorPatternModal({ product, onClose }) {
           pattern.label,
           pattern.imageUrl,
         );
+        if (
+          pattern.quantity != null &&
+          pattern.quantity !== "" &&
+          createdVariants?.[0]?.inventoryItem?.id
+        ) {
+          await setVariantInventoryQuantity(
+            createdVariants[0].inventoryItem.id,
+            pattern.quantity,
+          ).catch(() => {});
+        }
       }
       loadVariants();
     } catch (e) {
@@ -428,18 +465,22 @@ export default function ColorPatternModal({ product, onClose }) {
   function startEdit(pattern) {
     setShowAdd(false);
     setEditingId(pattern.id);
-    setEditForm({
+    const vals = {
       label: pattern.label ?? "",
       color: pattern.color ?? "#000000",
       code: pattern.code ?? "",
+      quantity: "",
       imageGid: pattern.imageGid ?? null,
       imageUrl: pattern.imageUrl ?? null,
-    });
+    };
+    setEditForm(vals);
+    setEditOriginal(vals);
   }
 
   function cancelEdit() {
     setEditingId(null);
     setEditForm({ ...EMPTY_FORM });
+    setEditOriginal({ ...EMPTY_FORM });
   }
 
   async function handleSave() {
@@ -451,7 +492,24 @@ export default function ColorPatternModal({ product, onClose }) {
         imageGid: editForm.imageGid || null,
         code: editForm.code || null,
       });
+      if (editForm.quantity !== "" && editForm.quantity !== null) {
+        const optName = getFabricOptionName();
+        const matchedVariant = variantDetail.variants.find((v) =>
+          v.selectedOptions.some(
+            (o) =>
+              o.name === optName &&
+              o.value.toLowerCase() === editForm.label.toLowerCase(),
+          ),
+        );
+        if (matchedVariant?.inventoryItem?.id) {
+          await setVariantInventoryQuantity(
+            matchedVariant.inventoryItem.id,
+            editForm.quantity,
+          ).catch(() => {});
+        }
+      }
       setEditingId(null);
+      setEditOriginal({ ...EMPTY_FORM });
       loadPatterns(true);
     } catch (e) {
       alert(e.message);
@@ -463,6 +521,12 @@ export default function ColorPatternModal({ product, onClose }) {
   // ── Create new color pattern ──────────────────────────────────────────────
   async function handleCreate() {
     if (!addForm.label.trim()) return;
+    if (
+      addForm.quantity === "" ||
+      addForm.quantity === null ||
+      addForm.quantity === undefined
+    )
+      return;
     setSaving(true);
     try {
       await createColorPattern({
@@ -500,6 +564,13 @@ export default function ColorPatternModal({ product, onClose }) {
 
   // ── Derived: variant value list ───────────────────────────────────────────
   const variantValues = getVariantValues();
+
+  const isEditDirty =
+    editForm.label !== editOriginal.label ||
+    editForm.color !== editOriginal.color ||
+    editForm.code !== editOriginal.code ||
+    editForm.quantity !== editOriginal.quantity ||
+    editForm.imageGid !== editOriginal.imageGid;
 
   return (
     <>
@@ -563,7 +634,7 @@ export default function ColorPatternModal({ product, onClose }) {
                 className="flex items-center gap-[5px] bg-gc-primary text-white text-[12px] sm:text-[13px] font-medium px-[10px] sm:px-[12px] py-[7px] rounded-lg hover:bg-gc-primary-dark transition-colors cursor-pointer"
               >
                 <Plus size={14} />
-                <span className="hidden xs:inline sm:inline">Add Pattern</span>
+                <span className="hidden xs:inline sm:inline">Add Fabric</span>
                 <span className="inline xs:hidden sm:hidden">Add</span>
               </button>
               <button
@@ -720,7 +791,7 @@ export default function ColorPatternModal({ product, onClose }) {
                             <div className="flex gap-[8px] mt-[12px]">
                               <button
                                 onClick={handleSave}
-                                disabled={saving || !editForm.label?.trim()}
+                                disabled={saving || !isEditDirty}
                                 className="flex items-center gap-[6px] bg-gc-primary-deep text-white text-[12px] px-[12px] py-[8px] sm:py-[6px] rounded-lg disabled:opacity-50 hover:bg-gc-primary-dark transition-colors cursor-pointer"
                               >
                                 {saving ? (
@@ -774,7 +845,13 @@ export default function ColorPatternModal({ product, onClose }) {
                 <div className="flex gap-[8px] mt-[12px]">
                   <button
                     onClick={handleCreate}
-                    disabled={saving || !addForm.label.trim()}
+                    disabled={
+                      saving ||
+                      !addForm.label.trim() ||
+                      addForm.quantity === "" ||
+                      addForm.quantity === null ||
+                      addForm.quantity === undefined
+                    }
                     className="flex items-center gap-[6px] bg-gc-primary-deep text-white text-[13px] px-[14px] py-[9px] sm:py-[7px] rounded-lg disabled:opacity-50 hover:bg-gc-primary-dark transition-colors cursor-pointer"
                   >
                     {saving ? (

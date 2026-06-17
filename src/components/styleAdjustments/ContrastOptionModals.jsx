@@ -112,6 +112,15 @@ export function EditContrastOptionModal({ option, onClose, onUpdated }) {
     setForm((prev) => ({ ...prev, [key]: val }));
   }
 
+  const isDirty =
+    form.color_name !== (option.label || "") ||
+    form.color_hex !== (option.colorHex || "") ||
+    form.color_image !== (option.imageGid || "") ||
+    form.color_image_url !== (option.imageUrlStored || option.imageUrl || "") ||
+    form.visible !== (option.visible ? "true" : "false") ||
+    form.is_default !== (option.isDefault ? "true" : "false") ||
+    form.garment !== (option.garment || "");
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.color_name.trim()) {
@@ -273,7 +282,7 @@ export function EditContrastOptionModal({ option, onClose, onUpdated }) {
         <ModalFooter
           onClose={onClose}
           submitLabel="Save Changes"
-          disabled={saving || imageUploading}
+          disabled={saving || imageUploading || !isDirty}
           loading={saving}
           loadingLabel={imageUploading ? "Uploading image…" : "Saving…"}
         />
@@ -377,6 +386,10 @@ export function EditContrastLocationModal({ option, onClose, onUpdated }) {
     setForm((prev) => ({ ...prev, [key]: val }));
   }
 
+  const isDirty = Object.keys(rawFields).some(
+    (k) => form[k] !== (rawFields[k] ?? ""),
+  );
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.label?.trim()) {
@@ -471,7 +484,7 @@ export function EditContrastLocationModal({ option, onClose, onUpdated }) {
         <ModalFooter
           onClose={onClose}
           submitLabel="Save Changes"
-          disabled={saving}
+          disabled={saving || !isDirty}
           loading={saving}
           loadingLabel="Saving…"
         />

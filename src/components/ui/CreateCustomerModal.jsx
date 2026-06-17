@@ -586,7 +586,12 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                   )}
                 </div>
                 <div>
-                  <FieldLabel>Zip/Postal Code</FieldLabel>
+                  <FieldLabel>
+                    Zip/Postal Code{" "}
+                    <span className="normal-case text-[#bbb] font-normal tracking-normal">
+                      (Optional)
+                    </span>
+                  </FieldLabel>
                   <GCInput
                     placeholder="Postcode"
                     value={form.zip}
@@ -616,14 +621,14 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="font-hanken text-[13px] sm:text-[14px] font-medium text-black uppercase px-[14px] sm:px-[20px] py-[12px] sm:py-[16px] hover:opacity-70 transition-opacity disabled:opacity-40"
+              className="font-hanken text-[13px] sm:text-[14px] font-medium text-black uppercase px-[14px] sm:px-[20px] py-[12px] sm:py-[16px] hover:opacity-70 transition-opacity disabled:opacity-40 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="font-hanken flex items-center gap-[8px] h-[40px] sm:h-[44px] px-[14px] sm:px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[13px] sm:text-[14px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="font-hanken flex items-center gap-[8px] h-[40px] sm:h-[44px] px-[14px] sm:px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[13px] sm:text-[14px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               {saving ? (
                 <Loader size={13} className="animate-spin" />
