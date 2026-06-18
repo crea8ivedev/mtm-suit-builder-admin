@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   ExternalLink,
   RotateCw,
+  Send,
   ChevronDown,
   Check,
   AlertCircle,
@@ -282,10 +283,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
             disabled={!selectedId || isProcessing || isSubmitted}
             className="flex items-center justify-center w-[35px] rounded-[8px] text-gc-near-black2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border border-black"
           >
-            <RotateCw
-              size={14}
-              className={isProcessing ? "animate-spin" : ""}
-            />
+            <Send size={14} />
           </button>
         )}
       </div>

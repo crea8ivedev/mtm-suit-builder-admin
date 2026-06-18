@@ -258,40 +258,42 @@ export default function Orders() {
 
             {filtered.length > 0 && (
               <div className="gc-divider flex items-center justify-between px-[14px] sm:px-[24px] py-[14px] sm:py-[16px] flex-wrap gap-[10px] sm:gap-[12px]">
-                <div className="flex items-center gap-[8px]" ref={entriesRef}>
-                  <span className="font-hanken text-[13px] text-gc-text">
-                    Entries
-                  </span>
-                  <div className="relative">
-                    <button
-                      onClick={() => setEntriesOpen((v) => !v)}
-                      className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none border border-gc-border-warm bg-white"
-                    >
-                      {itemsPerPage}
-                      <ChevronRight
-                        size={13}
-                        className={`text-gc-text transition-transform ${entriesOpen ? "-rotate-90" : "rotate-90"}`}
-                      />
-                    </button>
-                    {entriesOpen && (
-                      <div className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md border border-gc-border-warm bg-white min-w-full">
-                        {[10, 20, 50, 100].map((n) => (
-                          <button
-                            key={n}
-                            onClick={() => {
-                              setItemsPerPage(n);
-                              setCurrentPage(1);
-                              setEntriesOpen(false);
-                            }}
-                            className={`w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors ${n === itemsPerPage ? "text-gc-primary bg-gc-primary/[6%] font-semibold" : "text-gc-heading font-normal"}`}
-                          >
-                            {n}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                {filtered.length > 10 && (
+                  <div className="flex items-center gap-[8px]" ref={entriesRef}>
+                    <span className="font-hanken text-[13px] text-gc-text">
+                      Entries
+                    </span>
+                    <div className="relative">
+                      <button
+                        onClick={() => setEntriesOpen((v) => !v)}
+                        className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none border border-gc-border-warm bg-white"
+                      >
+                        {itemsPerPage}
+                        <ChevronRight
+                          size={13}
+                          className={`text-gc-text transition-transform ${entriesOpen ? "-rotate-90" : "rotate-90"}`}
+                        />
+                      </button>
+                      {entriesOpen && (
+                        <div className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md border border-gc-border-warm bg-white min-w-full">
+                          {[10, 20, 50, 100].map((n) => (
+                            <button
+                              key={n}
+                              onClick={() => {
+                                setItemsPerPage(n);
+                                setCurrentPage(1);
+                                setEntriesOpen(false);
+                              }}
+                              className={`w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors ${n === itemsPerPage ? "text-gc-primary bg-gc-primary/[6%] font-semibold" : "text-gc-heading font-normal"}`}
+                            >
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {totalPages > 1 && (
                   <div className="flex items-center gap-[3px] sm:gap-[4px] flex-wrap justify-end">
