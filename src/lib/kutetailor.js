@@ -305,6 +305,8 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
   const token = await getToken();
   const payload = buildOrderPayload(order, { submit });
 
+  console.log("[KT] POST /order/saveOrder payload:", JSON.stringify(payload, null, 2));
+
   const res = await fetch(`${BASE}/order/saveOrder`, {
     method: "POST",
     headers: {
@@ -317,9 +319,21 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
     signal: AbortSignal.timeout(30000),
   });
 
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok || body.code === "1") {
-    throw new Error(body?.message ?? `HTTP ${res.status}`);
+  const rawText = await res.text().catch(() => "");
+  console.log("[KT] saveOrder response", res.status, rawText.slice(0, 500));
+
+  let body = {};
+  try { body = JSON.parse(rawText); } catch {}
+
+  if (!res.ok || body.code === "1" || body.code === 1) {
+    const msg = body?.message ?? body?.msg ?? body?.error ?? body?.data ?? null;
+    const msgStr =
+      msg == null
+        ? `HTTP ${res.status}${rawText ? `: ${rawText.slice(0, 300)}` : ""}`
+        : typeof msg === "object"
+        ? JSON.stringify(msg)
+        : String(msg);
+    throw new Error(msgStr);
   }
   return { payload, response: body };
 }
