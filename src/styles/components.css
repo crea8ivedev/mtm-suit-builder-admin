@@ -309,10 +309,18 @@
 .gc-stat-value {
   font-family: var(--font-garamond);
   font-weight: 500;
-  font-size: 48px;
-  line-height: 52.8px;
-  letter-spacing: -0.96px;
+  font-size: 28px;
+  line-height: 32px;
+  letter-spacing: -0.56px;
   color: var(--color-gc-primary-num);
+}
+
+@media (min-width: 640px) {
+  .gc-stat-value {
+    font-size: 48px;
+    line-height: 52.8px;
+    letter-spacing: -0.96px;
+  }
 }
 
 .gc-stat-label {

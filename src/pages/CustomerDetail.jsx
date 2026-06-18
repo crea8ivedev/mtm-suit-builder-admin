@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ChevronDown,
   Check,
+  Plus,
 } from "lucide-react";
 import { useClickOutside } from "../hooks/useClickOutside";
 import StatusPill from "../components/ui/StatusPill";
@@ -95,8 +96,19 @@ function normalizeEditingValues(
     }
     if (k.startsWith("Style: ")) {
       const displayLabel = k.slice("Style: ".length);
-      const match = allOpts.find((o) => o.displayLabel === displayLabel);
-      normalized[match ? `${match.garment} - ${match.category}` : k] = v;
+      const matches = allOpts.filter((o) => o.displayLabel === displayLabel);
+      if (matches.length === 0) {
+        normalized[k] = v;
+      } else {
+        const seen = new Set();
+        for (const match of matches) {
+          const normKey = `${match.garment} - ${match.category}`;
+          if (!seen.has(normKey)) {
+            seen.add(normKey);
+            normalized[normKey] = v;
+          }
+        }
+      }
     } else if (k.includes(" - ")) {
       const parts = k.split(" - ");
       const g = parts[0].trim();
@@ -430,13 +442,32 @@ function buildStyleOptionsMap(
   return map;
 }
 
-function injectStyleOptionsIntoProfiles(profiles, styleOptionsMap) {
+function filterStyleOptionsMapForProduct(styleOptionsMap, garments) {
+  if (!garments || !garments.size) return styleOptionsMap;
+  return Object.fromEntries(
+    Object.entries(styleOptionsMap).filter(([g]) => garments.has(g)),
+  );
+}
+
+function injectStyleOptionsIntoProfiles(
+  profiles,
+  styleOptionsMap,
+  productGarmentsMap,
+) {
   const result = {};
   for (const [productName, list] of Object.entries(profiles)) {
-    result[productName] = list.map((p) => ({
-      ...p,
-      styleOptions: styleOptionsMap,
-    }));
+    const fallbackGarments = productGarmentsMap?.[productName];
+    result[productName] = list.map((p) => {
+      const existingKeys = Object.keys(p.styleOptions ?? {});
+      const garmentFilter = existingKeys.length
+        ? new Set(existingKeys)
+        : fallbackGarments;
+      const filtered = filterStyleOptionsMapForProduct(
+        styleOptionsMap,
+        garmentFilter,
+      );
+      return { ...p, styleOptions: filtered };
+    });
   }
   return result;
 }
@@ -690,6 +721,27 @@ export default function CustomerDetail() {
     ],
   );
 
+  const productGarmentsMap = useMemo(() => {
+    const allGarments = Object.keys(styleOptionsMap);
+    if (!allGarments.length) return {};
+    const map = {};
+    for (const order of orders) {
+      for (const { node: item } of order.lineItems?.edges ?? []) {
+        const name = item.title;
+        if (!name) continue;
+        const gcVal = item.product?.metafield?.value;
+        if (!gcVal) continue;
+        const v = gcVal.toLowerCase();
+        const matched = allGarments.filter((g) => v.includes(g.toLowerCase()));
+        if (matched.length) {
+          if (!map[name]) map[name] = new Set();
+          matched.forEach((g) => map[name].add(g));
+        }
+      }
+    }
+    return map;
+  }, [orders, styleOptionsMap]);
+
   const profiles = useMemo(
     () => buildMeasurementProfiles(orders, displayKeyMap, styleKeyMap),
     [orders, displayKeyMap, styleKeyMap],
@@ -772,7 +824,11 @@ export default function CustomerDetail() {
     if (!styleOptions.length) return;
     autoFixedRef.current = true;
     const profilesToSave = Object.keys(styleOptionsMap).length
-      ? injectStyleOptionsIntoProfiles(activeProfiles, styleOptionsMap)
+      ? injectStyleOptionsIntoProfiles(
+          activeProfiles,
+          styleOptionsMap,
+          productGarmentsMap,
+        )
       : activeProfiles;
     setCustomerProductsMetafield(shopifyGid, profilesToSave).catch(() => {});
   }, [
@@ -783,6 +839,7 @@ export default function CustomerDetail() {
     activeProfiles,
     styleOptions,
     styleOptionsMap,
+    productGarmentsMap,
     liningCodes,
     buttonCodes,
   ]);
@@ -848,18 +905,31 @@ export default function CustomerDetail() {
     }
     const updatedProfiles = JSON.parse(JSON.stringify(activeProfiles));
     updatedProfiles[entry.productName] = updatedProfiles[entry.productName].map(
-      (p) =>
-        p.id === entry.id
+      (p) => {
+        const existingKeys = Object.keys(p.styleOptions ?? {});
+        const garmentFilter = existingKeys.length
+          ? new Set(existingKeys)
+          : productGarmentsMap?.[entry.productName];
+        const filteredStyleOptions = filterStyleOptionsMapForProduct(
+          styleOptionsMap,
+          garmentFilter,
+        );
+        return p.id === entry.id
           ? {
               ...p,
               style: newStyle,
               measurements: newMeasurements,
-              styleOptions: styleOptionsMap,
+              styleOptions: filteredStyleOptions,
             }
-          : { ...p, styleOptions: styleOptionsMap },
+          : { ...p, styleOptions: filteredStyleOptions };
+      },
     );
     const profilesToSave = Object.keys(styleOptionsMap).length
-      ? injectStyleOptionsIntoProfiles(updatedProfiles, styleOptionsMap)
+      ? injectStyleOptionsIntoProfiles(
+          updatedProfiles,
+          styleOptionsMap,
+          productGarmentsMap,
+        )
       : updatedProfiles;
     try {
       await setCustomerProductsMetafield(
@@ -971,6 +1041,16 @@ export default function CustomerDetail() {
                   )}
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() =>
+                  navigate("/orders/new", { state: { newCustomer: customer } })
+                }
+                className="flex items-center gap-[6px] px-[10px] py-[8px] sm:px-[14px] bg-gc-primary text-white font-hanken text-[12px] sm:text-[13px] font-medium rounded-[8px] hover:opacity-90 transition-opacity cursor-pointer flex-shrink-0"
+              >
+                <Plus size={14} strokeWidth={2.5} />
+                <span className="hidden sm:inline">Create New Order</span>
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-[20px] sm:gap-[32px] pt-[20px] sm:pt-[25px] border-t border-gc-section-divider/40">

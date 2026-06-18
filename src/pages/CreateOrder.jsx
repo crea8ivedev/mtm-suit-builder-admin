@@ -142,9 +142,13 @@ function attrsFromLineItem(node, emptyValues = false) {
     );
 }
 
-function garmentsFromGcBuilderValue(value) {
+function garmentsFromGcBuilderValue(value, allGarments) {
   if (!value) return [];
   const v = value.toLowerCase();
+  if (allGarments?.length) {
+    return allGarments.filter((g) => v.includes(g.toLowerCase()));
+  }
+  // fallback: derive from known garment keywords in value
   const found = [];
   if (v.includes("jacket")) found.push("Jacket");
   if (v.includes("trouser")) found.push("Trouser");
@@ -157,25 +161,48 @@ function garmentsFromGcBuilderValue(value) {
   return found;
 }
 
-function styleGarmentsForProduct(product) {
-  return garmentsFromGcBuilderValue(product?.metafield?.value);
+function styleGarmentsForProduct(product, allGarments) {
+  return garmentsFromGcBuilderValue(product?.metafield?.value, allGarments);
 }
 
 function buildStyleOptionsForJson(
   styleOptions,
   contrastOptions,
   contrastLocations,
+  liningCodes,
+  buttonCodes,
+  productGarments,
 ) {
+  const garmentSet = productGarments?.length ? new Set(productGarments) : null;
+  const inScope = (g) => !garmentSet || garmentSet.has(g);
+
+  const expandedLC = (liningCodes ?? []).flatMap((item) => {
+    const targets =
+      item.garments?.length > 0
+        ? item.garments.filter(inScope)
+        : (productGarments ?? []);
+    return targets.map((g) => ({ ...item, garment: g }));
+  });
+  const expandedBC = (buttonCodes ?? []).flatMap((item) => {
+    const targets =
+      item.garments?.length > 0
+        ? item.garments.filter(inScope)
+        : (productGarments ?? []);
+    return targets.map((g) => ({ ...item, garment: g }));
+  });
+
   const allOpts = [
-    ...styleOptions.filter((o) => o.visible),
-    ...contrastOptions.filter((o) => o.visible),
+    ...styleOptions.filter((o) => o.visible && inScope(o.garment)),
+    ...contrastOptions.filter((o) => o.visible && inScope(o.garment)),
     ...contrastLocations
-      .filter((l) => l.visible)
+      .filter((l) => l.visible && (!l.garment || inScope(l.garment)))
       .map((l) => ({
         ...l,
         category: "contrast_location",
         displayLabel: "Contrast Color Location",
       })),
+    ...expandedLC.filter((o) => o.visible),
+    ...expandedBC.filter((o) => o.visible),
   ];
   const map = {};
   for (const opt of allOpts) {
@@ -346,9 +373,20 @@ export default function CreateOrder() {
     return groups;
   }, [selectedProduct, jacketRanges, trouserRanges, vestRanges, shirtRanges]);
 
+  const allStyleGarments = useMemo(
+    () => [
+      ...new Set(
+        [...styleOptions, ...contrastOptions]
+          .map((o) => o.garment)
+          .filter(Boolean),
+      ),
+    ],
+    [styleOptions, contrastOptions],
+  );
+
   const expandedLiningCodes = useMemo(() => {
     if (!selectedProduct || !liningCodes.length) return [];
-    const garments = styleGarmentsForProduct(selectedProduct);
+    const garments = styleGarmentsForProduct(selectedProduct, allStyleGarments);
     if (!garments.length) return [];
     const normalizeG = (g) =>
       garments.find((ag) => ag.toLowerCase() === g.toLowerCase()) ?? null;
@@ -359,11 +397,11 @@ export default function CreateOrder() {
           : garments;
       return targets.map((g) => ({ ...item, garment: g }));
     });
-  }, [selectedProduct, liningCodes]);
+  }, [selectedProduct, liningCodes, allStyleGarments]);
 
   const expandedButtonCodes = useMemo(() => {
     if (!selectedProduct || !buttonCodes.length) return [];
-    const garments = styleGarmentsForProduct(selectedProduct);
+    const garments = styleGarmentsForProduct(selectedProduct, allStyleGarments);
     if (!garments.length) return [];
     const normalizeG = (g) =>
       garments.find((ag) => ag.toLowerCase() === g.toLowerCase()) ?? null;
@@ -374,7 +412,7 @@ export default function CreateOrder() {
           : garments;
       return targets.map((g) => ({ ...item, garment: g }));
     });
-  }, [selectedProduct, buttonCodes]);
+  }, [selectedProduct, buttonCodes, allStyleGarments]);
 
   const pastOrdersForProduct = useMemo(() => {
     if (!selectedProduct || !customerOrders.length) return [];
@@ -996,6 +1034,9 @@ export default function CreateOrder() {
               styleOptions,
               contrastOptions,
               contrastLocations,
+              liningCodes,
+              buttonCodes,
+              styleGarmentsForProduct(selectedProduct, allStyleGarments),
             ),
           };
           const fullProfiles = {

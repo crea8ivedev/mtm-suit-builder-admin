@@ -535,7 +535,11 @@ export async function fetchGcBuilderProducts() {
     all.push(
       ...edges
         .map((e) => e.node)
-        .filter((p) => p.status === "ACTIVE" || p.status === "ARCHIVED"),
+        .filter(
+          (p) =>
+            p.metafield?.value &&
+            (p.status === "ACTIVE" || p.status === "ARCHIVED"),
+        ),
     );
     hasNextPage = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
@@ -566,6 +570,13 @@ export async function fetchOrderById(shopifyGid) {
   return data.order;
 }
 
+// ─── Only orders that contain at least one gc_builder product ─────────────
+function isGcBuilderOrder(node) {
+  return (node.lineItems?.edges ?? []).some(
+    (e) => e.node.product?.metafield?.value,
+  );
+}
+
 // ─── Fetch ALL orders with cursor pagination ───────────────────────────────
 async function _doFetch(onProgress) {
   const all = [];
@@ -579,7 +590,7 @@ async function _doFetch(onProgress) {
     });
 
     const { edges, pageInfo } = data.orders;
-    all.push(...edges.map((e) => e.node));
+    all.push(...edges.map((e) => e.node).filter(isGcBuilderOrder));
     if (onProgress) onProgress(all.length);
 
     hasNextPage = pageInfo.hasNextPage;
@@ -622,7 +633,7 @@ export async function fetchOrdersPage({
   const data = await shopifyGraphQL(GET_ORDERS_QUERY, variables);
   const { edges, pageInfo } = data.orders;
   return {
-    orders: edges.map((e) => e.node),
+    orders: edges.map((e) => e.node).filter(isGcBuilderOrder),
     hasNextPage: pageInfo.hasNextPage,
     endCursor: pageInfo.endCursor,
   };
@@ -1455,6 +1466,7 @@ const STYLE_OPTION_TYPES = [
   "gc_jacket_style_option",
   "gc_trouser_style_option",
   "gc_shirt_style_option",
+  "gc_vest_style_option",
 ];
 
 export const GARMENT_TO_STYLE_TYPE = Object.fromEntries(

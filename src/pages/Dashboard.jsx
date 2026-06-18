@@ -1,13 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import {
-  ShoppingBag,
-  Clock,
-  Check,
-  X,
-  ArrowRight,
-  BadgeCheck,
-} from "lucide-react";
+import { Clock, X, ArrowRight, BadgeCheck } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
@@ -15,9 +8,7 @@ import StatusPill from "../components/ui/StatusPill";
 import { useOrders } from "../hooks/useOrders";
 
 const STAT_CONFIG = [
-  { id: "total", label: "Total Orders", icon: ShoppingBag },
   { id: "pending", label: "Pending Orders", icon: Clock },
-  { id: "submitted", label: "Submitted Orders", icon: Check },
   { id: "failed", label: "Failed Orders", icon: X },
   { id: "verified", label: "Verified Supplier", icon: BadgeCheck },
 ];
@@ -58,7 +49,7 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-5 gap-[16px] sm:gap-[24px] mb-[40px] md:mr-[-28px]">
+      <div className="grid grid-cols-3 gap-[16px] sm:gap-[24px] mb-[40px] md:mr-[-28px]">
         {STAT_CONFIG.map(({ id, label, icon: Icon }) => (
           <div key={id} className="gc-stat-card">
             <div className="gc-stat-icon">

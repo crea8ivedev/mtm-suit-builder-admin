@@ -1,15 +1,5 @@
 export const STAT_CARDS = [
   {
-    id: "total",
-    label: "Total Orders",
-    value: "—",
-    change: null,
-    changeType: null,
-    icon: "ShoppingBag",
-    bgColor: "#eff6ff",
-    iconColor: "#3b82f6",
-  },
-  {
     id: "pending",
     label: "Pending Orders",
     value: "—",
@@ -20,16 +10,6 @@ export const STAT_CARDS = [
     iconColor: "#d97706",
   },
   {
-    id: "submitted",
-    label: "Submitted Orders",
-    value: "—",
-    change: null,
-    changeType: null,
-    icon: "CheckCircle",
-    bgColor: "#ecfdf5",
-    iconColor: "#059669",
-  },
-  {
     id: "failed",
     label: "Failed Orders",
     value: "—",
@@ -38,5 +18,15 @@ export const STAT_CARDS = [
     icon: "XCircle",
     bgColor: "#fef2f2",
     iconColor: "#dc2626",
+  },
+  {
+    id: "verified",
+    label: "Verified Supplier",
+    value: "—",
+    change: null,
+    changeType: null,
+    icon: "BadgeCheck",
+    bgColor: "#f0fdf4",
+    iconColor: "#16a34a",
   },
 ];

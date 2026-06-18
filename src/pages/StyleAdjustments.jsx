@@ -374,8 +374,21 @@ export default function StyleAdjustments() {
         ).length
       : 0);
   const totalHidden =
-    options.filter((o) => !getVisible(o)).length +
-    contrastLocations.filter((l) => !getLocationVisible(l)).length;
+    options.filter(
+      (o) =>
+        o.garment === selectedGarment &&
+        o.category === selectedCategory &&
+        !getVisible(o),
+    ).length +
+    (selectedCategory === "contrast_option"
+      ? contrastLocations.filter(
+          (l) =>
+            (!l.garment ||
+              l.garment.toLowerCase() ===
+                (selectedGarment || "").toLowerCase()) &&
+            !getLocationVisible(l),
+        ).length
+      : 0);
   const pendingCount = overrides.size + locationOverrides.size;
 
   function toggleOption(opt) {
@@ -989,7 +1002,9 @@ export default function StyleAdjustments() {
               {String(totalHidden).padStart(2, "0")}
             </div>
             <span className="font-hanken font-semibold text-[13px] md:text-[16px] text-gc-primary">
-              options hidden across the catalog.
+              {categoryInfo?.displayLabel
+                ? `options hidden in ${categoryInfo.displayLabel}.`
+                : "options hidden."}
             </span>
           </div>
 
