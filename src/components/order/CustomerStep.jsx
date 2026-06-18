@@ -23,14 +23,14 @@ const AVATAR_PALETTE = [
   },
 ];
 
-export function getInitials(name) {
+function getInitials(name) {
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2)
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
 }
 
-export function avatarColor(idx) {
+function avatarColor(idx) {
   return AVATAR_PALETTE[idx % AVATAR_PALETTE.length];
 }
 

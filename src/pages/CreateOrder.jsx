@@ -12,9 +12,8 @@ import {
 import {
   AttributeEditor,
   StyleOptionsSection,
-  getRangeForKey,
-  groupAttributes,
 } from "../components/order/MeasurementsStep";
+import { getRangeForKey, groupAttributes } from "../utils/measurementUtils";
 import {
   fetchGcBuilderProducts,
   fetchCustomerWithOrders,
@@ -351,10 +350,12 @@ export default function CreateOrder() {
     if (!selectedProduct || !liningCodes.length) return [];
     const garments = styleGarmentsForProduct(selectedProduct);
     if (!garments.length) return [];
+    const normalizeG = (g) =>
+      garments.find((ag) => ag.toLowerCase() === g.toLowerCase()) ?? null;
     return liningCodes.flatMap((item) => {
       const targets =
         item.garments.length > 0
-          ? item.garments.filter((g) => garments.includes(g))
+          ? item.garments.map(normalizeG).filter(Boolean)
           : garments;
       return targets.map((g) => ({ ...item, garment: g }));
     });
@@ -364,10 +365,12 @@ export default function CreateOrder() {
     if (!selectedProduct || !buttonCodes.length) return [];
     const garments = styleGarmentsForProduct(selectedProduct);
     if (!garments.length) return [];
+    const normalizeG = (g) =>
+      garments.find((ag) => ag.toLowerCase() === g.toLowerCase()) ?? null;
     return buttonCodes.flatMap((item) => {
       const targets =
         item.garments.length > 0
-          ? item.garments.filter((g) => garments.includes(g))
+          ? item.garments.map(normalizeG).filter(Boolean)
           : garments;
       return targets.map((g) => ({ ...item, garment: g }));
     });
@@ -507,6 +510,32 @@ export default function CreateOrder() {
   async function handleNewOrder() {
     setSelectedTemplate(null);
     setFitSizeSelections({});
+    const defaults = {};
+    [...styleOptions, ...contrastOptions]
+      .filter((o) => o.isDefault && o.visible)
+      .forEach((o) => {
+        const key = `${o.garment}__${o.category}`;
+        if (!defaults[key]) defaults[key] = o.label;
+      });
+    contrastLocations
+      .filter((l) => l.isDefault && l.visible)
+      .forEach((l) => {
+        const key = `${l.garment || "General"}__contrast_location`;
+        if (!defaults[key]) defaults[key] = l.label;
+      });
+    expandedLiningCodes
+      .filter((o) => o.isDefault && o.visible)
+      .forEach((o) => {
+        const key = `${o.garment}__lining_code`;
+        if (!defaults[key]) defaults[key] = o.label;
+      });
+    expandedButtonCodes
+      .filter((o) => o.isDefault && o.visible)
+      .forEach((o) => {
+        const key = `${o.garment}__button_code`;
+        if (!defaults[key]) defaults[key] = o.label;
+      });
+    setStyleSelections(defaults);
     if (!selectedProduct) return;
     const _variants = selectedProduct.variants?.edges?.map((e) => e.node) ?? [];
     const _hasSelector =
@@ -686,22 +715,40 @@ export default function CreateOrder() {
     ])
       .then(([allStyle, allContrast, allLocations]) => {
         const filtered = allStyle.filter((o) => garments.includes(o.garment));
+        const filteredContrast = allContrast.filter((o) =>
+          garments.includes(o.garment),
+        );
+        const filteredLocations = allLocations.filter(
+          (l) =>
+            !l.garment ||
+            garments.some((g) => g.toLowerCase() === l.garment.toLowerCase()),
+        );
         setStyleOptions(filtered);
-        setContrastOptions(
-          allContrast.filter((o) => garments.includes(o.garment)),
-        );
-        setContrastLocations(
-          allLocations.filter(
-            (l) =>
-              !l.garment ||
-              garments.some((g) => g.toLowerCase() === l.garment.toLowerCase()),
-          ),
-        );
+        setContrastOptions(filteredContrast);
+        setContrastLocations(filteredLocations);
         const defaults = {};
-        filtered
+        [...filtered, ...filteredContrast]
           .filter((o) => o.isDefault && o.visible)
           .forEach((o) => {
             const key = `${o.garment}__${o.category}`;
+            if (!defaults[key]) defaults[key] = o.label;
+          });
+        filteredLocations
+          .filter((l) => l.isDefault && l.visible)
+          .forEach((l) => {
+            const key = `${l.garment || "General"}__contrast_location`;
+            if (!defaults[key]) defaults[key] = l.label;
+          });
+        expandedLiningCodes
+          .filter((o) => o.isDefault && o.visible)
+          .forEach((o) => {
+            const key = `${o.garment}__lining_code`;
+            if (!defaults[key]) defaults[key] = o.label;
+          });
+        expandedButtonCodes
+          .filter((o) => o.isDefault && o.visible)
+          .forEach((o) => {
+            const key = `${o.garment}__button_code`;
             if (!defaults[key]) defaults[key] = o.label;
           });
         setStyleSelections(defaults);
@@ -711,6 +758,27 @@ export default function CreateOrder() {
 
     setFitSizeSelections({});
   }, [selectedProduct, fitSizeOptions]);
+
+  useEffect(() => {
+    if (selectedTemplate) return;
+    if (!expandedLiningCodes.length && !expandedButtonCodes.length) return;
+    setStyleSelections((prev) => {
+      const next = { ...prev };
+      expandedLiningCodes
+        .filter((o) => o.isDefault && o.visible)
+        .forEach((o) => {
+          const key = `${o.garment}__lining_code`;
+          if (!next[key]) next[key] = o.label;
+        });
+      expandedButtonCodes
+        .filter((o) => o.isDefault && o.visible)
+        .forEach((o) => {
+          const key = `${o.garment}__button_code`;
+          if (!next[key]) next[key] = o.label;
+        });
+      return next;
+    });
+  }, [expandedLiningCodes, expandedButtonCodes, selectedTemplate]);
 
   useEffect(() => {
     const allVariants =
@@ -761,6 +829,48 @@ export default function CreateOrder() {
       setPrice(fallbackPrice);
     }
   }, [pastOrdersForProduct, fitSizeOptions]);
+
+  useEffect(() => {
+    if (styleOptionsLoading) return;
+    if (!selectedTemplate) return;
+    const pastOrder = pastOrdersForProduct.find(
+      (o) => o.orderId === selectedTemplate,
+    );
+    if (!pastOrder) return;
+    const allStyleOpts = [
+      ...styleOptions,
+      ...contrastOptions,
+      ...contrastLocations.map((l) => ({
+        ...l,
+        category: "contrast_location",
+        displayLabel: "Contrast Color Location",
+      })),
+      ...expandedLiningCodes,
+      ...expandedButtonCodes,
+    ];
+    const stylePrefill = {};
+    const usedSlots = new Set();
+    for (const attr of pastOrder.attributes) {
+      if (!attr.key.startsWith("Style: ")) continue;
+      const displayLabel = attr.key.slice(7);
+      const matchedOpt = allStyleOpts.find((opt) => {
+        const slot = `${opt.garment}__${opt.category}`;
+        return (
+          !usedSlots.has(slot) &&
+          (opt.displayLabel || opt.category) === displayLabel &&
+          opt.label === attr.value
+        );
+      });
+      if (matchedOpt) {
+        const slot = `${matchedOpt.garment}__${matchedOpt.category}`;
+        usedSlots.add(slot);
+        stylePrefill[slot] = attr.value;
+      }
+    }
+    if (Object.keys(stylePrefill).length > 0) {
+      setStyleSelections((prev) => ({ ...prev, ...stylePrefill }));
+    }
+  }, [selectedTemplate, styleOptionsLoading]);
 
   async function handleSubmit() {
     if (!selectedCustomer || !selectedProduct) return;
@@ -1022,25 +1132,33 @@ export default function CreateOrder() {
                     onClick={async () => {
                       setSelectedTemplate(o.orderId);
 
-                      if (o.variantTitle) {
+                      {
                         const variants =
                           selectedProduct.variants?.edges?.map((e) => e.node) ??
                           [];
-                        const match = variants.find(
-                          (v) =>
-                            v.title.toLowerCase() ===
-                            o.variantTitle.toLowerCase(),
-                        );
+                        const hasVariantSelector =
+                          variants.length > 1 ||
+                          (variants.length === 1 &&
+                            variants[0].title !== "Default Title");
+                        const defaultVariant = hasVariantSelector
+                          ? variants[0]
+                          : null;
+                        const basePrice =
+                          defaultVariant?.price || variants[0]?.price || "0.00";
+                        const match = o.variantTitle
+                          ? variants.find(
+                              (v) =>
+                                v.title.toLowerCase() ===
+                                o.variantTitle.toLowerCase(),
+                            )
+                          : null;
                         if (match) {
                           setSelectedVariant(match);
-                          setPrice(match.price || "0.00");
+                          setPrice(match.price || basePrice);
                         } else {
-                          setSelectedVariant(null);
-                          setPrice("0.00");
+                          setSelectedVariant(defaultVariant);
+                          setPrice(basePrice);
                         }
-                      } else {
-                        setSelectedVariant(null);
-                        setPrice("0.00");
                       }
 
                       const garments = garmentsFromGcBuilderValue(
@@ -1093,6 +1211,39 @@ export default function CreateOrder() {
                         }
                       }
                       setFitSizeSelections(fitPrefill);
+
+                      const allStyleOpts = [
+                        ...styleOptions,
+                        ...contrastOptions,
+                        ...contrastLocations.map((l) => ({
+                          ...l,
+                          category: "contrast_location",
+                          displayLabel: "Contrast Color Location",
+                        })),
+                        ...expandedLiningCodes,
+                        ...expandedButtonCodes,
+                      ];
+                      const stylePrefill = {};
+                      const usedSlots = new Set();
+                      for (const attr of o.attributes) {
+                        if (!attr.key.startsWith("Style: ")) continue;
+                        const displayLabel = attr.key.slice(7);
+                        const matchedOpt = allStyleOpts.find((opt) => {
+                          const slot = `${opt.garment}__${opt.category}`;
+                          return (
+                            !usedSlots.has(slot) &&
+                            (opt.displayLabel || opt.category) ===
+                              displayLabel &&
+                            opt.label === attr.value
+                          );
+                        });
+                        if (matchedOpt) {
+                          const slot = `${matchedOpt.garment}__${matchedOpt.category}`;
+                          usedSlots.add(slot);
+                          stylePrefill[slot] = attr.value;
+                        }
+                      }
+                      setStyleSelections(stylePrefill);
                     }}
                     className={cn(
                       "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",

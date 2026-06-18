@@ -1010,10 +1010,22 @@ export async function createCustomer({
   email,
   phone,
   country,
+  address1,
+  address2,
+  city,
+  province,
+  zip,
 }) {
   const input = { firstName, lastName, email };
   if (phone) input.phone = phone;
-  if (country) input.addresses = [{ country }];
+  const addr = {};
+  if (country) addr.country = country;
+  if (address1) addr.address1 = address1;
+  if (address2) addr.address2 = address2;
+  if (city) addr.city = city;
+  if (province) addr.province = province;
+  if (zip) addr.zip = zip;
+  if (Object.keys(addr).length) input.addresses = [addr];
   const data = await shopifyGraphQL(CREATE_CUSTOMER_MUTATION, { input });
   const { customer, userErrors } = data.customerCreate;
   if (userErrors?.length) {
@@ -1857,6 +1869,7 @@ export async function fetchLiningCodes() {
       const fm = Object.fromEntries(
         node.fields.map((f) => [f.key, f.value ?? ""]),
       );
+
       let garments = [];
       try {
         const parsed = JSON.parse(fm.garment || "[]");
@@ -1954,6 +1967,7 @@ export async function fetchButtonCodes() {
       const fm = Object.fromEntries(
         node.fields.map((f) => [f.key, f.value ?? ""]),
       );
+
       let garments = [];
       try {
         const parsed = JSON.parse(fm.garment || "[]");

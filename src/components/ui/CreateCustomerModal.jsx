@@ -109,7 +109,9 @@ function GCDropdown({
           error ? "border border-red-400" : "border border-[#d1c7bd]",
         )}
       >
-        <span className={selected ? "text-gc-near-black2" : "text-[#6b7280]"}>
+        <span
+          className={`truncate min-w-0 ${selected ? "text-gc-near-black2" : "text-[#6b7280]"}`}
+        >
           {selected ? selected.label : placeholder}
         </span>
         <div className="flex flex-col items-center gap-[2px] flex-shrink-0 ml-[8px]">
@@ -305,7 +307,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
     const c = Country.getCountryByCode(iso);
     setCountryIso(iso);
     setStateIso("");
-    setPhoneIso(iso);
     setForm((f) => ({ ...f, country: c?.name ?? "", province: "", city: "" }));
     setErrors((er) => ({ ...er, country: null, province: null, city: null }));
     setApiError(null);
@@ -342,7 +343,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
         ? City.getCitiesOfState(countryIso, stateIso).length > 0
         : false;
     if (hasCities && !form.city.trim()) errs.city = "Required";
-    if (!form.zip.trim()) errs.zip = "Required";
     return errs;
   }
 
@@ -400,9 +400,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
         {/* Header */}
         <div className="flex items-start justify-between pb-[18px] pt-[22px] sm:pt-[30px] sm:pb-[21px] px-[20px] sm:px-[40px] relative z-20 flex-shrink-0 border-b border-gc-section-divider/30">
           <div className="flex flex-col gap-[8px]">
-            <span className="font-hanken text-[12px] font-semibold uppercase text-gc-primary tracking-wide">
-              NEW ENTRY
-            </span>
             <h2 className="font-garamond text-[24px] font-medium text-black leading-[31px]">
               Create Customer
             </h2>
@@ -607,21 +604,23 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
               </div>
             </div>
           </div>
+        </div>
 
+        <form
+          onSubmit={handleSubmit}
+          className="flex-shrink-0 border-t border-gc-section-divider/30 bg-gc-modal-footer"
+        >
           {apiError && (
-            <div className="px-[14px] py-[10px] bg-red-50 border border-red-200 rounded-[8px]">
+            <div className="px-[20px] sm:px-[40px] pt-[12px]">
               <p className="font-hanken text-[13px] text-red-600">{apiError}</p>
             </div>
           )}
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex-shrink-0">
-          <div className="flex items-center justify-end gap-[12px] sm:gap-[20px] px-[20px] sm:px-[40px] pb-[20px] pt-[16px] sm:pt-[21px] bg-gc-modal-footer border-t border-gc-section-divider/30">
+          <div className="flex items-center justify-end gap-[12px] sm:gap-[20px] px-[20px] sm:px-[40px] pb-[20px] pt-[16px] sm:pt-[21px]">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="font-hanken text-[13px] sm:text-[14px] font-medium text-black uppercase px-[14px] sm:px-[20px] py-[12px] sm:py-[16px] hover:opacity-70 transition-opacity disabled:opacity-40 cursor-pointer"
+              className="font-hanken text-[13px] sm:text-[14px] font-medium text-black uppercase px-[14px] sm:px-[20px] py-[12px] sm:py-[16px] hover:opacity-70 transition-opacity disabled:opacity-40 cursor-pointer border border-gray-300 rounded-[8px]"
             >
               Cancel
             </button>

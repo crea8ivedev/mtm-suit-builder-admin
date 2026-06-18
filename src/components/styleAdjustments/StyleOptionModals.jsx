@@ -12,7 +12,7 @@ import {
   clearStyleOptionsCache,
 } from "../../lib/shopify";
 
-export const KNOWN_KEYS = new Set([
+const KNOWN_KEYS = new Set([
   "label",
   "category",
   "display_label",
@@ -31,7 +31,7 @@ export const KNOWN_KEYS = new Set([
   "code",
 ]);
 
-export function normalizeCategory(val) {
+function normalizeCategory(val) {
   return val.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
@@ -77,7 +77,7 @@ function stubDef(key, value, shopifyTypeName) {
   return { key, name: keyToLabel(key), type: { name: typeName } };
 }
 
-export function inputTypeFor(rawTypeName) {
+function inputTypeFor(rawTypeName) {
   if (!rawTypeName) return "text";
   const t = rawTypeName.toLowerCase().trim();
 

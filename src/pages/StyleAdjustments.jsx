@@ -121,17 +121,27 @@ export default function StyleAdjustments() {
             ...new Set(baseOptions.map((o) => o.garment).filter(Boolean)),
           ];
 
+          // Normalize a garment string from Shopify to the canonical name in allGarments
+          const normalizeGarment = (g) =>
+            allGarments.find((ag) => ag.toLowerCase() === g.toLowerCase()) ?? g;
+
           // Expand lining codes per garment — empty garments array means show in all
           const expandedLiningCodes = liningData.flatMap((item) => {
-            const targets =
+            const rawTargets =
               item.garments.length > 0 ? item.garments : allGarments;
+            const targets = rawTargets
+              .map(normalizeGarment)
+              .filter((g) => allGarments.includes(g));
             return targets.map((g) => ({ ...item, garment: g }));
           });
 
           // Expand button codes per garment — same logic
           const expandedButtonCodes = buttonData.flatMap((item) => {
-            const targets =
+            const rawTargets =
               item.garments.length > 0 ? item.garments : allGarments;
+            const targets = rawTargets
+              .map(normalizeGarment)
+              .filter((g) => allGarments.includes(g));
             return targets.map((g) => ({ ...item, garment: g }));
           });
 

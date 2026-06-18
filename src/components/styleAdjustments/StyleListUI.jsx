@@ -108,10 +108,15 @@ export function OptionCard({
         )}
       </div>
 
-      <div className="flex items-center flex-1 min-w-0 ml-[12px]">
-        <span className="font-hanken font-medium text-[13px] md:text-[16px] text-black leading-[24px] block truncate">
+      <div className="flex flex-col md:flex-row md:items-center md:gap-[6px] flex-1 min-w-0 ml-[12px]">
+        <span className="font-hanken font-medium text-[13px] md:text-[16px] text-black leading-[24px] truncate">
           {option.label}
         </span>
+        {option.isDefault && (
+          <span className="flex-shrink-0 font-hanken text-[11px] md:text-[12px] font-semibold text-gc-primary bg-gc-primary/[8%] px-[5px] py-[1px] rounded-[4px] leading-tight w-fit">
+            Default
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-[8px] pl-[12px] ml-[8px] flex-shrink-0 border-l border-gc-border-warm/40">

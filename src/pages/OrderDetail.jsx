@@ -82,7 +82,11 @@ const INLINE_KEYS = new Set([
 
 function resolveLabel(rawKey, labelMap) {
   if (labelMap[rawKey]) return labelMap[rawKey];
-  if (rawKey.startsWith("Style: ")) return rawKey.slice("Style: ".length);
+  if (rawKey.startsWith("Style: ")) {
+    const label = rawKey.slice("Style: ".length);
+    if (label === "Contrast Color & Locations") return "Contrast Color";
+    return label;
+  }
   if (rawKey.includes(" - ")) {
     const cat = rawKey.split(" - ").slice(1).join(" - ");
     return cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -464,6 +468,16 @@ export default function OrderDetail() {
     (item) =>
       categorize(item.customAttributes, labelMap, fitSizeKeySet).measurements,
   );
+  const _prefixOrder = [];
+  for (const m of allMeasurements) {
+    const prefix = m.key.includes(" ") ? m.key.split(" ")[0] : "";
+    if (prefix && !_prefixOrder.includes(prefix)) _prefixOrder.push(prefix);
+  }
+  allMeasurements.sort((a, b) => {
+    const pa = a.key.includes(" ") ? a.key.split(" ")[0] : "";
+    const pb = b.key.includes(" ") ? b.key.split(" ")[0] : "";
+    return _prefixOrder.indexOf(pa) - _prefixOrder.indexOf(pb);
+  });
 
   const storeDomain = (import.meta.env.VITE_SHOPIFY_STORE_DOMAIN ?? "").replace(
     /\/$/,
