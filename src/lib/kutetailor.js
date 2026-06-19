@@ -26,13 +26,13 @@ async function fetchFreshToken() {
   let json = {};
   try {
     json = JSON.parse(raw);
-  } catch {}
+  } catch { }
 
   if (!res.ok || (json.code !== undefined && json.code !== "0")) {
     throw new Error(
       json.message ||
-        json.error ||
-        `KuteTailor login failed: HTTP ${res.status}`,
+      json.error ||
+      `KuteTailor login failed: HTTP ${res.status}`,
     );
   }
 
@@ -290,8 +290,6 @@ function _topLevelCategory(garments) {
   return "T";
 }
 
-// Static position ecodes per garment from KT supplier Excel (verified by PHP app)
-// Keys are pre-normalized via _normalizeKtName
 const _STATIC_POSITION_ECODES = {
   Jacket: {
     neck: "1",
@@ -318,7 +316,7 @@ const _STATIC_POSITION_ECODES = {
   },
 };
 
-let _ktPositionMapCache = null; // set to null to force refetch after name→identifier fix
+let _ktPositionMapCache = null;
 
 async function fetchKtPositionMap(token) {
   if (_ktPositionMapCache) return _ktPositionMapCache;
@@ -392,9 +390,7 @@ function mapSizes(customAttributes = [], ktPositionMap = {}) {
   return result;
 }
 
-// Collect sizes for a specific garment, using garment-scoped ecode lookup.
-// Skips attrs that explicitly belong to a different garment (legacy prefixed keys).
-// Deduplicates by ecode within the garment.
+
 function mapSizesForGarment(
   customAttributes = [],
   garment,
@@ -468,9 +464,9 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
   const garmentsRaw = kuteAttr(attrs, "garments") ?? "";
   const garments = garmentsRaw
     ? garmentsRaw
-        .split(",")
-        .map((g) => g.trim())
-        .filter(Boolean)
+      .split(",")
+      .map((g) => g.trim())
+      .filter(Boolean)
     : [];
 
   // Top-level category: derived from garment combination, not hardcoded
@@ -677,7 +673,7 @@ async function postSaveOrder(token, payload) {
   let body = {};
   try {
     body = JSON.parse(rawText);
-  } catch {}
+  } catch { }
   return { res, rawText, body };
 }
 
