@@ -83,6 +83,18 @@ const INLINE_KEYS = new Set([
 
 function resolveLabel(rawKey, labelMap) {
   if (labelMap[rawKey]) return labelMap[rawKey];
+  if (rawKey.startsWith("Jacket ")) {
+    const stripped = rawKey.slice("Jacket ".length);
+    return labelMap[stripped] ?? stripped;
+  }
+  if (rawKey.startsWith("Trouser ")) {
+    const stripped = rawKey.slice("Trouser ".length);
+    return labelMap[stripped] ?? stripped;
+  }
+  if (rawKey.startsWith("Vest ")) {
+    const stripped = rawKey.slice("Vest ".length);
+    return labelMap[stripped] ?? stripped;
+  }
   if (rawKey.startsWith("Style: ")) {
     const label = rawKey.slice("Style: ".length);
     if (label === "Contrast Color & Locations") return "Contrast Color";
@@ -109,7 +121,7 @@ function categorize(
       ? attr.value.slice(0, -1)
       : (attr.value ?? "");
     if (INLINE_KEYS.has(key.toLowerCase())) continue;
-    const entry = { key, value };
+    const entry = { key, rawKey: attr.key, value };
     const isFitSize =
       fitSizeKeySet.has(attr.key) ||
       attr.key.toLowerCase().includes("fit_size");
@@ -468,12 +480,15 @@ export default function OrderDetail() {
   );
   const _prefixOrder = [];
   for (const m of allMeasurements) {
-    const prefix = m.key.includes(" ") ? m.key.split(" ")[0] : "";
+    const raw = m.rawKey ?? m.key;
+    const prefix = raw.includes(" ") ? raw.split(" ")[0] : "";
     if (prefix && !_prefixOrder.includes(prefix)) _prefixOrder.push(prefix);
   }
   allMeasurements.sort((a, b) => {
-    const pa = a.key.includes(" ") ? a.key.split(" ")[0] : "";
-    const pb = b.key.includes(" ") ? b.key.split(" ")[0] : "";
+    const rawA = a.rawKey ?? a.key;
+    const rawB = b.rawKey ?? b.key;
+    const pa = rawA.includes(" ") ? rawA.split(" ")[0] : "";
+    const pb = rawB.includes(" ") ? rawB.split(" ")[0] : "";
     return _prefixOrder.indexOf(pa) - _prefixOrder.indexOf(pb);
   });
 

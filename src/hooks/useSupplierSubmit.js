@@ -57,18 +57,24 @@ export function useSupplierSubmit(orderId, onSettled) {
       if (!supplierId) return;
       setSubmitting(true);
       setSubmitError(null);
+      let errMsg = null;
       try {
         await handleSendToSupplier(orderId, supplierId);
       } catch (err) {
+        console.error("[KT] submission failed:", err);
+        errMsg = err?.message || String(err) || "Submission failed";
         const shopifyGid = `gid://shopify/Order/${orderId}`;
         await setOrderMetafields(shopifyGid, [
           { key: "supplier_status", value: "failed" },
-          { key: "supplier_error", value: err.message },
+          { key: "supplier_error", value: errMsg },
         ]).catch(() => {});
-        setSubmitError(err.message);
+        setSubmitError(errMsg);
       } finally {
         setSubmitting(false);
-        onSettled?.();
+        // refetch AFTER setSubmitError so React state persists through the re-render
+        await onSettled?.();
+        // Re-apply error after refetch in case it got wiped by the data refresh
+        if (errMsg) setSubmitError(errMsg);
       }
     },
     [orderId, onSettled],

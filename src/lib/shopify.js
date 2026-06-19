@@ -1251,19 +1251,25 @@ async function _loadVestData() {
   for (const { node } of entries) {
     const fm = {};
     for (const f of node.fields) {
-      if (f.key === "label" || f.key === "min" || f.key === "max")
+      if (
+        f.key === "key" ||
+        f.key === "label" ||
+        f.key === "min" ||
+        f.key === "max"
+      )
         fm[f.key] = f.value;
     }
     const label = (fm.label ?? "").trim();
     const min = parseFloat(fm.min ?? 0);
     const max = parseFloat(fm.max ?? 0);
-    const vKey = node.handle;
+    const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : node.handle;
     if (!label || isNaN(min) || isNaN(max)) continue;
     const entry = { label, min, max, hint: `${min}–${max}` };
-    map[vKey] = entry;
+    map[node.handle] = entry;
+    map[canonicalKey] = entry;
     map[label] = entry;
     map[`Vest ${label}`] = entry;
-    fieldsList.push({ key: vKey, label, min, max });
+    fieldsList.push({ key: canonicalKey, label, min, max });
   }
   _vestRangesCache = map;
   _vestFieldsListCache = fieldsList;
@@ -1309,19 +1315,25 @@ async function _loadShirtData() {
   for (const { node } of entries) {
     const fm = {};
     for (const f of node.fields) {
-      if (f.key === "label" || f.key === "min" || f.key === "max")
+      if (
+        f.key === "key" ||
+        f.key === "label" ||
+        f.key === "min" ||
+        f.key === "max"
+      )
         fm[f.key] = f.value;
     }
     const label = (fm.label ?? "").trim();
     const min = parseFloat(fm.min ?? 0);
     const max = parseFloat(fm.max ?? 0);
-    const sKey = node.handle;
+    const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : node.handle;
     if (!label || isNaN(min) || isNaN(max)) continue;
     const entry = { label, min, max, hint: `${min}–${max}` };
-    map[sKey] = entry;
+    map[node.handle] = entry;
+    map[canonicalKey] = entry;
     map[label] = entry;
     map[`Shirt ${label}`] = entry;
-    fieldsList.push({ key: sKey, label, min, max });
+    fieldsList.push({ key: canonicalKey, label, min, max });
   }
   _shirtRangesCache = map;
   _shirtFieldsListCache = fieldsList;
@@ -1367,19 +1379,25 @@ async function _loadTrouserData() {
   for (const { node } of entries) {
     const fm = {};
     for (const f of node.fields) {
-      if (f.key === "label" || f.key === "min" || f.key === "max")
+      if (
+        f.key === "key" ||
+        f.key === "label" ||
+        f.key === "min" ||
+        f.key === "max"
+      )
         fm[f.key] = f.value;
     }
     const label = (fm.label ?? "").trim();
     const min = parseFloat(fm.min ?? 0);
     const max = parseFloat(fm.max ?? 0);
-    const tKey = node.handle;
+    const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : node.handle;
     if (!label || isNaN(min) || isNaN(max)) continue;
     const entry = { label, min, max, hint: `${min}–${max}` };
-    map[tKey] = entry;
+    map[node.handle] = entry;
+    map[canonicalKey] = entry;
     map[label] = entry;
     map[`Trouser ${label}`] = entry;
-    fieldsList.push({ key: tKey, label, min, max });
+    fieldsList.push({ key: canonicalKey, label, min, max });
   }
   _trouserRangesCache = map;
   _trouserFieldsListCache = fieldsList;

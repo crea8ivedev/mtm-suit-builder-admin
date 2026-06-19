@@ -188,6 +188,18 @@ function buildStyleOptionsByGarment(
 
 function resolveLabel(rawKey, labelMap) {
   if (labelMap[rawKey]) return labelMap[rawKey];
+  if (rawKey.startsWith("Jacket ")) {
+    const stripped = rawKey.slice("Jacket ".length);
+    return labelMap[stripped] ?? stripped;
+  }
+  if (rawKey.startsWith("Trouser ")) {
+    const stripped = rawKey.slice("Trouser ".length);
+    return labelMap[stripped] ?? stripped;
+  }
+  if (rawKey.startsWith("Vest ")) {
+    const stripped = rawKey.slice("Vest ".length);
+    return labelMap[stripped] ?? stripped;
+  }
   if (rawKey.startsWith("Style: ")) return rawKey.slice("Style: ".length);
   if (rawKey.includes(" - ")) {
     const cat = rawKey.split(" - ").slice(1).join(" - ");

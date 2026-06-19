@@ -252,12 +252,60 @@ export async function getCraftOptions(pid, categoryId = 2) {
   return options;
 }
 
-// Garment prefix in Shopify attribute key → KT categoryId from getSizeConflict
+// Garment → KT categoryId (from getSizeConflict API)
 const _GARMENT_CATEGORY_IDS = {
   Jacket: 2,
   Trouser: 1001,
   Vest: 1002,
   Shirt: 1100,
+};
+
+// Garment → KT categoryCode (from KT supplier Excel, verified by PHP app)
+const _GARMENT_CATEGORY_CODES = {
+  Jacket: "MXF",
+  Trouser: "MXK",
+  Vest: "MMJ",
+  Shirt: "MCY",
+};
+
+// Top-level `category` field based on garment combination (KT supplier Excel)
+function _topLevelCategory(garments) {
+  const has = (g) => garments.includes(g);
+  if (has("Jacket") && has("Trouser") && has("Vest")) return "S"; // 3pc suit
+  if (has("Jacket") && has("Trouser")) return "T"; // 2pc suit
+  if (has("Jacket")) return "MXF";
+  if (has("Trouser")) return "MXK";
+  if (has("Vest")) return "MMJ";
+  if (has("Shirt")) return "MCY";
+  return "T";
+}
+
+// Static position ecodes per garment from KT supplier Excel (verified by PHP app)
+// Keys are pre-normalized via _normalizeKtName
+const _STATIC_POSITION_ECODES = {
+  Jacket: {
+    neck: "1",
+    chest: "2",
+    stomach: "3",
+    seat: "5",
+    bicep: "8",
+    shoulder: "11",
+    sleevel: "13", // Sleeve(L)
+    sleever: "14", // Sleeve(R)
+    backlength: "15",
+    napetowaist: "18",
+    frontwaistlength: "19",
+  },
+  Trouser: {
+    waist: "4",
+    seat: "5",
+    thigh: "6",
+    urise: "7", // U-Rise / U-rise
+    outseaml: "16", // Outseam(L)
+    outseamr: "17", // Outseam(R)
+    frontwaistheight: "20",
+    backwaistheight: "21",
+  },
 };
 
 let _ktPositionMapCache = null; // set to null to force refetch after name→identifier fix
@@ -274,8 +322,9 @@ async function fetchKtPositionMap(token) {
     if (!cat.partVOSList?.length) continue;
     const catMap = {};
     for (const part of cat.partVOSList) {
+      if (!part.name || part.ecode == null) continue;
       const norm = _normalizeKtName(part.name);
-      catMap[norm] = part.name;
+      catMap[norm] = String(part.ecode);
     }
     map[cat.categoryId] = catMap;
   }
@@ -290,8 +339,8 @@ function _normalizeKtName(name) {
     .replace(/[^a-z0-9]/g, "");
 }
 
-function _resolvePositionEcode(shopifyKey, ktPositionMap) {
-  let garment = null;
+function _resolvePositionEcode(shopifyKey, ktPositionMap, garmentHint = null) {
+  let garment = garmentHint;
   let label = shopifyKey;
   for (const g of Object.keys(_GARMENT_CATEGORY_IDS)) {
     if (shopifyKey.startsWith(g + " ")) {
@@ -300,9 +349,25 @@ function _resolvePositionEcode(shopifyKey, ktPositionMap) {
       break;
     }
   }
-  const categoryId = garment ? _GARMENT_CATEGORY_IDS[garment] : null;
-  if (!categoryId || !ktPositionMap[categoryId]) return null;
-  return ktPositionMap[categoryId][_normalizeKtName(label)] ?? null;
+  const normLabel = _normalizeKtName(label);
+  if (garment) {
+    const categoryId = _GARMENT_CATEGORY_IDS[garment];
+    // 1. Dynamic KT map for this garment
+    const dynHit = ktPositionMap[categoryId]?.[normLabel];
+    if (dynHit) return dynHit;
+    // 2. Static fallback for this garment
+    const staticHit = _STATIC_POSITION_ECODES[garment]?.[normLabel];
+    if (staticHit) return staticHit;
+  }
+  // 3. Search all dynamic categories
+  for (const catMap of Object.values(ktPositionMap)) {
+    if (catMap[normLabel]) return catMap[normLabel];
+  }
+  // 4. Search all static fallbacks
+  for (const staticMap of Object.values(_STATIC_POSITION_ECODES)) {
+    if (staticMap[normLabel]) return staticMap[normLabel];
+  }
+  return null;
 }
 
 function mapSizes(customAttributes = [], ktPositionMap = {}) {
@@ -312,6 +377,41 @@ function mapSizes(customAttributes = [], ktPositionMap = {}) {
       continue;
     const ecode = _resolvePositionEcode(a.key, ktPositionMap);
     if (!ecode) continue;
+    result.push({ positionEcode: ecode, size: parseFloat(a.value) });
+  }
+  return result;
+}
+
+// Collect sizes for a specific garment, using garment-scoped ecode lookup.
+// Skips attrs that explicitly belong to a different garment (legacy prefixed keys).
+// Deduplicates by ecode within the garment.
+function mapSizesForGarment(
+  customAttributes = [],
+  garment,
+  ktPositionMap = {},
+) {
+  const seenEcodes = new Set();
+  const result = [];
+  for (const a of customAttributes) {
+    if (a.key.startsWith("_") || !a.value || isNaN(parseFloat(a.value)))
+      continue;
+    // If key has a garment prefix that is NOT this garment, skip it
+    let label = a.key;
+    let belongsToOtherGarment = false;
+    for (const g of Object.keys(_GARMENT_CATEGORY_IDS)) {
+      if (a.key.startsWith(g + " ")) {
+        if (g !== garment) {
+          belongsToOtherGarment = true;
+        } else {
+          label = a.key.slice(g.length + 1);
+        }
+        break;
+      }
+    }
+    if (belongsToOtherGarment) continue;
+    const ecode = _resolvePositionEcode(label, ktPositionMap, garment);
+    if (!ecode || seenEcodes.has(ecode)) continue;
+    seenEcodes.add(ecode);
     result.push({ positionEcode: ecode, size: parseFloat(a.value) });
   }
   return result;
@@ -330,18 +430,89 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
   const height = parseFloat(kuteAttr(attrs, "height") ?? "0") || 0;
   const weight = parseFloat(kuteAttr(attrs, "weight") ?? "0") || 0;
   const gender = parseInt(kuteAttr(attrs, "gender") ?? "1004", 10);
+  const heightUnit = parseInt(kuteAttr(attrs, "heightUnit") ?? "1019", 10);
+  const weightUnit = parseInt(kuteAttr(attrs, "weightUnit") ?? "1017", 10);
+  const isSample = parseInt(kuteAttr(attrs, "isSample") ?? "0", 10);
+
+  // Garments stored during order creation ("Jacket,Trouser" etc.)
+  const garmentsRaw = kuteAttr(attrs, "garments") ?? "";
+  const garments = garmentsRaw
+    ? garmentsRaw
+        .split(",")
+        .map((g) => g.trim())
+        .filter(Boolean)
+    : [];
+
+  // Top-level category: derived from garment combination, not hardcoded
+  const category = garments.length
+    ? _topLevelCategory(garments)
+    : (kuteAttr(attrs, "category") ?? "T");
 
   const rawNo =
     (order.name ?? "").replace(/^#/, "") || (order.id ?? "").split("/").pop();
   const customerNo = rawNo.padStart(8, "0");
+
+  const orderDetails = lineItems.flatMap((item) => {
+    const itemAttrs = item.customAttributes ?? [];
+    const versionStyleRaw = kuteAttr(itemAttrs, "versionStyle");
+    // versionStyle: 1=Slim, 2=Regular (default), 3=Loose (from KT supplier Excel)
+    const versionStyle = versionStyleRaw ? parseInt(versionStyleRaw, 10) : 2;
+    const crafts = kuteAttr(itemAttrs, "crafts") ?? "";
+    const styleCode = kuteAttr(itemAttrs, "styleCode") ?? "";
+    const sizeNames = kuteAttr(itemAttrs, "sizeNames") ?? "";
+
+    if (garments.length > 0) {
+      // One orderDetail per garment with garment-scoped measurements
+      return garments.map((garment) => {
+        const orderSizes = mapSizesForGarment(
+          itemAttrs,
+          garment,
+          ktPositionMap,
+        );
+        if (!orderSizes.length) {
+          console.warn(
+            `[KT] orderSizes EMPTY for garment "${garment}" — check customAttributes keys`,
+          );
+          const keys = itemAttrs
+            .filter((a) => !a.key.startsWith("_"))
+            .map((a) => a.key);
+          console.warn(`[KT] available non-private attr keys:`, keys);
+        } else {
+          console.log(`[KT] orderSizes for "${garment}":`, orderSizes);
+        }
+        return {
+          categoryCode: _GARMENT_CATEGORY_CODES[garment] ?? "MXF",
+          styleCode,
+          crafts,
+          sizeNames,
+          versionStyle,
+          orderSizes,
+          orderEmbs: [],
+        };
+      });
+    }
+
+    // Fallback: no garment info stored — one detail per line item
+    return [
+      {
+        categoryCode: kuteAttr(itemAttrs, "categoryCode") ?? "MXF",
+        styleCode,
+        crafts,
+        sizeNames,
+        versionStyle,
+        orderSizes: mapSizes(itemAttrs, ktPositionMap),
+        orderEmbs: [],
+      },
+    ];
+  });
 
   return {
     customerNo,
     submit,
     addProduct: lineItems.length > 1,
     amount: lineItems.reduce((s, i) => s + (i.quantity ?? 1), 0),
-    isSample: 0,
-    category: kuteAttr(attrs, "category") ?? "T",
+    isSample,
+    category,
     measuresType: parseInt(kuteAttr(attrs, "measuresType") ?? "10001", 10),
     fabric: kuteAttr(attrs, "fabric") ?? "",
     customer: {
@@ -354,44 +525,64 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
       email: order.customer?.email ?? "",
       address: order.shippingAddress?.address1 ?? "",
       height,
-      heightUnit: 1019,
+      heightUnit,
       weight,
-      weightUnit: 1017,
+      weightUnit,
     },
-    orderDetails: lineItems.map((item) => {
-      const itemAttrs = item.customAttributes ?? [];
-      const versionStyleRaw = kuteAttr(itemAttrs, "versionStyle");
-      return {
-        categoryCode: kuteAttr(itemAttrs, "categoryCode") ?? "MXF",
-        styleCode: kuteAttr(itemAttrs, "styleCode") ?? "",
-        crafts: kuteAttr(itemAttrs, "crafts") ?? "",
-        sizeNames: kuteAttr(itemAttrs, "sizeNames") ?? "",
-        versionStyle: versionStyleRaw ? parseInt(versionStyleRaw, 10) : 10,
-        orderSizes: mapSizes(itemAttrs, ktPositionMap),
-        orderEmbs: [],
-      };
-    }),
+    orderDetails,
   };
 }
 
-function resolveConflictingCrafts(craftsStr, errorMessage) {
-  const groupMatches = [...errorMessage.matchAll(/\[([^\]]+)\]/g)];
-  if (!groupMatches.length) return { crafts: craftsStr, fallbacks: {} };
-  let ecodes = craftsStr
-    .split(",")
-    .map((e) => e.trim())
-    .filter(Boolean);
-  const fallbacks = {};
-  for (const m of groupMatches) {
-    const conflicting = m[1].split(",").map((c) => c.trim());
-    const present = conflicting.filter((c) => ecodes.includes(c));
-    if (present.length <= 1) continue;
-    const [keep, ...rest] = present;
-    fallbacks[keep] = rest;
-    const restSet = new Set(rest);
-    ecodes = ecodes.filter((e) => !restSet.has(e));
+// Returns the bare code from a craft entry that may have ":content" suffix
+function _craftCode(entry) {
+  return entry.split(":")[0].trim();
+}
+
+// Resolve craft group conflicts across ALL orderDetails collectively.
+// Handles two KT error formats:
+//   [000B,00C1]            — "Each group of these craft can only choose one"
+//   {302L} and {302E}      — "X{code1} and Y{code2} conflict exists"
+function resolveConflictingCraftsAcrossDetails(details, errorMessage) {
+  const groups = [];
+
+  // Format 1: [code1,code2,...] — multiple codes in one bracket group
+  for (const m of errorMessage.matchAll(/\[([^\]]+)\]/g)) {
+    groups.push(
+      m[1]
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean),
+    );
   }
-  return { crafts: ecodes.join(","), fallbacks };
+
+  // Format 2: {code} ... {code} conflict exists — each brace is one conflicting code
+  if (!groups.length && errorMessage.includes("conflict")) {
+    const curly = [...errorMessage.matchAll(/\{([^}]+)\}/g)].map((m) =>
+      m[1].trim(),
+    );
+    if (curly.length >= 2) groups.push(curly);
+  }
+
+  if (!groups.length) return;
+
+  for (const conflicting of groups) {
+    let kept = null;
+    for (const detail of details) {
+      const ecodes = detail.crafts
+        .split(",")
+        .map((e) => e.trim())
+        .filter(Boolean);
+      const present = conflicting.filter((c) =>
+        ecodes.some((e) => _craftCode(e) === c),
+      );
+      if (!present.length) continue;
+      if (!kept) kept = present[0];
+      const toRemove = new Set(present.filter((c) => c !== kept));
+      detail.crafts = ecodes
+        .filter((e) => !toRemove.has(_craftCode(e)))
+        .join(",");
+    }
+  }
 }
 
 function removeContentRequiredCraft(craftsStr, errorMessage) {
@@ -401,7 +592,7 @@ function removeContentRequiredCraft(craftsStr, errorMessage) {
   return craftsStr
     .split(",")
     .map((e) => e.trim())
-    .filter((e) => e && e !== badEcode)
+    .filter((e) => e && _craftCode(e) !== badEcode)
     .join(",");
 }
 
@@ -440,12 +631,14 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
   for (const detail of payload.orderDetails) {
     const isLegacyJson = detail.crafts && detail.crafts.trim().startsWith("[");
     if (!detail.crafts || isLegacyJson) {
-      const categoryId = detail._categoryId ?? 2;
+      const garment = Object.keys(_GARMENT_CATEGORY_CODES).find(
+        (g) => _GARMENT_CATEGORY_CODES[g] === detail.categoryCode,
+      );
+      const categoryId = garment ? _GARMENT_CATEGORY_IDS[garment] : 2;
       detail.crafts = await fetchDefaultCraftsString(categoryId, token).catch(
         () => "",
       );
     }
-    delete detail._categoryId;
   }
 
   console.log(
@@ -456,37 +649,36 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
   let { res, rawText, body } = await postSaveOrder(token, payload);
   console.log("[KT] saveOrder response", res.status, rawText.slice(0, 500));
 
-  // Retry A: resolve mutually exclusive craft group conflicts
-  if (
-    typeof body.message === "string" &&
-    body.message.includes("Each group of these craft can only choose one")
-  ) {
-    console.log("[KT] resolving craft group conflicts, retrying...");
-    for (const detail of payload.orderDetails) {
-      const { crafts } = resolveConflictingCrafts(detail.crafts, body.message);
-      detail.crafts = crafts;
-    }
-    ({ res, rawText, body } = await postSaveOrder(token, payload));
-    console.log("[KT] retry A response", res.status, rawText.slice(0, 500));
-  }
-
-  // Retry B+: loop — remove each craft requiring content until none left (max 15 iterations)
-  let contentRetries = 0;
-  while (
-    typeof body.message === "string" &&
-    body.message.includes("please fill in the content specified by craft") &&
-    contentRetries++ < 15
-  ) {
-    console.log(
-      "[KT] removing content-required craft, retrying...",
-      contentRetries,
-    );
-    for (const detail of payload.orderDetails) {
-      detail.crafts = removeContentRequiredCraft(detail.crafts, body.message);
+  // Unified craft retry loop — handles group conflicts and content-required errors
+  // in any order they appear, up to 25 total iterations.
+  let craftRetries = 0;
+  while (typeof body.message === "string" && craftRetries++ < 25) {
+    const msg = body.message;
+    if (
+      msg.includes("Each group of these craft can only choose one") ||
+      (msg.includes("conflict") && /\{[^}]+\}/.test(msg))
+    ) {
+      console.log(
+        "[KT] resolving craft group conflicts, attempt",
+        craftRetries,
+      );
+      resolveConflictingCraftsAcrossDetails(payload.orderDetails, msg);
+    } else if (msg.includes("please fill in the content specified by craft")) {
+      console.log(
+        "[KT] removing content-required craft, attempt",
+        craftRetries,
+      );
+      for (const detail of payload.orderDetails) {
+        detail.crafts = removeContentRequiredCraft(detail.crafts, msg);
+      }
+    } else {
+      break; // not a craft error — stop retrying
     }
     ({ res, rawText, body } = await postSaveOrder(token, payload));
     console.log(
-      "[KT] retry B" + contentRetries + " response",
+      "[KT] craft retry",
+      craftRetries,
+      "response",
       res.status,
       rawText.slice(0, 500),
     );
@@ -507,6 +699,12 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
         : typeof msg === "object"
           ? JSON.stringify(msg)
           : String(msg);
+    console.error("[KT] saveOrder error:", {
+      status: res.status,
+      body,
+      rawText,
+      payload,
+    });
     throw new Error(msgStr);
   }
   return { payload, response: body };

@@ -41,6 +41,18 @@ function formatMoneyRaw(amount, currencyCode) {
 // Use labelMap for measurement field display labels
 function attrDisplayLabel(key, labelMap = {}) {
   if (labelMap[key]) return labelMap[key];
+  if (key.startsWith("Jacket ")) {
+    const stripped = key.slice("Jacket ".length);
+    return labelMap[stripped] ?? stripped;
+  }
+  if (key.startsWith("Trouser ")) {
+    const stripped = key.slice("Trouser ".length);
+    return labelMap[stripped] ?? stripped;
+  }
+  if (key.startsWith("Vest ")) {
+    const stripped = key.slice("Vest ".length);
+    return labelMap[stripped] ?? stripped;
+  }
   if (key.includes(" - ")) return key.split(" - ").slice(1).join(" - ");
   return key;
 }

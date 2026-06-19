@@ -514,15 +514,18 @@ export default function CreateOrder() {
       }
     }
     return canonicalFields.map((f) => {
-      const displayKey = f.garment ? `${f.garment} ${f.label}` : f.key;
+      const displayKey = f.label;
+      const legacyKey = f.garment ? `${f.garment} ${f.label}` : f.key;
       let value =
         directMap.get(displayKey.toLowerCase()) ??
+        directMap.get(legacyKey.toLowerCase()) ??
         directMap.get(f.key.toLowerCase()) ??
         "";
       if (!value) {
         const e =
+          getRangeForKey(rangeMap, f.label) ??
           getRangeForKey(rangeMap, f.key) ??
-          getRangeForKey(rangeMap, displayKey);
+          getRangeForKey(rangeMap, legacyKey);
         if (e) value = fingerMap.get(`${e.label}|${e.min}|${e.max}`) ?? "";
       }
       return { key: displayKey, value };
@@ -534,10 +537,7 @@ export default function CreateOrder() {
     if (garments.length) {
       const canonical = await getCanonicalFieldsForGarments(garments);
       if (canonical.length)
-        return canonical.map((f) => ({
-          key: `${f.garment} ${f.label}`,
-          value: "",
-        }));
+        return canonical.map((f) => ({ key: f.label, value: "" }));
     }
     const serverFields = await getProductFields(product.id);
     if (serverFields.length > 0)
@@ -604,10 +604,7 @@ export default function CreateOrder() {
         const canonical = await getCanonicalFieldsForGarments(garments);
         setAttributes(
           applyDefaultSizeType(
-            canonical.map((f) => ({
-              key: f.garment ? `${f.garment} ${f.label}` : f.key,
-              value: "",
-            })),
+            canonical.map((f) => ({ key: f.label, value: "" })),
           ),
         );
       } catch {
@@ -978,11 +975,18 @@ export default function CreateOrder() {
         ? { variantId: selectedVariant.id }
         : { title: selectedProduct.title };
 
+      const garments = garmentsFromGcBuilderValue(
+        selectedProduct.metafield?.value,
+      );
+
       const draft = await createDraftOrder({
         customerId: selectedCustomer.id,
         customAttributes: [
           ...(selectedFabric?.kutetailorCode
             ? [{ key: "_kute_fabric", value: selectedFabric.kutetailorCode }]
+            : []),
+          ...(garments.length
+            ? [{ key: "_kute_garments", value: garments.join(",") }]
             : []),
         ],
         lineItems: [
