@@ -980,6 +980,11 @@ export default function CreateOrder() {
 
       const draft = await createDraftOrder({
         customerId: selectedCustomer.id,
+        customAttributes: [
+          ...(selectedFabric?.kutetailorCode
+            ? [{ key: "_kute_fabric", value: selectedFabric.kutetailorCode }]
+            : []),
+        ],
         lineItems: [
           {
             ...lineItemBase,

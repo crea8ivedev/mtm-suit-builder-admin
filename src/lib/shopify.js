@@ -974,16 +974,29 @@ const SET_METAFIELDS = `
 `;
 
 export async function setOrderMetafields(shopifyGid, fields) {
-  const metafields = fields.map(({ key, value }) => ({
-    ownerId: shopifyGid,
-    namespace: "suit_admin",
-    key,
-    value: String(value),
-    type: "single_line_text_field",
-  }));
+  const metafields = fields
+    .filter(({ value }) => String(value) !== "")
+    .map(({ key, value }) => ({
+      ownerId: shopifyGid,
+      namespace: "suit_admin",
+      key,
+      value: String(value),
+      type: "single_line_text_field",
+    }));
+  if (!metafields.length) return [];
   const data = await shopifyGraphQL(SET_METAFIELDS, { metafields });
   const errors = data.metafieldsSet?.userErrors ?? [];
-  if (errors.length) throw new Error(errors[0].message);
+  if (errors.length) {
+    console.error(
+      "[Shopify metafieldsSet] userErrors:",
+      JSON.stringify(errors),
+    );
+    console.error(
+      "[Shopify metafieldsSet] fields sent:",
+      JSON.stringify(metafields),
+    );
+    throw new Error(errors[0].message);
+  }
   return data.metafieldsSet.metafields;
 }
 
@@ -2357,6 +2370,10 @@ export async function fetchShopifyColorPattern() {
         label: fieldMap.label ?? node.displayName,
         color: fieldMap.color ?? null,
         code: fieldMap.code ?? null,
+        kutetailorCode: fieldMap.kutetailor_code ?? null,
+        collections: fieldMap.collections
+          ? JSON.parse(fieldMap.collections)
+          : [],
         imageUrl: null,
         imageGid: imageGid,
         imageAlt: node.displayName,

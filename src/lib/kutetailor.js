@@ -170,6 +170,19 @@ async function fetchCraftsByCategory(categoryId, token) {
     }));
 }
 
+async function fetchDefaultCraftsString(categoryId, token) {
+  const crafts = await fetchCraftsByCategory(categoryId, token);
+  const seen = new Set();
+  const ecodes = [];
+  for (const c of crafts) {
+    if (c.code && !seen.has(c.code)) {
+      seen.add(c.code);
+      ecodes.push(c.code);
+    }
+  }
+  return ecodes.join(",");
+}
+
 export async function getCrafts(categoryId) {
   if (
     _craftsCache[categoryId] &&
@@ -239,19 +252,76 @@ export async function getCraftOptions(pid, categoryId = 2) {
   return options;
 }
 
-function mapSizes(customAttributes = []) {
-  return customAttributes
-    .filter(
-      (a) => !a.key.startsWith("_") && a.value && !isNaN(parseFloat(a.value)),
-    )
-    .map((a) => ({ positionEcode: a.key, size: parseFloat(a.value) }));
+// Garment prefix in Shopify attribute key → KT categoryId from getSizeConflict
+const _GARMENT_CATEGORY_IDS = {
+  Jacket: 2,
+  Trouser: 1001,
+  Vest: 1002,
+  Shirt: 1100,
+};
+
+let _ktPositionMapCache = null; // set to null to force refetch after name→identifier fix
+
+async function fetchKtPositionMap(token) {
+  if (_ktPositionMapCache) return _ktPositionMapCache;
+  const res = await ktFetch(
+    "/customer/customer/size-conflict/getSizeConflict",
+    token,
+  );
+  if (!Array.isArray(res.data)) return {};
+  const map = {};
+  for (const cat of res.data) {
+    if (!cat.partVOSList?.length) continue;
+    const catMap = {};
+    for (const part of cat.partVOSList) {
+      const norm = _normalizeKtName(part.name);
+      catMap[norm] = part.name;
+    }
+    map[cat.categoryId] = catMap;
+  }
+  _ktPositionMapCache = map;
+  return map;
+}
+
+function _normalizeKtName(name) {
+  return (name ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function _resolvePositionEcode(shopifyKey, ktPositionMap) {
+  let garment = null;
+  let label = shopifyKey;
+  for (const g of Object.keys(_GARMENT_CATEGORY_IDS)) {
+    if (shopifyKey.startsWith(g + " ")) {
+      garment = g;
+      label = shopifyKey.slice(g.length + 1);
+      break;
+    }
+  }
+  const categoryId = garment ? _GARMENT_CATEGORY_IDS[garment] : null;
+  if (!categoryId || !ktPositionMap[categoryId]) return null;
+  return ktPositionMap[categoryId][_normalizeKtName(label)] ?? null;
+}
+
+function mapSizes(customAttributes = [], ktPositionMap = {}) {
+  const result = [];
+  for (const a of customAttributes) {
+    if (a.key.startsWith("_") || !a.value || isNaN(parseFloat(a.value)))
+      continue;
+    const ecode = _resolvePositionEcode(a.key, ktPositionMap);
+    if (!ecode) continue;
+    result.push({ positionEcode: ecode, size: parseFloat(a.value) });
+  }
+  return result;
 }
 
 function kuteAttr(customAttributes = [], key) {
   return customAttributes.find((a) => a.key === `_kute_${key}`)?.value ?? null;
 }
 
-function buildOrderPayload(order, { submit }) {
+function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
   const attrs = order.customAttributes ?? [];
   const firstName = order.customer?.firstName ?? "";
   const lastName = order.customer?.lastName ?? "";
@@ -261,8 +331,9 @@ function buildOrderPayload(order, { submit }) {
   const weight = parseFloat(kuteAttr(attrs, "weight") ?? "0") || 0;
   const gender = parseInt(kuteAttr(attrs, "gender") ?? "1004", 10);
 
-  const customerNo =
-    (order.id ?? "").split("/").pop() || order.name.replace(/\D/g, "");
+  const rawNo =
+    (order.name ?? "").replace(/^#/, "") || (order.id ?? "").split("/").pop();
+  const customerNo = rawNo.padStart(8, "0");
 
   return {
     customerNo,
@@ -289,24 +360,52 @@ function buildOrderPayload(order, { submit }) {
     },
     orderDetails: lineItems.map((item) => {
       const itemAttrs = item.customAttributes ?? [];
+      const versionStyleRaw = kuteAttr(itemAttrs, "versionStyle");
       return {
         categoryCode: kuteAttr(itemAttrs, "categoryCode") ?? "MXF",
         styleCode: kuteAttr(itemAttrs, "styleCode") ?? "",
         crafts: kuteAttr(itemAttrs, "crafts") ?? "",
         sizeNames: kuteAttr(itemAttrs, "sizeNames") ?? "",
-        orderSizes: mapSizes(itemAttrs),
+        versionStyle: versionStyleRaw ? parseInt(versionStyleRaw, 10) : 10,
+        orderSizes: mapSizes(itemAttrs, ktPositionMap),
         orderEmbs: [],
       };
     }),
   };
 }
 
-export async function sendToKutetailor(order, { submit = true } = {}) {
-  const token = await getToken();
-  const payload = buildOrderPayload(order, { submit });
+function resolveConflictingCrafts(craftsStr, errorMessage) {
+  const groupMatches = [...errorMessage.matchAll(/\[([^\]]+)\]/g)];
+  if (!groupMatches.length) return { crafts: craftsStr, fallbacks: {} };
+  let ecodes = craftsStr
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+  const fallbacks = {};
+  for (const m of groupMatches) {
+    const conflicting = m[1].split(",").map((c) => c.trim());
+    const present = conflicting.filter((c) => ecodes.includes(c));
+    if (present.length <= 1) continue;
+    const [keep, ...rest] = present;
+    fallbacks[keep] = rest;
+    const restSet = new Set(rest);
+    ecodes = ecodes.filter((e) => !restSet.has(e));
+  }
+  return { crafts: ecodes.join(","), fallbacks };
+}
 
-  console.log("[KT] POST /order/saveOrder payload:", JSON.stringify(payload, null, 2));
+function removeContentRequiredCraft(craftsStr, errorMessage) {
+  const match = errorMessage.match(/craft<([^>]+)>/);
+  if (!match) return craftsStr;
+  const badEcode = match[1].trim();
+  return craftsStr
+    .split(",")
+    .map((e) => e.trim())
+    .filter((e) => e && e !== badEcode)
+    .join(",");
+}
 
+async function postSaveOrder(token, payload) {
   const res = await fetch(`${BASE}/order/saveOrder`, {
     method: "POST",
     headers: {
@@ -318,12 +417,87 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(30000),
   });
-
   const rawText = await res.text().catch(() => "");
+  let body = {};
+  try {
+    body = JSON.parse(rawText);
+  } catch {}
+  return { res, rawText, body };
+}
+
+export async function sendToKutetailor(order, { submit = true } = {}) {
+  const token = await getToken();
+  const ktPositionMap = await fetchKtPositionMap(token).catch(() => ({}));
+  const payload = buildOrderPayload(order, { submit, ktPositionMap });
+
+  if (!payload.fabric) {
+    throw new Error(
+      "Fabric is required. Please select a fabric for this order before submitting to KuteTailor.",
+    );
+  }
+
+  // Inject default crafts when blank or stored in legacy [{pid,craftId}] JSON format
+  for (const detail of payload.orderDetails) {
+    const isLegacyJson = detail.crafts && detail.crafts.trim().startsWith("[");
+    if (!detail.crafts || isLegacyJson) {
+      const categoryId = detail._categoryId ?? 2;
+      detail.crafts = await fetchDefaultCraftsString(categoryId, token).catch(
+        () => "",
+      );
+    }
+    delete detail._categoryId;
+  }
+
+  console.log(
+    "[KT] POST /order/saveOrder payload:",
+    JSON.stringify(payload, null, 2),
+  );
+
+  let { res, rawText, body } = await postSaveOrder(token, payload);
   console.log("[KT] saveOrder response", res.status, rawText.slice(0, 500));
 
-  let body = {};
-  try { body = JSON.parse(rawText); } catch {}
+  // Retry A: resolve mutually exclusive craft group conflicts
+  if (
+    typeof body.message === "string" &&
+    body.message.includes("Each group of these craft can only choose one")
+  ) {
+    console.log("[KT] resolving craft group conflicts, retrying...");
+    for (const detail of payload.orderDetails) {
+      const { crafts } = resolveConflictingCrafts(detail.crafts, body.message);
+      detail.crafts = crafts;
+    }
+    ({ res, rawText, body } = await postSaveOrder(token, payload));
+    console.log("[KT] retry A response", res.status, rawText.slice(0, 500));
+  }
+
+  // Retry B+: loop — remove each craft requiring content until none left (max 15 iterations)
+  let contentRetries = 0;
+  while (
+    typeof body.message === "string" &&
+    body.message.includes("please fill in the content specified by craft") &&
+    contentRetries++ < 15
+  ) {
+    console.log(
+      "[KT] removing content-required craft, retrying...",
+      contentRetries,
+    );
+    for (const detail of payload.orderDetails) {
+      detail.crafts = removeContentRequiredCraft(detail.crafts, body.message);
+    }
+    ({ res, rawText, body } = await postSaveOrder(token, payload));
+    console.log(
+      "[KT] retry B" + contentRetries + " response",
+      res.status,
+      rawText.slice(0, 500),
+    );
+  }
+
+  if (
+    typeof body.message === "string" &&
+    body.message.includes("duplicate customer no")
+  ) {
+    return { payload, response: body, alreadySubmitted: true };
+  }
 
   if (!res.ok || body.code === "1" || body.code === 1) {
     const msg = body?.message ?? body?.msg ?? body?.error ?? body?.data ?? null;
@@ -331,8 +505,8 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
       msg == null
         ? `HTTP ${res.status}${rawText ? `: ${rawText.slice(0, 300)}` : ""}`
         : typeof msg === "object"
-        ? JSON.stringify(msg)
-        : String(msg);
+          ? JSON.stringify(msg)
+          : String(msg);
     throw new Error(msgStr);
   }
   return { payload, response: body };
