@@ -21,7 +21,7 @@ async function handleSendToSupplier(orderId, supplierId) {
   await setOrderMetafields(shopifyGid, [
     { key: "supplier_name", value: supplier.id },
     { key: "supplier_status", value: "processing" },
-  ]).catch(() => {});
+  ]).catch(() => { });
 
   const order = await getOrderForSupplier(shopifyGid);
   const result = await handler(order);
@@ -30,11 +30,11 @@ async function handleSendToSupplier(orderId, supplierId) {
   const supplierRef = refRaw
     ? typeof refRaw === "object"
       ? String(
-          refRaw.orderId ??
-            refRaw.orderNo ??
-            refRaw.id ??
-            JSON.stringify(refRaw),
-        )
+        refRaw.orderId ??
+        refRaw.orderNo ??
+        refRaw.id ??
+        JSON.stringify(refRaw),
+      )
       : String(refRaw)
     : "";
 
@@ -68,13 +68,13 @@ export function useSupplierSubmit(orderId, onSettled) {
         await setOrderMetafields(shopifyGid, [
           { key: "supplier_status", value: "failed" },
           { key: "supplier_error", value: errMsg },
-        ]).catch(() => {});
+        ]).catch(() => { });
         setSubmitError(errMsg);
       } finally {
         setSubmitting(false);
-        // refetch AFTER setSubmitError so React state persists through the re-render
+
         await onSettled?.();
-        // Re-apply error after refetch in case it got wiped by the data refresh
+
         if (errMsg) setSubmitError(errMsg);
       }
     },
