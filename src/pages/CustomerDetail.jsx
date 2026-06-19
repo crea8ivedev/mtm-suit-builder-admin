@@ -37,6 +37,7 @@ import {
   fetchButtonCodes,
   setCustomerProductsMetafield,
   fetchCustomerGcMeasurements,
+  fetchFitSizeOptions,
 } from "../lib/shopify";
 
 const INLINE_KEYS = new Set(["fabric", "size type"]);
@@ -309,6 +310,87 @@ function StyleOptionDropdown({ label, opts, value, onChange }) {
     </div>
   );
 }
+function FitSizeDropdown({ label, choices, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useClickOutside(ref, () => setOpen(false));
+  const match = choices.find((c) => c.label === value);
+  const displayText = match
+    ? match.sizeLabel
+      ? `${match.label} (${match.sizeLabel})`
+      : match.label
+    : value || null;
+  return (
+    <div
+      ref={ref}
+      className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[12px] min-w-0 overflow-visible border-r border-b border-gc-section-divider/40 h-[90px] sm:h-[100px]"
+    >
+      <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
+        {label}
+      </span>
+      <div className="relative w-full mt-[4px]">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="font-hanken w-full flex items-center justify-between gap-[4px] text-[12px] sm:text-[13px] font-medium text-gc-near-black2 bg-gc-bg-warm rounded-[6px] px-[8px] py-[8px] border border-gc-border-input cursor-pointer"
+        >
+          <span
+            className={`truncate ${displayText ? "text-gc-near-black2" : "text-[#9ca3af]"}`}
+          >
+            {displayText || "— Select —"}
+          </span>
+          <ChevronDown
+            size={12}
+            className={`flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+        {open && (
+          <div className="absolute left-0 top-full z-50 bg-white rounded-[8px] shadow-lg border border-gc-border-input min-w-[160px]">
+            <ul className="max-h-[200px] overflow-y-auto py-[4px]">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange("");
+                    setOpen(false);
+                  }}
+                  className="font-hanken w-full text-left px-[12px] py-[8px] text-[12px] text-[#9ca3af] hover:bg-gc-bg flex items-center justify-between cursor-pointer"
+                >
+                  — Select —
+                  {!value && <Check size={11} className="text-gc-primary" />}
+                </button>
+              </li>
+              {choices.map((c) => (
+                <li key={c.label}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(c.label);
+                      setOpen(false);
+                    }}
+                    className="font-hanken w-full text-left px-[12px] py-[8px] text-[12px] text-gc-near-black2 hover:bg-gc-bg flex items-center justify-between gap-[6px] cursor-pointer"
+                  >
+                    <span className="truncate">
+                      {c.label}
+                      {c.sizeLabel ? ` (${c.sizeLabel})` : ""}
+                    </span>
+                    {value === c.label && (
+                      <Check
+                        size={11}
+                        className="flex-shrink-0 text-gc-primary"
+                      />
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 import { cn } from "../utils/cn";
 
 const PAYMENT_BADGE = {
@@ -534,6 +616,99 @@ function getRangeForKey(rangeMap, key) {
   return null;
 }
 
+function renderMeasureGrid(
+  garmentLabel,
+  items,
+  isEditing,
+  editingValues,
+  mergedRangeMap,
+  touchedFields,
+  handleChange,
+) {
+  if (!items?.length) return null;
+  return (
+    <div key={garmentLabel ?? "other"} className="flex flex-col gap-[8px]">
+      {garmentLabel && (
+        <span className="font-hanken text-[11px] font-semibold text-[#a45d41] uppercase tracking-[0.8px]">
+          {garmentLabel}
+        </span>
+      )}
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 rounded-[12px] p-px gap-px border border-gc-section-divider/40">
+        {items.map(({ rawKey, key, value: displayVal }, idx) => {
+          const val = isEditing
+            ? (editingValues[rawKey] ?? displayVal)
+            : displayVal;
+          const range = getRangeForKey(mergedRangeMap, rawKey);
+          const isTouched = touchedFields.has(rawKey);
+          const numVal = parseFloat(val);
+          const hasRange = !!range;
+          const isValid =
+            isTouched &&
+            hasRange &&
+            !isNaN(numVal) &&
+            numVal >= range.min &&
+            numVal <= range.max;
+          const isInvalid =
+            isTouched &&
+            hasRange &&
+            !isNaN(numVal) &&
+            (numVal < range.min || numVal > range.max);
+          return (
+            <div
+              key={rawKey}
+              className={cn(
+                "bg-white flex flex-col p-[10px] sm:p-[20px] h-[90px] sm:h-[120px] overflow-hidden",
+                idx === 0 && "rounded-tl-[12px]",
+              )}
+            >
+              <span className="font-hanken text-[8px] sm:text-[10px] font-semibold uppercase tracking-[0.5px] text-[#7e7576] leading-[10px] sm:leading-[12px] break-words">
+                {key}
+              </span>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={val}
+                  onChange={(e) => handleChange(rawKey, e.target.value)}
+                  className={cn(
+                    "font-garamond mt-[3px] w-full text-[16px] sm:text-[20px] text-black bg-transparent outline-none border-b",
+                    isValid
+                      ? "border-green-500 text-green-700"
+                      : isInvalid
+                        ? "border-red-400 text-red-600"
+                        : "border-[#d1c7bd]",
+                  )}
+                />
+              ) : (
+                <span className="font-garamond text-[14px] sm:text-[22px] text-black leading-[18px] sm:leading-[30px] mt-[3px]">
+                  {val}
+                </span>
+              )}
+              {isEditing && range ? (
+                <span
+                  className={cn(
+                    "font-hanken text-[9px] mt-auto",
+                    isValid
+                      ? "text-green-600"
+                      : isInvalid
+                        ? "text-red-500"
+                        : "text-[#7e7576]",
+                  )}
+                >
+                  {range.min}–{range.max}
+                </span>
+              ) : (
+                <span className="font-hanken text-[9px] text-[#7e7576] mt-auto leading-[13px]">
+                  Inches
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function CustomerDetail() {
   const { customerId } = useParams();
   const navigate = useNavigate();
@@ -556,6 +731,7 @@ export default function CustomerDetail() {
   const [liningCodes, setLiningCodes] = useState([]);
   const [buttonCodes, setButtonCodes] = useState([]);
   const [gcMeasurements, setGcMeasurements] = useState({});
+  const [fitSizeOptions, setFitSizeOptions] = useState([]);
 
   useClickOutside(entriesRef, () => setEntriesOpen(false));
 
@@ -621,6 +797,9 @@ export default function CustomerDetail() {
       .then((data) => {
         if (data && Object.keys(data).length) setGcMeasurements(data);
       })
+      .catch(() => {});
+    fetchFitSizeOptions()
+      .then(setFitSizeOptions)
       .catch(() => {});
   }, [shopifyGid]);
 
@@ -714,6 +893,24 @@ export default function CustomerDetail() {
     expandedLiningCodes,
     expandedButtonCodes,
   ]);
+
+  // Set of attribute keys that are fit/size selections (not numeric measurements)
+  // e.g. "Jacket Fit", "Jacket Length", "Trouser Fit", "Trouser Length"
+  const fitSizeKeySet = useMemo(
+    () => new Set(fitSizeOptions.map((o) => `${o.garment} ${o.sizeType}`)),
+    [fitSizeOptions],
+  );
+
+  // Map from fit/size key → array of option labels for dropdown
+  const fitSizeChoicesMap = useMemo(() => {
+    const map = {};
+    for (const o of fitSizeOptions) {
+      const key = `${o.garment} ${o.sizeType}`;
+      if (!map[key]) map[key] = [];
+      if (!map[key].find((x) => x.label === o.label)) map[key].push(o);
+    }
+    return map;
+  }, [fitSizeOptions]);
 
   const styleOptionsMap = useMemo(
     () =>
@@ -1381,6 +1578,60 @@ export default function CustomerDetail() {
                         const { options, measurements: measureList } =
                           categorize(source, labelMap);
 
+                        // Separate fit/size entries from real measurements
+                        const _GARMENT_SET = new Set([
+                          "Jacket",
+                          "Trouser",
+                          "Vest",
+                          "Shirt",
+                        ]);
+                        const _FIT_SIZE_WORDS = new Set([
+                          "Fit",
+                          "Length",
+                          "Size",
+                          "Width",
+                          "Type",
+                        ]);
+                        function isFitSize(rawKey) {
+                          if (fitSizeKeySet.has(rawKey)) return true;
+                          const parts = rawKey.split(" ");
+                          return (
+                            parts.length === 2 &&
+                            _GARMENT_SET.has(parts[0]) &&
+                            _FIT_SIZE_WORDS.has(parts[1])
+                          );
+                        }
+                        const fitSizeEntries = measureList.filter((e) =>
+                          isFitSize(e.rawKey),
+                        );
+                        const pureMeasureList = measureList.filter(
+                          (e) => !isFitSize(e.rawKey),
+                        );
+
+                        // Group measurements by garment prefix
+                        const GARMENT_ORDER = [
+                          "Jacket",
+                          "Trouser",
+                          "Vest",
+                          "Shirt",
+                        ];
+                        const garmentMeasures = {};
+                        const ungroupedMeasures = [];
+                        for (const m of pureMeasureList) {
+                          const g = GARMENT_ORDER.find((g) =>
+                            m.rawKey.startsWith(g),
+                          );
+                          if (g) {
+                            if (!garmentMeasures[g]) garmentMeasures[g] = [];
+                            garmentMeasures[g].push(m);
+                          } else {
+                            ungroupedMeasures.push(m);
+                          }
+                        }
+                        const garmentMeasureEntries = GARMENT_ORDER.filter(
+                          (g) => garmentMeasures[g]?.length,
+                        );
+
                         const productGarments = derivedGarmentsFromMeasurements(
                           combinedEntry,
                           styleOptions,
@@ -1610,100 +1861,83 @@ export default function CustomerDetail() {
                               )
                             )}
 
-                            {/* Measurements */}
-                            {measureList.length > 0 && (
+                            {/* Fit & Size */}
+                            {fitSizeEntries.length > 0 && (
                               <div className="flex flex-col gap-[10px]">
                                 <span className="font-hanken text-[10px] font-semibold uppercase tracking-[1.2px] text-[#929292]">
-                                  Measurements
+                                  Fit &amp; Size
                                 </span>
-                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 rounded-[12px] p-px gap-px border border-gc-section-divider/40">
-                                  {measureList.map(
-                                    (
-                                      { rawKey, key, value: displayVal },
-                                      idx,
-                                    ) => {
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 border-l border-t border-gc-section-divider/40">
+                                  {fitSizeEntries.map(
+                                    ({ rawKey, key, value: displayVal }) => {
                                       const val = isEditing
                                         ? (editingValues[rawKey] ?? displayVal)
                                         : displayVal;
-                                      const range = getRangeForKey(
-                                        mergedRangeMap,
-                                        rawKey,
-                                      );
-                                      const isTouched =
-                                        touchedFields.has(rawKey);
-                                      const numVal = parseFloat(val);
-                                      const hasRange = !!range;
-                                      const isValid =
-                                        isTouched &&
-                                        hasRange &&
-                                        !isNaN(numVal) &&
-                                        numVal >= range.min &&
-                                        numVal <= range.max;
-                                      const isInvalid =
-                                        isTouched &&
-                                        hasRange &&
-                                        !isNaN(numVal) &&
-                                        (numVal < range.min ||
-                                          numVal > range.max);
-
+                                      const choices =
+                                        fitSizeChoicesMap[rawKey] ?? [];
+                                      if (isEditing) {
+                                        return (
+                                          <FitSizeDropdown
+                                            key={rawKey}
+                                            label={key}
+                                            choices={choices}
+                                            value={val}
+                                            onChange={(v) =>
+                                              handleProfileMeasurementChange(
+                                                rawKey,
+                                                v,
+                                              )
+                                            }
+                                          />
+                                        );
+                                      }
                                       return (
                                         <div
                                           key={rawKey}
-                                          className={cn(
-                                            "bg-white flex flex-col p-[10px] sm:p-[20px] h-[90px] sm:h-[120px] overflow-hidden",
-                                            idx === 0 && "rounded-tl-[12px]",
-                                          )}
+                                          className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[12px] min-w-0 border-r border-b border-gc-section-divider/40"
                                         >
-                                          <span className="font-hanken text-[8px] sm:text-[10px] font-semibold uppercase tracking-[0.5px] text-[#7e7576] leading-[10px] sm:leading-[12px] break-words">
+                                          <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
                                             {key}
                                           </span>
-                                          {isEditing ? (
-                                            <input
-                                              type="text"
-                                              value={val}
-                                              onChange={(e) =>
-                                                handleProfileMeasurementChange(
-                                                  rawKey,
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className={cn(
-                                                "font-garamond mt-[3px] w-full text-[16px] sm:text-[20px] text-black bg-transparent outline-none border-b",
-                                                isValid
-                                                  ? "border-green-500 text-green-700"
-                                                  : isInvalid
-                                                    ? "border-red-400 text-red-600"
-                                                    : "border-[#d1c7bd]",
-                                              )}
-                                            />
-                                          ) : (
-                                            <span className="font-garamond text-[14px] sm:text-[22px] text-black leading-[18px] sm:leading-[30px] mt-[3px]">
-                                              {val}
-                                            </span>
-                                          )}
-                                          {isEditing && range ? (
-                                            <span
-                                              className={cn(
-                                                "font-hanken text-[9px] mt-auto",
-                                                isValid
-                                                  ? "text-green-600"
-                                                  : isInvalid
-                                                    ? "text-red-500"
-                                                    : "text-[#7e7576]",
-                                              )}
-                                            >
-                                              {range.min}–{range.max}
-                                            </span>
-                                          ) : (
-                                            <span className="font-hanken text-[9px] text-[#7e7576] mt-auto leading-[13px]">
-                                              Inches
-                                            </span>
-                                          )}
+                                          <span className="font-hanken text-[12px] sm:text-[16px] font-medium text-gc-near-black2 leading-[20px] sm:leading-[26px] break-words w-full mt-[4px]">
+                                            {val || "—"}
+                                          </span>
                                         </div>
                                       );
                                     },
                                   )}
                                 </div>
+                              </div>
+                            )}
+
+                            {/* Measurements — grouped by garment */}
+                            {(garmentMeasureEntries.length > 0 ||
+                              ungroupedMeasures.length > 0) && (
+                              <div className="flex flex-col gap-[20px]">
+                                <span className="font-hanken text-[10px] font-semibold uppercase tracking-[1.2px] text-[#929292]">
+                                  Measurements
+                                </span>
+                                {garmentMeasureEntries.map((garment) =>
+                                  renderMeasureGrid(
+                                    garment,
+                                    garmentMeasures[garment],
+                                    isEditing,
+                                    editingValues,
+                                    mergedRangeMap,
+                                    touchedFields,
+                                    handleProfileMeasurementChange,
+                                  ),
+                                )}
+                                {ungroupedMeasures.length > 0 &&
+                                  renderMeasureGrid(
+                                    null,
+                                    ungroupedMeasures,
+                                    isEditing,
+                                    editingValues,
+                                    mergedRangeMap,
+                                    touchedFields,
+                                    handleProfileMeasurementChange,
+                                  )}
                               </div>
                             )}
                           </div>

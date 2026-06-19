@@ -107,6 +107,29 @@ function resolveLabel(rawKey, labelMap) {
   return rawKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const _GARMENT_PREFIXES = new Set(["Jacket", "Trouser", "Vest", "Shirt"]);
+const _FIT_SIZE_TYPE_WORDS = new Set([
+  "Fit",
+  "Length",
+  "Size",
+  "Width",
+  "Type",
+]);
+
+function isFitSizeKey(rawKey, fitSizeKeySet) {
+  if (fitSizeKeySet.has(rawKey)) return true;
+  if (rawKey.toLowerCase().includes("fit_size")) return true;
+  // Fallback pattern: "Garment FitType" only — e.g. "Jacket Fit", "Trouser Length"
+  // Deliberately excludes "Jacket Bicep", "Jacket Seat" etc.
+  const parts = rawKey.split(" ");
+  return (
+    parts.length === 2 &&
+    _GARMENT_PREFIXES.has(parts[0]) &&
+    _FIT_SIZE_TYPE_WORDS.has(parts[1]) &&
+    !rawKey.includes(" - ")
+  );
+}
+
 function categorize(
   customAttributes = [],
   labelMap = {},
@@ -114,27 +137,29 @@ function categorize(
 ) {
   const options = [];
   const measurements = [];
+  const fitSize = [];
   for (const attr of customAttributes) {
     if (attr.key.startsWith("_")) continue;
-    const key = resolveLabel(attr.key, labelMap);
+    const isFitSize = isFitSizeKey(attr.key, fitSizeKeySet);
+    // For fit/size keep full key as label so garment context is preserved
+    const key = isFitSize ? attr.key : resolveLabel(attr.key, labelMap);
     const value = attr.value?.endsWith('"')
       ? attr.value.slice(0, -1)
       : (attr.value ?? "");
     if (INLINE_KEYS.has(key.toLowerCase())) continue;
     const entry = { key, rawKey: attr.key, value };
-    const isFitSize =
-      fitSizeKeySet.has(attr.key) ||
-      attr.key.toLowerCase().includes("fit_size");
     const isStyleOption =
       !isFitSize &&
       (attr.key.startsWith("Style: ") || attr.key.includes(" - "));
-    if (isStyleOption) {
+    if (isFitSize) {
+      fitSize.push(entry);
+    } else if (isStyleOption) {
       options.push(entry);
     } else {
       measurements.push(entry);
     }
   }
-  return { options, measurements };
+  return { options, measurements, fitSize };
 }
 
 function SectionLabel({ children }) {
@@ -322,9 +347,9 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
 function AttrGrid({ items }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 border-l border-t border-gc-divider/30">
-      {items.map(({ key, value }) => (
+      {items.map(({ key, rawKey, value }) => (
         <div
-          key={key}
+          key={rawKey ?? key}
           className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[14px] min-w-0 overflow-hidden border-r border-b border-gc-divider/30"
         >
           <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
@@ -335,6 +360,44 @@ function AttrGrid({ items }) {
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function GroupedAttrGrid({ items }) {
+  const GARMENT_ORDER = ["Jacket", "Trouser", "Vest", "Shirt"];
+  const garmentGroups = {};
+  const ungrouped = [];
+  for (const m of items) {
+    const rk = m.rawKey ?? m.key;
+    let g = null;
+    if (rk.includes(" - ")) {
+      const prefix = rk.split(" - ")[0].trim();
+      if (GARMENT_ORDER.includes(prefix)) g = prefix;
+    }
+    if (!g) g = GARMENT_ORDER.find((gg) => rk.startsWith(gg + " "));
+    if (!g) g = GARMENT_ORDER.find((gg) => rk.startsWith(gg));
+    if (g) {
+      if (!garmentGroups[g]) garmentGroups[g] = [];
+      garmentGroups[g].push(m);
+    } else {
+      ungrouped.push(m);
+    }
+  }
+  const garmentKeys = GARMENT_ORDER.filter((g) => garmentGroups[g]?.length);
+  if (garmentKeys.length === 0 && ungrouped.length === 0) return null;
+  if (garmentKeys.length === 0) return <AttrGrid items={ungrouped} />;
+  return (
+    <div className="flex flex-col gap-[16px]">
+      {garmentKeys.map((g) => (
+        <div key={g} className="flex flex-col gap-[8px]">
+          <span className="font-hanken text-[11px] font-semibold text-[#a45d41] uppercase tracking-[0.8px]">
+            {g}
+          </span>
+          <AttrGrid items={garmentGroups[g]} />
+        </div>
+      ))}
+      {ungrouped.length > 0 && <AttrGrid items={ungrouped} />}
     </div>
   );
 }
@@ -470,14 +533,12 @@ export default function OrderDetail() {
       });
   }, [order, needsUpchargeSync]);
 
-  const allOptions = lineItems.flatMap(
-    (item) =>
-      categorize(item.customAttributes, labelMap, fitSizeKeySet).options,
+  const _categorized = lineItems.map((item) =>
+    categorize(item.customAttributes, labelMap, fitSizeKeySet),
   );
-  const allMeasurements = lineItems.flatMap(
-    (item) =>
-      categorize(item.customAttributes, labelMap, fitSizeKeySet).measurements,
-  );
+  const allOptions = _categorized.flatMap((c) => c.options);
+  const allMeasurements = _categorized.flatMap((c) => c.measurements);
+  const allFitSize = _categorized.flatMap((c) => c.fitSize);
   const _prefixOrder = [];
   for (const m of allMeasurements) {
     const raw = m.rawKey ?? m.key;
@@ -918,7 +979,7 @@ export default function OrderDetail() {
                       Style Options
                     </span>
                   </div>
-                  <AttrGrid items={allOptions} />
+                  <GroupedAttrGrid items={allOptions} />
                 </GCCard>
               )}
 
@@ -930,7 +991,19 @@ export default function OrderDetail() {
                       Measurements
                     </span>
                   </div>
-                  <AttrGrid items={allMeasurements} />
+                  <GroupedAttrGrid items={allMeasurements} />
+                </GCCard>
+              )}
+
+              {allFitSize.length > 0 && (
+                <GCCard className="flex flex-col gap-[20px]">
+                  <div className="flex items-center gap-[8px]">
+                    <ListChecks size={20} className="text-gc-primary" />
+                    <span className="font-garamond text-[24px] font-medium text-gc-near-black2 leading-[31px]">
+                      Fit &amp; Size
+                    </span>
+                  </div>
+                  <GroupedAttrGrid items={allFitSize} />
                 </GCCard>
               )}
             </div>

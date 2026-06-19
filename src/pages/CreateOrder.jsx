@@ -528,7 +528,7 @@ export default function CreateOrder() {
           getRangeForKey(rangeMap, legacyKey);
         if (e) value = fingerMap.get(`${e.label}|${e.min}|${e.max}`) ?? "";
       }
-      return { key: displayKey, value };
+      return { key: legacyKey, value };
     });
   }
 
@@ -537,7 +537,10 @@ export default function CreateOrder() {
     if (garments.length) {
       const canonical = await getCanonicalFieldsForGarments(garments);
       if (canonical.length)
-        return canonical.map((f) => ({ key: f.label, value: "" }));
+        return canonical.map((f) => ({
+          key: f.garment ? `${f.garment} ${f.label}` : f.label,
+          value: "",
+        }));
     }
     const serverFields = await getProductFields(product.id);
     if (serverFields.length > 0)
@@ -604,7 +607,10 @@ export default function CreateOrder() {
         const canonical = await getCanonicalFieldsForGarments(garments);
         setAttributes(
           applyDefaultSizeType(
-            canonical.map((f) => ({ key: f.label, value: "" })),
+            canonical.map((f) => ({
+              key: f.garment ? `${f.garment} ${f.label}` : f.label,
+              value: "",
+            })),
           ),
         );
       } catch {
@@ -969,6 +975,29 @@ export default function CreateOrder() {
           value,
         }));
 
+      // Per-garment KT craft codes derived from the selected style options
+      const craftsByGarment = {};
+      for (const [compKey, value] of Object.entries(styleSelections)) {
+        if (!value) continue;
+        const [garment, category] = compKey.split("__");
+        const selectedOpt = allStyleOpts.find(
+          (o) =>
+            o.garment === garment &&
+            o.category === category &&
+            o.label === value,
+        );
+        if (selectedOpt?.kutetailerCode) {
+          if (!craftsByGarment[garment]) craftsByGarment[garment] = [];
+          craftsByGarment[garment].push(selectedOpt.kutetailerCode);
+        }
+      }
+      const craftsAttrs = Object.entries(craftsByGarment).map(
+        ([garment, codes]) => ({
+          key: `_kute_crafts_${garment}`,
+          value: codes.join(","),
+        }),
+      );
+
       const finalPrice = parseFloat(price || "0.00").toFixed(2);
 
       const lineItemBase = selectedVariant?.id
@@ -1002,6 +1031,7 @@ export default function CreateOrder() {
               ...styleAttrs,
               ...upchargeAttrs,
               ...fitSizeAttrs,
+              ...craftsAttrs,
               ...(selectedFabric
                 ? [{ key: "Fabric", value: selectedFabric.label }]
                 : []),

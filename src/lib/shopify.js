@@ -1210,7 +1210,12 @@ const GET_ORDER_FOR_SUPPLIER = `
     order(id: $id) {
       id
       name
-      customer { firstName lastName email phone }
+      customer {
+        firstName lastName email phone
+        metafields(first: 10, namespace: "suit_admin") {
+          edges { node { key value } }
+        }
+      }
       shippingAddress { address1 }
       customAttributes { key value }
       lineItems(first: 50) {

@@ -42,6 +42,7 @@ async function handleSendToSupplier(orderId, supplierId) {
     { key: "supplier_name", value: supplier.id },
     { key: "supplier_status", value: "submitted" },
     { key: "supplier_submitted_at", value: new Date().toISOString() },
+    { key: "supplier_error", value: "" },
     ...(supplierRef ? [{ key: "supplier_reference", value: supplierRef }] : []),
   ]);
 

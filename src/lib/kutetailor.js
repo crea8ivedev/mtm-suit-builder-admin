@@ -268,6 +268,16 @@ const _GARMENT_CATEGORY_CODES = {
   Shirt: "MCY",
 };
 
+// Fit label (from "Jacket Fit" / "Trouser Fit" custom attr) → KT versionStyle
+// 1=Slim, 2=Regular/Classic (default), 3=Athletic/Loose
+const _FIT_TO_VERSIONSTYLE = {
+  Slim: 1,
+  Classic: 2,
+  Regular: 2,
+  Athletic: 3,
+  Loose: 3,
+};
+
 // Top-level `category` field based on garment combination (KT supplier Excel)
 function _topLevelCategory(garments) {
   const has = (g) => garments.includes(g);
@@ -427,11 +437,31 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
   const lastName = order.customer?.lastName ?? "";
   const lineItems = order.lineItems?.edges?.map((e) => e.node) ?? [];
 
-  const height = parseFloat(kuteAttr(attrs, "height") ?? "0") || 0;
-  const weight = parseFloat(kuteAttr(attrs, "weight") ?? "0") || 0;
-  const gender = parseInt(kuteAttr(attrs, "gender") ?? "1004", 10);
-  const heightUnit = parseInt(kuteAttr(attrs, "heightUnit") ?? "1019", 10);
-  const weightUnit = parseInt(kuteAttr(attrs, "weightUnit") ?? "1017", 10);
+  // Customer suit_admin metafields as fallback for body measurements / unit
+  const customerMeta = Object.fromEntries(
+    (order.customer?.metafields?.edges ?? []).map((e) => [
+      e.node.key,
+      e.node.value,
+    ]),
+  );
+
+  const height =
+    parseFloat(kuteAttr(attrs, "height") ?? customerMeta.height ?? "71") || 71;
+  const weight =
+    parseFloat(kuteAttr(attrs, "weight") ?? customerMeta.weight ?? "180") ||
+    180;
+  const gender = parseInt(
+    kuteAttr(attrs, "gender") ?? customerMeta.gender ?? "1002",
+    10,
+  );
+  const heightUnit = parseInt(
+    kuteAttr(attrs, "heightUnit") ?? customerMeta.height_unit ?? "1020",
+    10,
+  ); // 1019=cm, 1020=inch
+  const weightUnit = parseInt(
+    kuteAttr(attrs, "weightUnit") ?? customerMeta.weight_unit ?? "1018",
+    10,
+  ); // 1017=kg, 1018=lb
   const isSample = parseInt(kuteAttr(attrs, "isSample") ?? "0", 10);
 
   // Garments stored during order creation ("Jacket,Trouser" etc.)
@@ -457,13 +487,21 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
     const versionStyleRaw = kuteAttr(itemAttrs, "versionStyle");
     // versionStyle: 1=Slim, 2=Regular (default), 3=Loose (from KT supplier Excel)
     const versionStyle = versionStyleRaw ? parseInt(versionStyleRaw, 10) : 2;
-    const crafts = kuteAttr(itemAttrs, "crafts") ?? "";
+    const sharedCrafts = kuteAttr(itemAttrs, "crafts") ?? "";
     const styleCode = kuteAttr(itemAttrs, "styleCode") ?? "";
     const sizeNames = kuteAttr(itemAttrs, "sizeNames") ?? "";
 
     if (garments.length > 0) {
       // One orderDetail per garment with garment-scoped measurements
       return garments.map((garment) => {
+        // Per-garment versionStyle: read "Jacket Fit" / "Trouser Fit" attr
+        const fitLabel =
+          itemAttrs.find((a) => a.key === `${garment} Fit`)?.value ?? null;
+        const garmentVersionStyle = fitLabel
+          ? (_FIT_TO_VERSIONSTYLE[fitLabel] ?? 2)
+          : versionStyle;
+        // Per-garment craft codes stored at order creation; fall back to shared crafts
+        const crafts = kuteAttr(itemAttrs, `crafts_${garment}`) ?? sharedCrafts;
         const orderSizes = mapSizesForGarment(
           itemAttrs,
           garment,
@@ -485,7 +523,7 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
           styleCode,
           crafts,
           sizeNames,
-          versionStyle,
+          versionStyle: garmentVersionStyle,
           orderSizes,
           orderEmbs: [],
         };
@@ -513,7 +551,10 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
     amount: lineItems.reduce((s, i) => s + (i.quantity ?? 1), 0),
     isSample,
     category,
-    measuresType: parseInt(kuteAttr(attrs, "measuresType") ?? "10001", 10),
+    measuresType: parseInt(
+      kuteAttr(attrs, "measuresType") ?? customerMeta.measures_type ?? "10001",
+      10,
+    ), // 10001=body/net, 10002=finished, 10003=fitting
     fabric: kuteAttr(attrs, "fabric") ?? "",
     customer: {
       nickname:
@@ -563,6 +604,17 @@ function resolveConflictingCraftsAcrossDetails(details, errorMessage) {
     if (curly.length >= 2) groups.push(curly);
   }
 
+  // Format 3: "Combination split code failed! Failed process code: Normal(AAAM), Full(AAQL),"
+  if (
+    !groups.length &&
+    errorMessage.includes("Combination split code failed")
+  ) {
+    const paren = [...errorMessage.matchAll(/\(([^)]+)\)/g)]
+      .map((m) => m[1].trim())
+      .filter(Boolean);
+    if (paren.length >= 2) groups.push(paren);
+  }
+
   if (!groups.length) return;
 
   for (const conflicting of groups) {
@@ -593,6 +645,19 @@ function removeContentRequiredCraft(craftsStr, errorMessage) {
     .split(",")
     .map((e) => e.trim())
     .filter((e) => e && _craftCode(e) !== badEcode)
+    .join(",");
+}
+
+function removeUnavailableCrafts(craftsStr, errorMessage) {
+  const badCodes = new Set();
+  for (const m of errorMessage.matchAll(/\{([^}]+)\}/g)) {
+    badCodes.add(m[1].trim());
+  }
+  if (!badCodes.size) return craftsStr;
+  return craftsStr
+    .split(",")
+    .map((e) => e.trim())
+    .filter((e) => e && !badCodes.has(_craftCode(e)))
     .join(",");
 }
 
@@ -671,6 +736,20 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
       for (const detail of payload.orderDetails) {
         detail.crafts = removeContentRequiredCraft(detail.crafts, msg);
       }
+    } else if (msg.includes("do not have a specified process")) {
+      console.log(
+        "[KT] removing unavailable craft processes, attempt",
+        craftRetries,
+      );
+      for (const detail of payload.orderDetails) {
+        detail.crafts = removeUnavailableCrafts(detail.crafts, msg);
+      }
+    } else if (msg.includes("Combination split code failed")) {
+      console.log(
+        "[KT] resolving combination split conflict, attempt",
+        craftRetries,
+      );
+      resolveConflictingCraftsAcrossDetails(payload.orderDetails, msg);
     } else {
       break; // not a craft error — stop retrying
     }
