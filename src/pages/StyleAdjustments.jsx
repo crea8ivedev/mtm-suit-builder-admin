@@ -314,7 +314,8 @@ export default function StyleAdjustments() {
       (o) =>
         o.label.toLowerCase().includes(q) ||
         o.handle.toLowerCase().includes(q) ||
-        (o.colorName || "").toLowerCase().includes(q),
+        (o.colorName || "").toLowerCase().includes(q) ||
+        (o.kutetailerCode || "").toLowerCase().includes(q),
     );
   }, [categoryOptions, optionFilter]);
 
@@ -826,7 +827,7 @@ export default function StyleAdjustments() {
                   <Search size={14} className="flex-shrink-0 text-gc-muted" />
                   <input
                     type="text"
-                    placeholder="Filter options in this category..."
+                    placeholder="Filter by name or KuteTailor code..."
                     value={optionFilter}
                     onChange={(e) => setOptionFilter(e.target.value)}
                     className="flex-1 text-[12px] md:text-[14px] font-hanken font-medium outline-none bg-transparent text-gc-near-black"

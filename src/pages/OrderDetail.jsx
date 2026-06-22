@@ -140,12 +140,27 @@ function categorize(
   const fitSize = [];
   for (const attr of customAttributes) {
     if (attr.key.startsWith("_")) continue;
-    const isFitSize = isFitSizeKey(attr.key, fitSizeKeySet);
-    // For fit/size keep full key as label so garment context is preserved
-    const key = isFitSize ? attr.key : resolveLabel(attr.key, labelMap);
     const value = attr.value?.endsWith('"')
       ? attr.value.slice(0, -1)
       : (attr.value ?? "");
+    const isFitSizeMatch = isFitSizeKey(attr.key, fitSizeKeySet);
+    // Physical measurements are always numeric; numeric values under fit/size keys belong in measurements
+    const isNumericValue = isFitSizeMatch && /^\d+(\.\d+)?$/.test(value.trim());
+    const isFitSize = isFitSizeMatch && !isNumericValue;
+    // Strip garment prefix for fit/size labels (e.g. "Jacket - Fit" → "Fit", "Trouser Length" → "Length")
+    const key = isFitSize
+      ? (() => {
+          const raw = attr.key;
+          if (raw.includes(" - ")) {
+            const [prefix, ...rest] = raw.split(" - ");
+            if (_GARMENT_PREFIXES.has(prefix)) return rest.join(" - ");
+          }
+          const spaceIdx = raw.indexOf(" ");
+          if (spaceIdx !== -1 && _GARMENT_PREFIXES.has(raw.slice(0, spaceIdx)))
+            return raw.slice(spaceIdx + 1);
+          return raw;
+        })()
+      : resolveLabel(attr.key, labelMap);
     if (INLINE_KEYS.has(key.toLowerCase())) continue;
     const entry = { key, rawKey: attr.key, value };
     const isStyleOption =
@@ -545,7 +560,9 @@ export default function OrderDetail() {
     const prefix = raw.includes(" ") ? raw.split(" ")[0] : "";
     if (prefix && !_prefixOrder.includes(prefix)) _prefixOrder.push(prefix);
   }
-  allMeasurements.sort((a, b) => {
+  // Combine: measurements first so they appear before fit/size within each garment group
+  const allMeasurementsAndFitSize = [...allMeasurements, ...allFitSize];
+  allMeasurementsAndFitSize.sort((a, b) => {
     const rawA = a.rawKey ?? a.key;
     const rawB = b.rawKey ?? b.key;
     const pa = rawA.includes(" ") ? rawA.split(" ")[0] : "";
@@ -983,7 +1000,7 @@ export default function OrderDetail() {
                 </GCCard>
               )}
 
-              {allMeasurements.length > 0 && (
+              {allMeasurementsAndFitSize.length > 0 && (
                 <GCCard className="flex flex-col gap-[20px]">
                   <div className="flex items-center gap-[8px]">
                     <ListChecks size={20} className="text-gc-primary" />
@@ -991,19 +1008,7 @@ export default function OrderDetail() {
                       Measurements
                     </span>
                   </div>
-                  <GroupedAttrGrid items={allMeasurements} />
-                </GCCard>
-              )}
-
-              {allFitSize.length > 0 && (
-                <GCCard className="flex flex-col gap-[20px]">
-                  <div className="flex items-center gap-[8px]">
-                    <ListChecks size={20} className="text-gc-primary" />
-                    <span className="font-garamond text-[24px] font-medium text-gc-near-black2 leading-[31px]">
-                      Fit &amp; Size
-                    </span>
-                  </div>
-                  <GroupedAttrGrid items={allFitSize} />
+                  <GroupedAttrGrid items={allMeasurementsAndFitSize} />
                 </GCCard>
               )}
             </div>

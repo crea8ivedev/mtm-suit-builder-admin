@@ -26,13 +26,13 @@ async function fetchFreshToken() {
   let json = {};
   try {
     json = JSON.parse(raw);
-  } catch { }
+  } catch {}
 
   if (!res.ok || (json.code !== undefined && json.code !== "0")) {
     throw new Error(
       json.message ||
-      json.error ||
-      `KuteTailor login failed: HTTP ${res.status}`,
+        json.error ||
+        `KuteTailor login failed: HTTP ${res.status}`,
     );
   }
 
@@ -268,7 +268,7 @@ const _GARMENT_CATEGORY_CODES = {
   Shirt: "MCY",
 };
 
-// Fit label (from "Jacket Fit" / "Trouser Fit" custom attr) → KT versionStyle
+// Fit label (from "Jacket Fit" / "Trouser Fit" custom attr) → KT
 // 1=Slim, 2=Regular/Classic (default), 3=Athletic/Loose
 const _FIT_TO_VERSIONSTYLE = {
   Slim: 1,
@@ -313,6 +313,8 @@ const _STATIC_POSITION_ECODES = {
     outseamr: "17", // Outseam(R)
     frontwaistheight: "20",
     backwaistheight: "21",
+    knee: "23",
+    bottom: "22",
   },
 };
 
@@ -390,7 +392,6 @@ function mapSizes(customAttributes = [], ktPositionMap = {}) {
   return result;
 }
 
-
 function mapSizesForGarment(
   customAttributes = [],
   garment,
@@ -441,6 +442,11 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
     ]),
   );
 
+  // Order suit_admin metafields — craft codes stored here for new orders
+  const orderMeta = Object.fromEntries(
+    (order.metafields?.edges ?? []).map((e) => [e.node.key, e.node.value]),
+  );
+
   const height =
     parseFloat(kuteAttr(attrs, "height") ?? customerMeta.height ?? "71") || 71;
   const weight =
@@ -464,9 +470,9 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
   const garmentsRaw = kuteAttr(attrs, "garments") ?? "";
   const garments = garmentsRaw
     ? garmentsRaw
-      .split(",")
-      .map((g) => g.trim())
-      .filter(Boolean)
+        .split(",")
+        .map((g) => g.trim())
+        .filter(Boolean)
     : [];
 
   // Top-level category: derived from garment combination, not hardcoded
@@ -492,12 +498,18 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
       return garments.map((garment) => {
         // Per-garment versionStyle: read "Jacket Fit" / "Trouser Fit" attr
         const fitLabel =
-          itemAttrs.find((a) => a.key === `${garment} Fit`)?.value ?? null;
+          itemAttrs.find(
+            (a) => a.key === `${garment} Fit` || a.key === `${garment} - Fit`,
+          )?.value ?? null;
         const garmentVersionStyle = fitLabel
           ? (_FIT_TO_VERSIONSTYLE[fitLabel] ?? 2)
           : versionStyle;
-        // Per-garment craft codes stored at order creation; fall back to shared crafts
-        const crafts = kuteAttr(itemAttrs, `crafts_${garment}`) ?? sharedCrafts;
+        // Per-garment craft codes: order metafield (new orders) → line item attr (legacy) → shared crafts
+        const crafts = _deduplicateCraftsByPid(
+          orderMeta[`crafts_${garment.toLowerCase()}`] ??
+            kuteAttr(itemAttrs, `crafts_${garment}`) ??
+            sharedCrafts,
+        );
         const orderSizes = mapSizesForGarment(
           itemAttrs,
           garment,
@@ -573,6 +585,21 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
 // Returns the bare code from a craft entry that may have ":content" suffix
 function _craftCode(entry) {
   return entry.split(":")[0].trim();
+}
+
+// Remove duplicate PIDs from a crafts string — keeps the last occurrence of each PID.
+// Handles both plain ecodes ("000A") and PID:content entries ("0638:KB227").
+function _deduplicateCraftsByPid(craftsStr) {
+  if (!craftsStr) return craftsStr;
+  const entries = craftsStr
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+  const byPid = new Map();
+  for (const entry of entries) {
+    byPid.set(_craftCode(entry), entry);
+  }
+  return [...byPid.values()].join(",");
 }
 
 // Resolve craft group conflicts across ALL orderDetails collectively.
@@ -673,7 +700,7 @@ async function postSaveOrder(token, payload) {
   let body = {};
   try {
     body = JSON.parse(rawText);
-  } catch { }
+  } catch {}
   return { res, rawText, body };
 }
 
@@ -686,6 +713,23 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
     throw new Error(
       "Fabric is required. Please select a fabric for this order before submitting to KuteTailor.",
     );
+  }
+
+  // Strip orderDetails with no measurements (e.g. upcharge line items)
+  payload.orderDetails = payload.orderDetails.filter(
+    (d) => d.orderSizes.length > 0,
+  );
+
+  // Deduplicate position ecodes globally across all garments.
+  // KT rejects if the same ecode appears in more than one orderDetail
+  // (happens when a measurement has no garment prefix and resolves via cross-garment fallback).
+  const _globalEcodes = new Set();
+  for (const detail of payload.orderDetails) {
+    detail.orderSizes = detail.orderSizes.filter((s) => {
+      if (_globalEcodes.has(s.positionEcode)) return false;
+      _globalEcodes.add(s.positionEcode);
+      return true;
+    });
   }
 
   // Inject default crafts when blank or stored in legacy [{pid,craftId}] JSON format
@@ -746,6 +790,40 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
         craftRetries,
       );
       resolveConflictingCraftsAcrossDetails(payload.orderDetails, msg);
+    } else if (msg.includes("duplicate craft ecode")) {
+      console.log("[KT] deduplicating crafts by PID, attempt", craftRetries);
+      let craftChanged = false;
+      for (const detail of payload.orderDetails) {
+        const deduped = _deduplicateCraftsByPid(detail.crafts);
+        if (deduped !== detail.crafts) {
+          detail.crafts = deduped;
+          craftChanged = true;
+        }
+      }
+      if (!craftChanged) break; // crafts already unique — different root cause, stop looping
+    } else if (/craftEcode<\[/.test(msg)) {
+      // Unknown craft ecodes (e.g. raw button/lining SKUs sent without PID prefix)
+      const match = msg.match(/craftEcode<\[([^\]]+)\]>/);
+      if (!match) break;
+      const badCodes = new Set(
+        match[1]
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean),
+      );
+      console.log(
+        "[KT] removing unknown craft ecodes",
+        [...badCodes],
+        "attempt",
+        craftRetries,
+      );
+      for (const detail of payload.orderDetails) {
+        detail.crafts = detail.crafts
+          .split(",")
+          .map((e) => e.trim())
+          .filter((e) => e && !badCodes.has(_craftCode(e)))
+          .join(",");
+      }
     } else {
       break; // not a craft error — stop retrying
     }

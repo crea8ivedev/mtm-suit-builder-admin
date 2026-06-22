@@ -1212,12 +1212,15 @@ const GET_ORDER_FOR_SUPPLIER = `
       name
       customer {
         firstName lastName email phone
-        metafields(first: 10, namespace: "suit_admin") {
+        metafields(first: 20, namespace: "suit_admin") {
           edges { node { key value } }
         }
       }
       shippingAddress { address1 }
       customAttributes { key value }
+      metafields(first: 20, namespace: "suit_admin") {
+        edges { node { key value } }
+      }
       lineItems(first: 50) {
         edges { node { id title quantity customAttributes { key value } } }
       }
@@ -1236,6 +1239,7 @@ const GET_VEST_RANGES = `
       edges {
         node {
           handle
+          capabilities { publishable { status } }
           fields { key value }
         }
       }
@@ -1254,6 +1258,7 @@ async function _loadVestData() {
   const map = {};
   const fieldsList = [];
   for (const { node } of entries) {
+    if (node.capabilities?.publishable?.status === "DRAFT") continue;
     const fm = {};
     for (const f of node.fields) {
       if (
@@ -1300,6 +1305,7 @@ const GET_SHIRT_RANGES = `
       edges {
         node {
           handle
+          capabilities { publishable { status } }
           fields { key value }
         }
       }
@@ -1318,6 +1324,7 @@ async function _loadShirtData() {
   const map = {};
   const fieldsList = [];
   for (const { node } of entries) {
+    if (node.capabilities?.publishable?.status === "DRAFT") continue;
     const fm = {};
     for (const f of node.fields) {
       if (
@@ -1364,6 +1371,7 @@ const GET_TROUSER_RANGES = `
       edges {
         node {
           handle
+          capabilities { publishable { status } }
           fields { key value }
         }
       }
@@ -1382,6 +1390,7 @@ async function _loadTrouserData() {
   const map = {};
   const fieldsList = [];
   for (const { node } of entries) {
+    if (node.capabilities?.publishable?.status === "DRAFT") continue;
     const fm = {};
     for (const f of node.fields) {
       if (
@@ -1431,6 +1440,7 @@ const GET_JACKET_RANGES = `
       edges {
         node {
           handle
+          capabilities { publishable { status } }
           fields { key value }
         }
       }
@@ -1449,6 +1459,7 @@ async function _loadJacketData() {
   const map = {};
   const fieldsList = [];
   for (const { node } of entries) {
+    if (node.capabilities?.publishable?.status === "DRAFT") continue;
     const fm = {};
     for (const f of node.fields) {
       if (
@@ -1583,6 +1594,15 @@ async function fetchStyleOptionsForType(type) {
         sortOrder: parseInt(fm.sort_order || "0", 10),
         categorySort: parseInt(fm.style_sort || "0", 10),
         kutetailerCode: fm.kutetailer_code || null,
+        craftPrefix: (() => {
+          const cat = (fm.category || "").toLowerCase();
+          const code = fm.kutetailer_code || "";
+          // Standard KT ecodes are exactly 4 alphanumeric chars — never need a PID prefix
+          if (/^[A-Za-z0-9]{4}$/.test(code)) return null;
+          if (cat.includes("button")) return "button";
+          if (cat.includes("lining")) return "0714";
+          return null;
+        })(),
         conditionalHide: fm.conditional_hide || "",
         imageGid: fm.image || null,
         imageUrlStored: fm.image_url || null,
@@ -1930,6 +1950,7 @@ export async function fetchLiningCodes() {
         label: fm.code || node.handle,
         colorName: fm.color_name || "",
         code: fm.code || "",
+        kutetailerCode: fm.code || null,
         category: "lining_code",
         garments,
         garment: "",
@@ -2027,6 +2048,7 @@ export async function fetchButtonCodes() {
         handle: node.handle,
         label: fm.color_name || fm.code || node.handle,
         code: fm.code || "",
+        kutetailerCode: fm.code || null,
         category: "button_code",
         garments,
         garment: "",

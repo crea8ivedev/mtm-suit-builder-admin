@@ -39,6 +39,7 @@ import {
   fetchFabricOptions,
   clearFabricOptionsCache,
   fetchFitSizeOptions,
+  setOrderMetafields,
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
 
@@ -971,42 +972,93 @@ export default function CreateOrder() {
       const fitSizeAttrs = Object.entries(fitSizeSelections)
         .filter(([, v]) => v)
         .map(([key, value]) => ({
-          key: key.replace("__", " "),
+          // Use " - " separator to avoid key collision with same-named measurement fields (e.g. "Trouser Length")
+          key: key.replace("__", " - "),
           value,
         }));
 
-      // Per-garment KT craft codes derived from the selected style options
+      const garments = garmentsFromGcBuilderValue(
+        selectedProduct.metafield?.value,
+      );
+
+      // Pre-scan: which garments already have an explicit button or lining selection
+      // (across ANY category — button_code type OR regular style option with craftPrefix).
+      // Used to block fan-out from contaminating garments that have their own selection.
+      const garmentsWithExplicitButton = new Set();
+      const garmentsWithExplicitLining = new Set();
+      for (const [compKey, value] of Object.entries(styleSelections)) {
+        if (!value) continue;
+        const [g, cat] = compKey.split("__");
+        const opt = allStyleOpts.find(
+          (o) => o.garment === g && o.category === cat && o.label === value,
+        );
+        if (!opt?.kutetailerCode) continue;
+        if (opt.isButtonCode || opt.craftPrefix === "button")
+          garmentsWithExplicitButton.add(g);
+        if (opt.isLiningCode || opt.craftPrefix === "0714")
+          garmentsWithExplicitLining.add(g);
+      }
+
+      // Per-garment KT craft codes derived from selected style options (stored as metafields, not line item attrs)
       const craftsByGarment = {};
       for (const [compKey, value] of Object.entries(styleSelections)) {
         if (!value) continue;
-        const [garment, category] = compKey.split("__");
+        const [selGarment, category] = compKey.split("__");
         const selectedOpt = allStyleOpts.find(
           (o) =>
-            o.garment === garment &&
+            o.garment === selGarment &&
             o.category === category &&
             o.label === value,
         );
-        if (selectedOpt?.kutetailerCode) {
+        if (!selectedOpt?.kutetailerCode) continue;
+
+        const isButton =
+          selectedOpt.isButtonCode || selectedOpt.craftPrefix === "button";
+        const isLining =
+          selectedOpt.isLiningCode || selectedOpt.craftPrefix === "0714";
+
+        // For button/lining codes: apply to all garments listed in the metaobject's garment field
+        // (filtered to garments that exist in this order). Empty garments array means all order garments.
+        let targetGarments;
+        if ((isButton || isLining) && Array.isArray(selectedOpt.garments)) {
+          const pool =
+            selectedOpt.garments.length > 0
+              ? selectedOpt.garments.filter((g) => garments.includes(g))
+              : garments;
+          // Block fan-out to any garment that has its own explicit button/lining selection,
+          // regardless of which category it came from — prevents duplicate PIDs.
+          const applicableGarments = pool.filter((g) => {
+            if (g === selGarment) return true;
+            if (isButton && garmentsWithExplicitButton.has(g)) return false;
+            if (isLining && garmentsWithExplicitLining.has(g)) return false;
+            return true;
+          });
+          targetGarments =
+            applicableGarments.length > 0 ? applicableGarments : [selGarment];
+        } else {
+          targetGarments = [selGarment];
+        }
+
+        for (const garment of targetGarments) {
           if (!craftsByGarment[garment]) craftsByGarment[garment] = [];
-          craftsByGarment[garment].push(selectedOpt.kutetailerCode);
+          let craftCode = selectedOpt.kutetailerCode;
+          if (isButton) {
+            const pid = garment === "Trouser" ? "3454" : "0638";
+            craftCode = `${pid}:${craftCode}`;
+          } else if (isLining) {
+            craftCode = `0714:${craftCode}`;
+          }
+          if (!craftsByGarment[garment].includes(craftCode)) {
+            craftsByGarment[garment].push(craftCode);
+          }
         }
       }
-      const craftsAttrs = Object.entries(craftsByGarment).map(
-        ([garment, codes]) => ({
-          key: `_kute_crafts_${garment}`,
-          value: codes.join(","),
-        }),
-      );
 
       const finalPrice = parseFloat(price || "0.00").toFixed(2);
 
       const lineItemBase = selectedVariant?.id
         ? { variantId: selectedVariant.id }
         : { title: selectedProduct.title };
-
-      const garments = garmentsFromGcBuilderValue(
-        selectedProduct.metafield?.value,
-      );
 
       const draft = await createDraftOrder({
         customerId: selectedCustomer.id,
@@ -1031,7 +1083,6 @@ export default function CreateOrder() {
               ...styleAttrs,
               ...upchargeAttrs,
               ...fitSizeAttrs,
-              ...craftsAttrs,
               ...(selectedFabric
                 ? [{ key: "Fabric", value: selectedFabric.label }]
                 : []),
@@ -1043,6 +1094,19 @@ export default function CreateOrder() {
       });
       const order = await completeDraftOrder(draft.id, true);
       const numericId = order.id.split("/").pop();
+
+      // Store craft codes as order metafields (suit_admin namespace) — avoids cluttering line item attributes
+      if (Object.keys(craftsByGarment).length) {
+        await setOrderMetafields(
+          order.id,
+          Object.entries(craftsByGarment).map(([garment, codes]) => ({
+            key: `crafts_${garment.toLowerCase()}`,
+            value: codes.join(","),
+          })),
+        ).catch((err) =>
+          console.warn("[CreateOrder] craft metafield set failed:", err),
+        );
+      }
 
       const measureAttrs = attributes.filter(
         (a) =>
@@ -1083,7 +1147,9 @@ export default function CreateOrder() {
             [productName]: [...existingList, newProfile],
           };
           await setCustomerProductsMetafield(selectedCustomer.id, fullProfiles);
-        } catch {}
+        } catch (e) {
+          console.error("[CreateOrder] profile metafield save failed:", e);
+        }
       }
 
       clearOrdersCache();

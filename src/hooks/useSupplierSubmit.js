@@ -21,7 +21,7 @@ async function handleSendToSupplier(orderId, supplierId) {
   await setOrderMetafields(shopifyGid, [
     { key: "supplier_name", value: supplier.id },
     { key: "supplier_status", value: "processing" },
-  ]).catch(() => { });
+  ]).catch(() => {});
 
   const order = await getOrderForSupplier(shopifyGid);
   const result = await handler(order);
@@ -30,11 +30,11 @@ async function handleSendToSupplier(orderId, supplierId) {
   const supplierRef = refRaw
     ? typeof refRaw === "object"
       ? String(
-        refRaw.orderId ??
-        refRaw.orderNo ??
-        refRaw.id ??
-        JSON.stringify(refRaw),
-      )
+          refRaw.orderId ??
+            refRaw.orderNo ??
+            refRaw.id ??
+            JSON.stringify(refRaw),
+        )
       : String(refRaw)
     : "";
 
@@ -64,14 +64,23 @@ export function useSupplierSubmit(orderId, onSettled) {
       } catch (err) {
         console.error("[KT] submission failed:", err);
         errMsg = err?.message || String(err) || "Submission failed";
-        const shopifyGid = `gid://shopify/Order/${orderId}`;
-        await setOrderMetafields(shopifyGid, [
-          { key: "supplier_status", value: "failed" },
-          { key: "supplier_error", value: errMsg },
-        ]).catch(() => { });
-        setSubmitError(errMsg);
       } finally {
         setSubmitting(false);
+
+        if (errMsg) {
+          // Update Shopify status to "failed" — retry once if the first attempt fails
+          const shopifyGid = `gid://shopify/Order/${orderId}`;
+          const safeErr = errMsg.slice(0, 500);
+          const updateFailed = () =>
+            setOrderMetafields(shopifyGid, [
+              { key: "supplier_status", value: "failed" },
+              { key: "supplier_error", value: safeErr },
+            ]);
+          await updateFailed()
+            .catch(() => updateFailed())
+            .catch(() => {});
+          setSubmitError(errMsg);
+        }
 
         await onSettled?.();
 
