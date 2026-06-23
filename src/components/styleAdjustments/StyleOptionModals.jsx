@@ -311,10 +311,8 @@ export function AddStyleOptionModal({
     setError(null);
     try {
       const cat = normalizeCategory(form.category);
-      const existingCatOpt = garmentOptions.find((o) => o.category === cat);
-      const computedSortOrder = existingCatOpt
-        ? existingCatOpt.sortOrder
-        : garmentOptions.reduce((max, o) => Math.max(max, o.sortOrder), 0) + 1;
+      const sameCatOpts = garmentOptions.filter((o) => o.category === cat);
+      const computedSortOrder = sameCatOpts.length + 1;
       const payload = {
         ...form,
         visible: "true",
