@@ -824,6 +824,10 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
           .filter((e) => e && !badCodes.has(_craftCode(e)))
           .join(",");
       }
+    } else if (msg === "") {
+      // KT returned empty message — transient server glitch. Retry once with unchanged payload.
+      console.log("[KT] empty-message rejection, attempt", craftRetries);
+      if (craftRetries >= 2) break;
     } else {
       break; // not a craft error — stop retrying
     }
@@ -847,8 +851,8 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
   if (!res.ok || body.code === "1" || body.code === 1) {
     const msg = body?.message ?? body?.msg ?? body?.error ?? body?.data ?? null;
     const msgStr =
-      msg == null
-        ? `HTTP ${res.status}${rawText ? `: ${rawText.slice(0, 300)}` : ""}`
+      msg == null || msg === ""
+        ? `KuteTailor returned no error details (HTTP ${res.status}). The order may have an unsupported craft code — check browser console for the full payload.`
         : typeof msg === "object"
           ? JSON.stringify(msg)
           : String(msg);

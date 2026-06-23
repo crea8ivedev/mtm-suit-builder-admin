@@ -579,37 +579,30 @@ function mergeProfilesWithSaved(fromOrders, saved) {
   if (!saved || !Object.keys(saved).length) return fromOrders;
   const merged = {};
   for (const [productName, orderProfiles] of Object.entries(fromOrders)) {
-    // If product not present in saved at all, it hasn't been synced yet — use order profiles
     if (!(productName in saved)) {
       merged[productName] = orderProfiles;
       continue;
     }
     const savedList = saved[productName];
-    // Fall back to order profiles when saved list is empty (corrupt save, not intentional delete)
     if (!savedList?.length) {
       merged[productName] = orderProfiles;
       continue;
     }
-    // Iterate saved (not fromOrders) so deleted profiles don't reappear
     merged[productName] = savedList.map((match, idx) => {
-      const byName = orderProfiles.find((p) => p.name === match.name);
-      const orderBase = byName ?? orderProfiles[idx];
-      // Check if saved data has style keys mixed into measurements (corrupted format)
       const savedMeasurements = match.measurements ?? {};
       const hasStyleInMeasurements = Object.keys(savedMeasurements).some(
         (k) => k.startsWith("Style: ") || k.includes(" - "),
       );
-      // If saved data is clean (style is defined and no style keys in measurements), use it
       if (match.style !== undefined && !hasStyleInMeasurements) {
-        return {
-          ...(orderBase ?? {}),
-          ...match,
-          style: match.style,
-          measurements: savedMeasurements,
-        };
+        // Clean format — use saved data directly. Do NOT merge with order-derived profiles.
+        // Index/name-based pairing is unstable: Shopify API sort order can vary per request,
+        // causing buildMeasurementProfiles to assign different names to the same profile,
+        // which swaps measurement data between profiles on each refresh.
+        return match;
       }
-      // Corrupted/old flat format — use order-derived profile (already has correct format)
-      return orderBase ?? match;
+      // Old flat format (style keys mixed into measurements) — fall back to order-derived profile.
+      const byName = orderProfiles.find((p) => p.name === match.name);
+      return byName ?? orderProfiles[idx] ?? match;
     });
   }
   return merged;
@@ -931,6 +924,12 @@ export default function CustomerDetail() {
         const newKey = `Style: ${opt.displayLabel}`;
         map[oldKey] = newKey;
         map[oldKey.toLowerCase()] = newKey;
+        // New orders store "Garment - DisplayLabel" (not "Garment - category").
+        // Map both so lookups work regardless of which format was stored.
+        const displayKey = `${opt.garment} - ${opt.displayLabel}`;
+        if (!map[displayKey]) map[displayKey] = newKey;
+        if (!map[displayKey.toLowerCase()])
+          map[displayKey.toLowerCase()] = newKey;
       }
     }
     return map;

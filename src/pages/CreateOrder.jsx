@@ -387,7 +387,9 @@ export default function CreateOrder() {
 
   const expandedLiningCodes = useMemo(() => {
     if (!selectedProduct || !liningCodes.length) return [];
-    const garments = styleGarmentsForProduct(selectedProduct, allStyleGarments);
+    const garments = garmentsFromGcBuilderValue(
+      selectedProduct.metafield?.value,
+    );
     if (!garments.length) return [];
     const normalizeG = (g) =>
       garments.find((ag) => ag.toLowerCase() === g.toLowerCase()) ?? null;
@@ -398,11 +400,13 @@ export default function CreateOrder() {
           : garments;
       return targets.map((g) => ({ ...item, garment: g }));
     });
-  }, [selectedProduct, liningCodes, allStyleGarments]);
+  }, [selectedProduct, liningCodes]);
 
   const expandedButtonCodes = useMemo(() => {
     if (!selectedProduct || !buttonCodes.length) return [];
-    const garments = styleGarmentsForProduct(selectedProduct, allStyleGarments);
+    const garments = garmentsFromGcBuilderValue(
+      selectedProduct.metafield?.value,
+    );
     if (!garments.length) return [];
     const normalizeG = (g) =>
       garments.find((ag) => ag.toLowerCase() === g.toLowerCase()) ?? null;
@@ -413,7 +417,7 @@ export default function CreateOrder() {
           : garments;
       return targets.map((g) => ({ ...item, garment: g }));
     });
-  }, [selectedProduct, buttonCodes, allStyleGarments]);
+  }, [selectedProduct, buttonCodes]);
 
   const pastOrdersForProduct = useMemo(() => {
     if (!selectedProduct || !customerOrders.length) return [];
@@ -893,12 +897,21 @@ export default function CreateOrder() {
     const stylePrefill = {};
     const usedSlots = new Set();
     for (const attr of pastOrder.attributes) {
-      if (!attr.key.startsWith("Style: ")) continue;
-      const displayLabel = attr.key.slice(7);
+      let displayLabel = null;
+      let garmentHint = null;
+      if (attr.key.startsWith("Style: ")) {
+        displayLabel = attr.key.slice(7);
+      } else if (attr.key.includes(" - ")) {
+        const dashIdx = attr.key.indexOf(" - ");
+        garmentHint = attr.key.slice(0, dashIdx);
+        displayLabel = attr.key.slice(dashIdx + 3);
+      }
+      if (!displayLabel) continue;
       const matchedOpt = allStyleOpts.find((opt) => {
         const slot = `${opt.garment}__${opt.category}`;
         return (
           !usedSlots.has(slot) &&
+          (!garmentHint || opt.garment === garmentHint) &&
           (opt.displayLabel || opt.category) === displayLabel &&
           opt.label === attr.value
         );
@@ -938,8 +951,9 @@ export default function CreateOrder() {
           const opt = allStyleOpts.find(
             (o) => o.garment === garment && o.category === category,
           );
+          const displayLabel = opt?.displayLabel || category;
           return {
-            key: `Style: ${opt?.displayLabel || category}`,
+            key: `${garment} - ${displayLabel}`,
             value,
           };
         });
@@ -1124,9 +1138,10 @@ export default function CreateOrder() {
             id: `prof_${Date.now()}`,
             name: `Measurement ${existingList.length + 1}`,
             created: today,
-            style: Object.fromEntries(
-              styleAttrs.map(({ key, value }) => [key, String(value)]),
-            ),
+            style: Object.fromEntries([
+              ...styleAttrs.map(({ key, value }) => [key, String(value)]),
+              ...fitSizeAttrs.map(({ key, value }) => [key, String(value)]),
+            ]),
             measurements: Object.fromEntries(
               measureAttrs.map(({ key, value }) => {
                 const v = String(value);
@@ -1372,12 +1387,21 @@ export default function CreateOrder() {
                       const stylePrefill = {};
                       const usedSlots = new Set();
                       for (const attr of o.attributes) {
-                        if (!attr.key.startsWith("Style: ")) continue;
-                        const displayLabel = attr.key.slice(7);
+                        let displayLabel = null;
+                        let garmentHint = null;
+                        if (attr.key.startsWith("Style: ")) {
+                          displayLabel = attr.key.slice(7);
+                        } else if (attr.key.includes(" - ")) {
+                          const dashIdx = attr.key.indexOf(" - ");
+                          garmentHint = attr.key.slice(0, dashIdx);
+                          displayLabel = attr.key.slice(dashIdx + 3);
+                        }
+                        if (!displayLabel) continue;
                         const matchedOpt = allStyleOpts.find((opt) => {
                           const slot = `${opt.garment}__${opt.category}`;
                           return (
                             !usedSlots.has(slot) &&
+                            (!garmentHint || opt.garment === garmentHint) &&
                             (opt.displayLabel || opt.category) ===
                               displayLabel &&
                             opt.label === attr.value

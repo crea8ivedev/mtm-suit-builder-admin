@@ -83,15 +83,15 @@ const INLINE_KEYS = new Set([
 
 function resolveLabel(rawKey, labelMap) {
   if (labelMap[rawKey]) return labelMap[rawKey];
-  if (rawKey.startsWith("Jacket ")) {
+  if (rawKey.startsWith("Jacket ") && !rawKey.includes(" - ")) {
     const stripped = rawKey.slice("Jacket ".length);
     return labelMap[stripped] ?? stripped;
   }
-  if (rawKey.startsWith("Trouser ")) {
+  if (rawKey.startsWith("Trouser ") && !rawKey.includes(" - ")) {
     const stripped = rawKey.slice("Trouser ".length);
     return labelMap[stripped] ?? stripped;
   }
-  if (rawKey.startsWith("Vest ")) {
+  if (rawKey.startsWith("Vest ") && !rawKey.includes(" - ")) {
     const stripped = rawKey.slice("Vest ".length);
     return labelMap[stripped] ?? stripped;
   }
