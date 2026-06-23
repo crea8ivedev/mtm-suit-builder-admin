@@ -720,18 +720,6 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
     (d) => d.orderSizes.length > 0,
   );
 
-  // Deduplicate position ecodes globally across all garments.
-  // KT rejects if the same ecode appears in more than one orderDetail
-  // (happens when a measurement has no garment prefix and resolves via cross-garment fallback).
-  const _globalEcodes = new Set();
-  for (const detail of payload.orderDetails) {
-    detail.orderSizes = detail.orderSizes.filter((s) => {
-      if (_globalEcodes.has(s.positionEcode)) return false;
-      _globalEcodes.add(s.positionEcode);
-      return true;
-    });
-  }
-
   // Inject default crafts when blank or stored in legacy [{pid,craftId}] JSON format
   for (const detail of payload.orderDetails) {
     const isLegacyJson = detail.crafts && detail.crafts.trim().startsWith("[");
