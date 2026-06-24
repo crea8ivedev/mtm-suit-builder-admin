@@ -7,6 +7,7 @@ const SP_CLASS = {
   processing: "sp-processing",
   pending: "sp-pending",
   failed: "sp-failed",
+  submitted: "sp-submitted",
 };
 
 export default function StatusPill({ status }) {

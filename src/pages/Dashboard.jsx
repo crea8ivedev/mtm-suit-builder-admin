@@ -10,7 +10,7 @@ import { useOrders } from "../hooks/useOrders";
 const STAT_CONFIG = [
   { id: "pending", label: "Pending Orders", icon: Clock },
   { id: "failed", label: "Failed Orders", icon: X },
-  { id: "verified", label: "Verified Supplier", icon: BadgeCheck },
+  { id: "verified", label: "Submitted Supplier", icon: BadgeCheck },
 ];
 
 function ItemsBadge({ count }) {

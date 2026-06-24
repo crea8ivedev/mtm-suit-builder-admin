@@ -17,7 +17,7 @@ import { useClickOutside } from "../hooks/useClickOutside";
 import { cn } from "../utils/cn";
 import { generateCSV } from "../utils/exportUtils";
 
-const SUPPLIER_OPTIONS = ["Pending", "Verified"];
+const SUPPLIER_OPTIONS = ["Pending", "Processing", "Submitted", "Failed"];
 
 function ItemsBadge({ count }) {
   return <span className="items-badge">{count}</span>;

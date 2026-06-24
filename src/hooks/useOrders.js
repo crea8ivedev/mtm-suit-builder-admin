@@ -3,6 +3,33 @@ import { fetchOrdersPage, transformOrder } from "../lib/shopify";
 
 let _cache = null;
 
+const LS_KEY = "supplier_status_overrides";
+
+function loadOverrides() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveOverrides(overrides) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(overrides));
+  } catch {}
+}
+
+let _supplierOverrides = loadOverrides();
+
+export function invalidateOrdersCache() {
+  _cache = null;
+}
+
+export function setOrderSupplierOverride(shopifyGid, supplierStatus) {
+  _supplierOverrides[shopifyGid] = supplierStatus;
+  saveOverrides(_supplierOverrides);
+}
+
 export function useOrders() {
   const [rawOrders, setRawOrders] = useState(_cache || []);
   const [loading, setLoading] = useState(!_cache);
@@ -72,7 +99,15 @@ export function useOrders() {
     load();
   }
 
-  const orders = useMemo(() => rawOrders.map(transformOrder), [rawOrders]);
+  const orders = useMemo(
+    () =>
+      rawOrders.map((node) => {
+        const order = transformOrder(node);
+        const override = _supplierOverrides[node.id];
+        return override ? { ...order, supplierStatus: override } : order;
+      }),
+    [rawOrders],
+  );
 
   const stats = useMemo(
     () => ({
@@ -80,7 +115,7 @@ export function useOrders() {
       pending: orders.filter((o) => o.status === "processing").length,
       submitted: orders.filter((o) => o.status === "shipped").length,
       failed: orders.filter((o) => o.status === "failed").length,
-      verified: orders.filter((o) => o.supplierStatus === "verified").length,
+      verified: orders.filter((o) => o.supplierStatus === "submitted").length,
     }),
     [orders],
   );

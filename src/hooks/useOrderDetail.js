@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchOrderById, clearOrderDetailCache } from "../lib/shopify";
+import { setOrderSupplierOverride } from "./useOrders";
 
 export function useOrderDetail(shopifyGid) {
   const [order, setOrder] = useState(null);
@@ -20,6 +21,15 @@ export function useOrderDetail(shopifyGid) {
         if (!cancelled) {
           setOrder(data);
           setLoading(false);
+          const meta = Object.fromEntries(
+            (data?.metafields?.edges ?? []).map((e) => [
+              e.node.key,
+              e.node.value,
+            ]),
+          );
+          if (meta.supplier_status) {
+            setOrderSupplierOverride(shopifyGid, meta.supplier_status);
+          }
         }
       })
       .catch((err) => {

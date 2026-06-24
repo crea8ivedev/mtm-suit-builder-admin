@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { sendToKutetailor } from "../lib/kutetailor";
 import { getOrderForSupplier, setOrderMetafields } from "../lib/shopify";
+import { invalidateOrdersCache, setOrderSupplierOverride } from "./useOrders";
 
 export const SUPPLIERS = [
   { id: "kutetailor", name: "Kutetailor", enabled: true },
@@ -80,6 +81,14 @@ export function useSupplierSubmit(orderId, onSettled) {
             .catch(() => updateFailed())
             .catch(() => {});
           setSubmitError(errMsg);
+        }
+
+        if (!errMsg) {
+          invalidateOrdersCache();
+          setOrderSupplierOverride(
+            `gid://shopify/Order/${orderId}`,
+            "submitted",
+          );
         }
 
         await onSettled?.();
