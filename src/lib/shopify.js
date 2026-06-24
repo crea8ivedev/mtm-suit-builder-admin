@@ -378,19 +378,21 @@ export async function createProductOptionValue(
   return values[values.length - 1];
 }
 
-
 export async function updateVariantPrice(productId, variantId, price) {
-  const data = await shopifyGraphQL(`
+  const data = await shopifyGraphQL(
+    `
     mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
       productVariantsBulkUpdate(productId: $productId, variants: $variants) {
         productVariants { id price }
         userErrors { field message }
       }
     }
-  `, {
-    productId,
-    variants: [{ id: variantId, price: price.toString() }],
-  });
+  `,
+    {
+      productId,
+      variants: [{ id: variantId, price: price.toString() }],
+    },
+  );
   const { userErrors } = data.productVariantsBulkUpdate;
   if (userErrors?.length) throw new Error(userErrors[0].message);
   return data.productVariantsBulkUpdate.productVariants[0];
@@ -416,7 +418,7 @@ export async function addVariantToProduct(
   existingVariants,
   patternLabel = null,
   imageUrl = null,
-  price = null
+  price = null,
 ) {
   const primaryValue = patternLabel
     ? { optionName, name: patternLabel }
@@ -438,9 +440,10 @@ export async function addVariantToProduct(
   const variantInput = {
     optionValues,
     ...(imageUrl && { mediaSrc: [imageUrl] }),
-    ...(price !== null && price !== undefined && {
-      price: price.toString(),
-    }),
+    ...(price !== null &&
+      price !== undefined && {
+        price: price.toString(),
+      }),
   };
 
   const variables = { productId, variants: [variantInput] };
@@ -1629,6 +1632,13 @@ async function fetchStyleOptionsForType(type) {
           return null;
         })(),
         conditionalHide: fm.conditional_hide || "",
+        hideWhenGids: (() => {
+          try {
+            return fm.hide_when ? JSON.parse(fm.hide_when) : [];
+          } catch {
+            return [];
+          }
+        })(),
         imageGid: fm.image || null,
         imageUrlStored: fm.image_url || null,
         imageUrl:

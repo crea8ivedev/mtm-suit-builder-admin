@@ -1140,6 +1140,9 @@ export default function StyleAdjustments() {
           <ViewStyleOptionModal
             option={viewingOption}
             garment={selectedGarment}
+            garmentOptions={options.filter(
+              (o) => o.garment === selectedGarment,
+            )}
             onClose={() => setViewingOption(null)}
             onEdit={(opt) => {
               setViewingOption(null);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ExternalLink, Pencil, X } from "lucide-react";
+import { ExternalLink, Pencil, X, ChevronDown } from "lucide-react";
 import ModalBase, { ModalHeader, ModalFooter } from "../ui/ModalBase";
 import {
   createStyleOption,
@@ -21,6 +21,7 @@ const KNOWN_KEYS = new Set([
   "visible",
   "sort_order",
   "conditional_hide",
+  "hide_when",
   "kutetailer_code",
   "image",
   "image_url",
@@ -405,25 +406,14 @@ export function AddStyleOptionModal({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-[10px]">
-          <div>
-            <label className={labelCls}>Kutetailor Code</label>
-            <input
-              className={inputCls}
-              value={form.kutetailer_code}
-              onChange={(e) => set("kutetailer_code", e.target.value)}
-              placeholder="e.g. 000B"
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Conditional Hide</label>
-            <input
-              className={inputCls}
-              value={form.conditional_hide}
-              onChange={(e) => set("conditional_hide", e.target.value)}
-              placeholder="Optional"
-            />
-          </div>
+        <div>
+          <label className={labelCls}>Kutetailor Code</label>
+          <input
+            className={inputCls}
+            value={form.kutetailer_code}
+            onChange={(e) => set("kutetailer_code", e.target.value)}
+            placeholder="e.g. 000B"
+          />
         </div>
 
         <div>
@@ -576,7 +566,17 @@ export function AddStyleOptionModal({
   );
 }
 
-export function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
+export function ViewStyleOptionModal({
+  option,
+  garment,
+  garmentOptions = [],
+  onClose,
+  onEdit,
+}) {
+  const hideWhenLabels = (option.hideWhenGids ?? [])
+    .map((gid) => garmentOptions.find((o) => o.id === gid)?.label)
+    .filter(Boolean);
+
   const rows = [
     { label: "Label", value: option.label },
     { label: "Category", value: option.category },
@@ -587,7 +587,10 @@ export function ViewStyleOptionModal({ option, garment, onClose, onEdit }) {
     },
     { label: "Sort Order", value: option.sortOrder ?? "—" },
     { label: "Kutetailor Code", value: option.kutetailerCode || "—" },
-    { label: "Conditional Hide", value: option.conditionalHide || "—" },
+    {
+      label: "Hide When",
+      value: hideWhenLabels.length ? hideWhenLabels.join(", ") : "—",
+    },
   ];
 
   const extraRows = Object.entries(option.rawFields ?? {})
@@ -709,6 +712,14 @@ export function EditStyleOptionModal({
       ...extraValues,
     };
   });
+  const [hideWhenGids, setHideWhenGids] = useState(() => {
+    try {
+      return new Set(JSON.parse(option.rawFields?.hide_when || "[]"));
+    } catch {
+      return new Set();
+    }
+  });
+  const [hideWhenOpen, setHideWhenOpen] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -763,6 +774,17 @@ export function EditStyleOptionModal({
     setForm((prev) => ({ ...prev, [key]: val }));
   }
 
+  const originalHideWhenGids = (() => {
+    try {
+      return new Set(JSON.parse(option.rawFields?.hide_when || "[]"));
+    } catch {
+      return new Set();
+    }
+  })();
+  const hideWhenDirty =
+    hideWhenGids.size !== originalHideWhenGids.size ||
+    [...hideWhenGids].some((g) => !originalHideWhenGids.has(g));
+
   const isDirty =
     form.label !== (option.label || "") ||
     form.category !== (option.category || "") ||
@@ -775,6 +797,7 @@ export function EditStyleOptionModal({
     form.visible !== (option.visible ? "true" : "false") ||
     form.image !== (option.imageGid || "") ||
     form.image_url !== (option.imageUrlStored || "") ||
+    hideWhenDirty ||
     rawExtra.some(
       (k) =>
         form[k] !==
@@ -810,7 +833,8 @@ export function EditStyleOptionModal({
           onUpdated(prevDefault.id, { isDefault: false });
         }
       }
-      await updateStyleOption(option.id, form);
+      const hideWhenJson = JSON.stringify([...hideWhenGids]);
+      await updateStyleOption(option.id, { ...form, hide_when: hideWhenJson });
       const resolvedImageUrl =
         form.image_url ||
         (form.kutetailer_code
@@ -829,6 +853,7 @@ export function EditStyleOptionModal({
         imageGid: form.image || null,
         imageUrlStored: form.image_url || null,
         imageUrl: resolvedImageUrl,
+        hideWhenGids: [...hideWhenGids],
       });
       clearStyleOptionsCache();
       onClose();
@@ -930,23 +955,13 @@ export function EditStyleOptionModal({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-[10px]">
-          <div>
-            <label className={labelCls}>Kutetailor Code</label>
-            <input
-              className={inputCls}
-              value={form.kutetailer_code}
-              onChange={(e) => set("kutetailer_code", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Conditional Hide</label>
-            <input
-              className={inputCls}
-              value={form.conditional_hide}
-              onChange={(e) => set("conditional_hide", e.target.value)}
-            />
-          </div>
+        <div>
+          <label className={labelCls}>Kutetailor Code</label>
+          <input
+            className={inputCls}
+            value={form.kutetailer_code}
+            onChange={(e) => set("kutetailer_code", e.target.value)}
+          />
         </div>
 
         <div>
@@ -969,6 +984,90 @@ export function EditStyleOptionModal({
             }
           />
         </div>
+
+        {(() => {
+          const hideWhenOpts = garmentOptions.filter(
+            (o) =>
+              o.id !== option.id &&
+              o.visible &&
+              !o.isLiningCode &&
+              !o.isButtonCode,
+          );
+          if (!hideWhenOpts.length) return null;
+          const selectedLabels = hideWhenOpts
+            .filter((o) => hideWhenGids.has(o.id))
+            .map((o) => o.label);
+          const grouped = hideWhenOpts.reduce((acc, o) => {
+            const cat = o.displayLabel || o.category;
+            if (!acc[cat]) acc[cat] = [];
+            acc[cat].push(o);
+            return acc;
+          }, {});
+          return (
+            <div>
+              <label className={labelCls}>Hide When</label>
+              <button
+                type="button"
+                onClick={() => setHideWhenOpen((v) => !v)}
+                className="w-full flex items-center justify-between gap-[8px] px-[10px] py-[9px] rounded-[6px] border border-gc-border-warm bg-white text-left"
+              >
+                <span className="font-hanken text-[12px] text-gc-near-black truncate flex-1 min-w-0">
+                  {selectedLabels.length ? (
+                    selectedLabels.join(", ")
+                  ) : (
+                    <span className="text-[#9ca3af]">Select options…</span>
+                  )}
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={`flex-shrink-0 text-[#424656] transition-transform duration-150 ${hideWhenOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              <div
+                className={`mt-[4px] border border-gc-border-warm rounded-[6px] divide-y divide-gc-bg-warm overflow-y-auto transition-all duration-200 ease-in-out ${hideWhenOpen ? "max-h-[220px] opacity-100" : "max-h-0 opacity-0 border-transparent"}`}
+              >
+                {Object.entries(grouped).map(([cat, catOpts]) => (
+                  <div key={cat} className="px-[10px] py-[8px]">
+                    <div className="font-hanken text-[10px] font-semibold text-[#a45d41] uppercase tracking-[0.6px] mb-[6px]">
+                      {cat}
+                    </div>
+                    <div className="flex flex-col gap-[4px]">
+                      {catOpts.map((o) => (
+                        <label
+                          key={o.id}
+                          className="flex items-center gap-[8px] cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={hideWhenGids.has(o.id)}
+                            onChange={(e) => {
+                              setHideWhenGids((prev) => {
+                                const next = new Set(prev);
+                                e.target.checked
+                                  ? next.add(o.id)
+                                  : next.delete(o.id);
+                                return next;
+                              });
+                            }}
+                            className="w-[14px] h-[14px] cursor-pointer gc-accent-primary flex-shrink-0"
+                          />
+                          <span className="font-hanken text-[12px] text-gc-near-black">
+                            {o.label}
+                            {o.kutetailerCode && (
+                              <span className="ml-[4px] text-[10px] text-[#9ca3af]">
+                                ({o.kutetailerCode})
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {extraFields
           .filter((d) => {

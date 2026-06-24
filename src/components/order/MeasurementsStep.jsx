@@ -362,6 +362,31 @@ export function StyleOptionsSection({
   onChange,
   loading,
 }) {
+  // Build label→id lookup for resolving selections to option IDs
+  const optionLabelToId = useMemo(() => {
+    const map = new Map();
+    for (const o of [
+      ...styleOptions,
+      ...contrastOptions,
+      ...liningCodes,
+      ...buttonCodes,
+    ]) {
+      map.set(`${o.garment}__${o.category}__${o.label}`, o.id);
+    }
+    return map;
+  }, [styleOptions, contrastOptions, liningCodes, buttonCodes]);
+
+  // IDs of all currently selected options (used to evaluate hide_when rules)
+  const selectedOptionIds = useMemo(() => {
+    const ids = new Set();
+    for (const [key, label] of Object.entries(selections)) {
+      if (!label) continue;
+      const id = optionLabelToId.get(`${key}__${label}`);
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [selections, optionLabelToId]);
+
   const byGarment = useMemo(() => {
     const map = {};
     const mappedLocations = contrastLocations
@@ -433,6 +458,13 @@ export function StyleOptionsSection({
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-[12px] sm:gap-x-[24px] gap-y-[12px] sm:gap-y-[20px]">
               {categories.map((cat) => {
                 const opts = catMap[cat];
+                // Filter out options hidden by hide_when rules
+                const visibleOpts = opts.filter(
+                  (o) =>
+                    !o.hideWhenGids?.length ||
+                    !o.hideWhenGids.some((gid) => selectedOptionIds.has(gid)),
+                );
+                const selectionKey = `${garment}__${cat}`;
                 return (
                   <StyleDropdown
                     key={`${garment}-${cat}`}
@@ -441,14 +473,40 @@ export function StyleOptionsSection({
                         ? "Contrast Color"
                         : opts[0]?.displayLabel || cat
                     }
-                    opts={opts}
-                    selected={selections[`${garment}__${cat}`] ?? ""}
-                    onSelect={(val) =>
-                      onChange({
-                        ...selections,
-                        [`${garment}__${cat}`]: val,
-                      })
-                    }
+                    opts={visibleOpts}
+                    selected={selections[selectionKey] ?? ""}
+                    onSelect={(val) => {
+                      const next = { ...selections, [selectionKey]: val };
+                      // Compute IDs selected after this change
+                      const nextIds = new Set();
+                      for (const [k, l] of Object.entries(next)) {
+                        if (!l) continue;
+                        const id = optionLabelToId.get(`${k}__${l}`);
+                        if (id) nextIds.add(id);
+                      }
+                      // Auto-clear any selection whose option is now hidden
+                      const allOpts = [
+                        ...styleOptions,
+                        ...contrastOptions,
+                        ...liningCodes,
+                        ...buttonCodes,
+                      ];
+                      for (const [k, l] of Object.entries(next)) {
+                        if (!l || k === selectionKey) continue;
+                        const [g, ...cParts] = k.split("__");
+                        const c = cParts.join("__");
+                        const o = allOpts.find(
+                          (x) =>
+                            x.garment === g &&
+                            x.category === c &&
+                            x.label === l,
+                        );
+                        if (o?.hideWhenGids?.some((gid) => nextIds.has(gid))) {
+                          next[k] = "";
+                        }
+                      }
+                      onChange(next);
+                    }}
                   />
                 );
               })}

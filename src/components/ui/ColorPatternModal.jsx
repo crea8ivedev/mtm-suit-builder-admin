@@ -145,7 +145,9 @@ function PatternForm({
           Price
         </label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gc-muted text-[13px]">$</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gc-muted text-[13px]">
+            $
+          </span>
           <input
             type="number"
             step="0.01"
@@ -228,7 +230,6 @@ function PatternCard({
               : "border-gc-border bg-white hover:border-gc-primary hover:shadow-sm",
       ].join(" ")}
     >
-      
       <button
         onClick={!isVariant && !isPendingAdd && !adding ? onInitAdd : undefined}
         disabled={isVariant || adding}
@@ -240,9 +241,14 @@ function PatternCard({
               ? "cursor-wait"
               : "cursor-pointer",
         ].join(" ")}
-        title={isVariant ? "Already added as variant" : isPendingAdd ? "" : "Click to add as product variant"}
+        title={
+          isVariant
+            ? "Already added as variant"
+            : isPendingAdd
+              ? ""
+              : "Click to add as product variant"
+        }
       >
-        
         <div className="w-full aspect-square sm:w-[48px] sm:h-[48px] sm:aspect-auto sm:rounded-lg sm:flex-shrink-0 border-b sm:border border-gc-border overflow-hidden">
           {pattern.imageUrl ? (
             <img
@@ -258,7 +264,6 @@ function PatternCard({
           )}
         </div>
 
-        
         <div className="flex items-center gap-[6px] px-[10px] py-[8px] sm:p-0 sm:flex-1 sm:min-w-0">
           <div className="flex-1 min-w-0">
             <p className="text-[12px] sm:text-[14px] font-medium text-gc-heading line-clamp-2 sm:truncate leading-tight">
@@ -294,7 +299,6 @@ function PatternCard({
         </div>
       </button>
 
-      
       {isPendingAdd && (
         <div className="px-[10px] pb-[10px] flex items-center gap-[6px]">
           <input
@@ -353,7 +357,7 @@ export default function ColorPatternModal({ product, onClose }) {
   const [addingIds, setAddingIds] = useState(new Set());
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [removing, setRemoving] = useState(false);
-  
+
   const [pendingAdd, setPendingAdd] = useState(null);
 
   const editFileRef = useRef(null);
@@ -426,7 +430,8 @@ export default function ColorPatternModal({ product, onClose }) {
     const optName = getFabricOptionName();
     const variant = variantDetail.variants.find((v) =>
       v.selectedOptions.some(
-        (o) => o.name === optName && o.value.toLowerCase() === label.toLowerCase(),
+        (o) =>
+          o.name === optName && o.value.toLowerCase() === label.toLowerCase(),
       ),
     );
     return variant?.inventoryQuantity ?? null;
@@ -436,7 +441,8 @@ export default function ColorPatternModal({ product, onClose }) {
     const optName = getFabricOptionName();
     const variant = variantDetail.variants.find((v) =>
       v.selectedOptions.some(
-        (o) => o.name === optName && o.value.toLowerCase() === label.toLowerCase(),
+        (o) =>
+          o.name === optName && o.value.toLowerCase() === label.toLowerCase(),
       ),
     );
     return variant?.price ?? "";
@@ -494,7 +500,11 @@ export default function ColorPatternModal({ product, onClose }) {
           pattern.imageUrl,
           price ?? null,
         );
-        if (quantity != null && quantity !== "" && createdVariants?.[0]?.inventoryItem?.id) {
+        if (
+          quantity != null &&
+          quantity !== "" &&
+          createdVariants?.[0]?.inventoryItem?.id
+        ) {
           await setVariantInventoryQuantity(
             createdVariants[0].inventoryItem.id,
             quantity,
@@ -510,7 +520,11 @@ export default function ColorPatternModal({ product, onClose }) {
           pattern.imageUrl,
           price ?? null,
         );
-        if (quantity != null && quantity !== "" && createdVariants?.[0]?.inventoryItem?.id) {
+        if (
+          quantity != null &&
+          quantity !== "" &&
+          createdVariants?.[0]?.inventoryItem?.id
+        ) {
           await setVariantInventoryQuantity(
             createdVariants[0].inventoryItem.id,
             quantity,
@@ -609,8 +623,16 @@ export default function ColorPatternModal({ product, onClose }) {
           }
         }
 
-        if (editForm.price !== "" && editForm.price !== null && editForm.price !== editOriginal.price) {
-          await updateVariantPrice(product.id, matchedVariant.id, editForm.price);
+        if (
+          editForm.price !== "" &&
+          editForm.price !== null &&
+          editForm.price !== editOriginal.price
+        ) {
+          await updateVariantPrice(
+            product.id,
+            matchedVariant.id,
+            editForm.price,
+          );
         }
 
         await loadVariants();
@@ -635,7 +657,11 @@ export default function ColorPatternModal({ product, onClose }) {
       addForm.quantity === undefined
     )
       return;
-    if (addForm.price === "" || addForm.price === null || addForm.price === undefined) {
+    if (
+      addForm.price === "" ||
+      addForm.price === null ||
+      addForm.price === undefined
+    ) {
       return;
     }
     setSaving(true);
@@ -652,15 +678,18 @@ export default function ColorPatternModal({ product, onClose }) {
         handle: newNode.handle,
         label: addForm.label,
         imageUrl: addForm.imageUrl,
-        color: addForm.color
+        color: addForm.color,
       };
 
-      await handleAddToVariants(patternForVariant, addForm.quantity, addForm.price);
+      await handleAddToVariants(
+        patternForVariant,
+        addForm.quantity,
+        addForm.price,
+      );
 
       setShowAdd(false);
       setAddForm({ ...EMPTY_FORM });
       loadPatterns(true);
-
     } catch (e) {
       alert(e.message);
     } finally {
@@ -1045,13 +1074,17 @@ export default function ColorPatternModal({ product, onClose }) {
                       key={cardKey}
                       pattern={p}
                       isVariant={alreadyVariant}
-                      variantQty={alreadyVariant ? getVariantQuantity(p.label) : null}
+                      variantQty={
+                        alreadyVariant ? getVariantQuantity(p.label) : null
+                      }
                       onInitAdd={() => setPendingAdd({ key: cardKey, qty: "" })}
                       adding={addingIds.has(cardKey)}
                       isPendingAdd={isPendingAdd}
                       pendingQty={isPendingAdd ? pendingAdd.qty : ""}
                       onQtyChange={(qty) =>
-                        setPendingAdd((prev) => (prev ? { ...prev, qty } : null))
+                        setPendingAdd((prev) =>
+                          prev ? { ...prev, qty } : null,
+                        )
                       }
                       onConfirmAdd={() => {
                         if (!pendingAdd || pendingAdd.qty === "") return;
