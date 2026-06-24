@@ -183,71 +183,131 @@ function PatternForm({
 }
 
 // ── PatternCard ──────────
-function PatternCard({ pattern, isVariant, onAdd, adding }) {
+function PatternCard({
+  pattern,
+  isVariant,
+  variantQty,
+  onInitAdd,
+  adding,
+  isPendingAdd,
+  pendingQty,
+  onQtyChange,
+  onConfirmAdd,
+  onCancelAdd,
+}) {
   return (
-    <button
-      onClick={!isVariant ? onAdd : undefined}
-      disabled={isVariant || adding}
+    <div
       className={[
-        "w-full border rounded-xl overflow-hidden transition-all text-left flex flex-col sm:flex-row sm:items-center sm:gap-[12px] sm:p-[12px]",
+        "w-full border rounded-xl overflow-hidden transition-all flex flex-col",
         isVariant
-          ? "border-gc-border-warm bg-gc-bg-warm cursor-default"
-          : adding
-            ? "border-gc-border bg-white opacity-60 cursor-wait"
-            : "border-gc-border bg-white hover:border-gc-primary hover:shadow-sm cursor-pointer",
+          ? "border-gc-border-warm bg-gc-bg-warm"
+          : isPendingAdd
+            ? "border-gc-primary shadow-sm bg-white"
+            : adding
+              ? "border-gc-border bg-white opacity-60"
+              : "border-gc-border bg-white hover:border-gc-primary hover:shadow-sm",
       ].join(" ")}
-      title={
-        isVariant
-          ? "Already added as variant"
-          : "Click to add as product variant"
-      }
     >
-      {/* Image — full-width square on mobile, fixed thumb on desktop */}
-      <div className="w-full aspect-square sm:w-[48px] sm:h-[48px] sm:aspect-auto sm:rounded-lg sm:flex-shrink-0 border-b sm:border border-gc-border overflow-hidden">
-        {pattern.imageUrl ? (
-          <img
-            src={pattern.imageUrl}
-            alt={pattern.label}
-            className="w-full h-full object-cover object-center"
-          />
-        ) : (
-          <div
-            className="w-full h-full"
-            style={{ backgroundColor: pattern.color ?? "#e5e7eb" }}
-          />
-        )}
-      </div>
+      
+      <button
+        onClick={!isVariant && !isPendingAdd && !adding ? onInitAdd : undefined}
+        disabled={isVariant || adding}
+        className={[
+          "w-full text-left flex flex-col sm:flex-row sm:items-center sm:gap-[12px] sm:p-[12px]",
+          isVariant || isPendingAdd
+            ? "cursor-default"
+            : adding
+              ? "cursor-wait"
+              : "cursor-pointer",
+        ].join(" ")}
+        title={isVariant ? "Already added as variant" : isPendingAdd ? "" : "Click to add as product variant"}
+      >
+        
+        <div className="w-full aspect-square sm:w-[48px] sm:h-[48px] sm:aspect-auto sm:rounded-lg sm:flex-shrink-0 border-b sm:border border-gc-border overflow-hidden">
+          {pattern.imageUrl ? (
+            <img
+              src={pattern.imageUrl}
+              alt={pattern.label}
+              className="w-full h-full object-cover object-center"
+            />
+          ) : (
+            <div
+              className="w-full h-full"
+              style={{ backgroundColor: pattern.color ?? "#e5e7eb" }}
+            />
+          )}
+        </div>
 
-      {/* Info row */}
-      <div className="flex items-center gap-[6px] px-[10px] py-[8px] sm:p-0 sm:flex-1 sm:min-w-0">
-        <div className="flex-1 min-w-0">
-          <p className="text-[12px] sm:text-[14px] font-medium text-gc-heading line-clamp-2 sm:truncate leading-tight">
-            {pattern.label}
-          </p>
-          <div className="hidden sm:flex items-center gap-[6px] mt-[2px]">
-            {pattern.color && (
-              <span className="text-[11px] font-mono text-gc-muted">
-                {pattern.color}
-              </span>
+        
+        <div className="flex items-center gap-[6px] px-[10px] py-[8px] sm:p-0 sm:flex-1 sm:min-w-0">
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] sm:text-[14px] font-medium text-gc-heading line-clamp-2 sm:truncate leading-tight">
+              {pattern.label}
+            </p>
+            <div className="hidden sm:flex items-center gap-[6px] mt-[2px]">
+              {pattern.color && (
+                <span className="text-[11px] font-mono text-gc-muted">
+                  {pattern.color}
+                </span>
+              )}
+              {pattern.code && (
+                <span className="text-[11px] text-gc-muted">
+                  · {pattern.code}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex-shrink-0 flex flex-col items-end gap-[2px]">
+            {adding ? (
+              <Loader2 size={14} className="animate-spin text-gc-muted" />
+            ) : isVariant ? (
+              <CheckCircle2 size={16} className="text-gc-primary" />
+            ) : (
+              <Plus size={15} className="text-gc-primary" />
             )}
-            {pattern.code && (
-              <span className="text-[11px] text-gc-muted">
-                · {pattern.code}
+            {isVariant && variantQty !== null && (
+              <span className="text-[10px] font-medium text-gc-muted leading-none">
+                {variantQty} qty
               </span>
             )}
           </div>
         </div>
-        <div className="flex-shrink-0 flex items-center justify-center">
-          {adding ? (
-            <Loader2 size={14} className="animate-spin text-gc-muted" />
-          ) : isVariant ? (
-            <CheckCircle2 size={16} className="text-gc-primary" />
-          ) : (
-            <Plus size={15} className="text-gc-primary" />
-          )}
+      </button>
+
+      
+      {isPendingAdd && (
+        <div className="px-[10px] pb-[10px] flex items-center gap-[6px]">
+          <input
+            type="number"
+            min="0"
+            autoFocus
+            value={pendingQty}
+            onChange={(e) => onQtyChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && pendingQty !== "") onConfirmAdd();
+              if (e.key === "Escape") onCancelAdd();
+            }}
+            className="flex-1 border border-gc-border-input rounded-md px-[8px] py-[5px] text-[12px] focus:outline-none focus:ring-1 focus:ring-gc-primary"
+            placeholder="Enter quantity"
+          />
+          <button
+            onClick={onConfirmAdd}
+            disabled={pendingQty === ""}
+            className="flex-shrink-0 w-[28px] h-[28px] flex items-center justify-center bg-gc-primary text-white rounded-md hover:bg-gc-primary-dark disabled:opacity-50 cursor-pointer"
+            title="Confirm"
+          >
+            <Check size={13} />
+          </button>
+          <button
+            onClick={onCancelAdd}
+            className="flex-shrink-0 w-[28px] h-[28px] flex items-center justify-center text-gc-muted hover:text-gc-heading hover:bg-gc-bg-warm rounded-md cursor-pointer"
+            title="Cancel"
+          >
+            <X size={13} />
+          </button>
         </div>
-      </div>
-    </button>
+      )}
+    </div>
   );
 }
 
@@ -273,6 +333,8 @@ export default function ColorPatternModal({ product, onClose }) {
   const [addingIds, setAddingIds] = useState(new Set());
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [removing, setRemoving] = useState(false);
+  
+  const [pendingAdd, setPendingAdd] = useState(null);
 
   const editFileRef = useRef(null);
   const addFileRef = useRef(null);
@@ -340,8 +402,18 @@ export default function ColorPatternModal({ product, onClose }) {
     );
   }
 
+  function getVariantQuantity(label) {
+    const optName = getFabricOptionName();
+    const variant = variantDetail.variants.find((v) =>
+      v.selectedOptions.some(
+        (o) => o.name === optName && o.value.toLowerCase() === label.toLowerCase(),
+      ),
+    );
+    return variant?.inventoryQuantity ?? null;
+  }
+
   // ── Add pattern as variant ─────────────────────────────────────────────
-  async function handleAddToVariants(pattern) {
+  async function handleAddToVariants(pattern, quantity) {
     const opts = variantDetail.options;
     const opt = opts.find((o) => o.name.toLowerCase() === "fabric") ?? opts[0];
     if (!opt) {
@@ -391,15 +463,11 @@ export default function ColorPatternModal({ product, onClose }) {
           null,
           pattern.imageUrl,
         );
-        if (
-          pattern.quantity != null &&
-          pattern.quantity !== "" &&
-          createdVariants?.[0]?.inventoryItem?.id
-        ) {
+        if (quantity != null && quantity !== "" && createdVariants?.[0]?.inventoryItem?.id) {
           await setVariantInventoryQuantity(
             createdVariants[0].inventoryItem.id,
-            pattern.quantity,
-          ).catch(() => {});
+            quantity,
+          ).catch(() => { });
         }
       } else {
         const createdVariants = await addVariantToProduct(
@@ -410,15 +478,11 @@ export default function ColorPatternModal({ product, onClose }) {
           pattern.label,
           pattern.imageUrl,
         );
-        if (
-          pattern.quantity != null &&
-          pattern.quantity !== "" &&
-          createdVariants?.[0]?.inventoryItem?.id
-        ) {
+        if (quantity != null && quantity !== "" && createdVariants?.[0]?.inventoryItem?.id) {
           await setVariantInventoryQuantity(
             createdVariants[0].inventoryItem.id,
-            pattern.quantity,
-          ).catch(() => {});
+            quantity,
+          ).catch(() => { });
         }
       }
       loadVariants();
@@ -469,7 +533,7 @@ export default function ColorPatternModal({ product, onClose }) {
       label: pattern.label ?? "",
       color: pattern.color ?? "#000000",
       code: pattern.code ?? "",
-      quantity: "",
+      quantity: getVariantQuantity(pattern.label) ?? "",
       imageGid: pattern.imageGid ?? null,
       imageUrl: pattern.imageUrl ?? null,
     };
@@ -505,7 +569,9 @@ export default function ColorPatternModal({ product, onClose }) {
           await setVariantInventoryQuantity(
             matchedVariant.inventoryItem.id,
             editForm.quantity,
-          ).catch(() => {});
+          );
+
+          await loadVariants();
         }
       }
       setEditingId(null);
@@ -529,15 +595,27 @@ export default function ColorPatternModal({ product, onClose }) {
       return;
     setSaving(true);
     try {
-      await createColorPattern({
+      const newNode = await createColorPattern({
         label: addForm.label,
         color: addForm.color || null,
         imageGid: addForm.imageGid || null,
         code: addForm.code || null,
       });
+
+      const patternForVariant = {
+        id: newNode.id,
+        handle: newNode.handle,
+        label: addForm.label,
+        imageUrl: addForm.imageUrl,
+        color: addForm.color
+      };
+
+      await handleAddToVariants(patternForVariant, addForm.quantity);
+
       setShowAdd(false);
       setAddForm({ ...EMPTY_FORM });
       loadPatterns(true);
+
     } catch (e) {
       alert(e.message);
     } finally {
@@ -912,15 +990,32 @@ export default function ColorPatternModal({ product, onClose }) {
 
             {!loading && !error && patterns.length > 0 && (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-[10px]">
-                {patterns.map((p) => (
-                  <PatternCard
-                    key={p.id ?? p.handle}
-                    pattern={p}
-                    isVariant={isAlreadyVariant(p.label)}
-                    onAdd={() => handleAddToVariants(p)}
-                    adding={addingIds.has(p.id ?? p.handle)}
-                  />
-                ))}
+                {patterns.map((p) => {
+                  const cardKey = p.id ?? p.handle;
+                  const isPendingAdd = pendingAdd?.key === cardKey;
+                  const alreadyVariant = isAlreadyVariant(p.label);
+                  return (
+                    <PatternCard
+                      key={cardKey}
+                      pattern={p}
+                      isVariant={alreadyVariant}
+                      variantQty={alreadyVariant ? getVariantQuantity(p.label) : null}
+                      onInitAdd={() => setPendingAdd({ key: cardKey, qty: "" })}
+                      adding={addingIds.has(cardKey)}
+                      isPendingAdd={isPendingAdd}
+                      pendingQty={isPendingAdd ? pendingAdd.qty : ""}
+                      onQtyChange={(qty) =>
+                        setPendingAdd((prev) => (prev ? { ...prev, qty } : null))
+                      }
+                      onConfirmAdd={() => {
+                        if (!pendingAdd || pendingAdd.qty === "") return;
+                        handleAddToVariants(p, pendingAdd.qty);
+                        setPendingAdd(null);
+                      }}
+                      onCancelAdd={() => setPendingAdd(null)}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>

@@ -311,6 +311,7 @@ const GET_PRODUCT_VARIANTS_DETAIL_QUERY = `
             id
             title
             selectedOptions { name value }
+            inventoryQuantity
             inventoryItem { id }
           }
         }
@@ -467,9 +468,8 @@ let _primaryLocationId = null;
 async function fetchPrimaryLocationId() {
   if (_primaryLocationId) return _primaryLocationId;
   const data = await shopifyGraphQL(GET_PRIMARY_LOCATION_QUERY, {});
-  const id = data.locations?.edges?.[0]?.node?.id ?? null;
-  _primaryLocationId = id;
-  return id;
+  _primaryLocationId = data.locations?.edges?.[0]?.node?.id ?? null;
+  return _primaryLocationId;
 }
 
 export async function setVariantInventoryQuantity(inventoryItemId, quantity) {
@@ -479,6 +479,7 @@ export async function setVariantInventoryQuantity(inventoryItemId, quantity) {
     input: {
       name: "available",
       reason: "correction",
+      ignoreCompareQuantity: true,
       quantities: [{ inventoryItemId, locationId, quantity: Number(quantity) }],
     },
   });
