@@ -23,6 +23,7 @@ import {
   addVariantToProduct,
   removeVariantsFromProduct,
   setVariantInventoryQuantity,
+  updateVariantPrice,
 } from "../../lib/shopify";
 
 const EMPTY_FORM = {
@@ -30,6 +31,7 @@ const EMPTY_FORM = {
   color: "#000000",
   code: "",
   quantity: "",
+  price: "",
   imageGid: null,
   imageUrl: null,
 };
@@ -137,6 +139,24 @@ function PatternForm({
           required
         />
       </div>
+
+      <div>
+        <label className="block text-[11px] font-medium text-gc-muted mb-[4px]">
+          Price
+        </label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gc-muted text-[13px]">$</span>
+          <input
+            type="number"
+            step="0.01"
+            value={form.price}
+            onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+            className="w-full border border-gc-border-input rounded-md pl-[22px] pr-3 py-[6px] text-[13px] focus:outline-none focus:ring-1 focus:ring-gc-primary"
+            placeholder="0.00"
+          />
+        </div>
+      </div>
+
       <div>
         <label className="block text-[11px] font-medium text-gc-muted mb-[4px]">
           Image
@@ -412,8 +432,18 @@ export default function ColorPatternModal({ product, onClose }) {
     return variant?.inventoryQuantity ?? null;
   }
 
+  function getVariantPrice(label) {
+    const optName = getFabricOptionName();
+    const variant = variantDetail.variants.find((v) =>
+      v.selectedOptions.some(
+        (o) => o.name === optName && o.value.toLowerCase() === label.toLowerCase(),
+      ),
+    );
+    return variant?.price ?? "";
+  }
+
   // ── Add pattern as variant ─────────────────────────────────────────────
-  async function handleAddToVariants(pattern, quantity) {
+  async function handleAddToVariants(pattern, quantity, price) {
     const opts = variantDetail.options;
     const opt = opts.find((o) => o.name.toLowerCase() === "fabric") ?? opts[0];
     if (!opt) {
@@ -462,12 +492,13 @@ export default function ColorPatternModal({ product, onClose }) {
           variantDetail.variants,
           null,
           pattern.imageUrl,
+          price ?? null,
         );
         if (quantity != null && quantity !== "" && createdVariants?.[0]?.inventoryItem?.id) {
           await setVariantInventoryQuantity(
             createdVariants[0].inventoryItem.id,
             quantity,
-          ).catch(() => { });
+          );
         }
       } else {
         const createdVariants = await addVariantToProduct(
@@ -477,12 +508,13 @@ export default function ColorPatternModal({ product, onClose }) {
           variantDetail.variants,
           pattern.label,
           pattern.imageUrl,
+          price ?? null,
         );
         if (quantity != null && quantity !== "" && createdVariants?.[0]?.inventoryItem?.id) {
           await setVariantInventoryQuantity(
             createdVariants[0].inventoryItem.id,
             quantity,
-          ).catch(() => { });
+          );
         }
       }
       loadVariants();
@@ -534,6 +566,7 @@ export default function ColorPatternModal({ product, onClose }) {
       color: pattern.color ?? "#000000",
       code: pattern.code ?? "",
       quantity: getVariantQuantity(pattern.label) ?? "",
+      price: getVariantPrice(pattern.label) ?? "",
       imageGid: pattern.imageGid ?? null,
       imageUrl: pattern.imageUrl ?? null,
     };
@@ -556,24 +589,33 @@ export default function ColorPatternModal({ product, onClose }) {
         imageGid: editForm.imageGid || null,
         code: editForm.code || null,
       });
-      if (editForm.quantity !== "" && editForm.quantity !== null) {
-        const optName = getFabricOptionName();
-        const matchedVariant = variantDetail.variants.find((v) =>
-          v.selectedOptions.some(
-            (o) =>
-              o.name === optName &&
-              o.value.toLowerCase() === editForm.label.toLowerCase(),
-          ),
-        );
-        if (matchedVariant?.inventoryItem?.id) {
-          await setVariantInventoryQuantity(
-            matchedVariant.inventoryItem.id,
-            editForm.quantity,
-          );
 
-          await loadVariants();
+      const optName = getFabricOptionName();
+      const matchedVariant = variantDetail.variants.find((v) =>
+        v.selectedOptions.some(
+          (o) =>
+            o.name === optName &&
+            o.value.toLowerCase() === editForm.label.toLowerCase(),
+        ),
+      );
+
+      if (matchedVariant) {
+        if (editForm.quantity !== "" && editForm.quantity !== null) {
+          if (matchedVariant.inventoryItem?.id) {
+            await setVariantInventoryQuantity(
+              matchedVariant.inventoryItem.id,
+              editForm.quantity,
+            );
+          }
         }
+
+        if (editForm.price !== "" && editForm.price !== null && editForm.price !== editOriginal.price) {
+          await updateVariantPrice(product.id, matchedVariant.id, editForm.price);
+        }
+
+        await loadVariants();
       }
+
       setEditingId(null);
       setEditOriginal({ ...EMPTY_FORM });
       loadPatterns(true);
@@ -593,6 +635,9 @@ export default function ColorPatternModal({ product, onClose }) {
       addForm.quantity === undefined
     )
       return;
+    if (addForm.price === "" || addForm.price === null || addForm.price === undefined) {
+      return;
+    }
     setSaving(true);
     try {
       const newNode = await createColorPattern({
@@ -610,7 +655,7 @@ export default function ColorPatternModal({ product, onClose }) {
         color: addForm.color
       };
 
-      await handleAddToVariants(patternForVariant, addForm.quantity);
+      await handleAddToVariants(patternForVariant, addForm.quantity, addForm.price);
 
       setShowAdd(false);
       setAddForm({ ...EMPTY_FORM });
@@ -648,6 +693,7 @@ export default function ColorPatternModal({ product, onClose }) {
     editForm.color !== editOriginal.color ||
     editForm.code !== editOriginal.code ||
     editForm.quantity !== editOriginal.quantity ||
+    editForm.price !== editOriginal.price ||
     editForm.imageGid !== editOriginal.imageGid;
 
   return (

@@ -310,6 +310,7 @@ const GET_PRODUCT_VARIANTS_DETAIL_QUERY = `
           node {
             id
             title
+            price
             selectedOptions { name value }
             inventoryQuantity
             inventoryItem { id }
@@ -377,6 +378,24 @@ export async function createProductOptionValue(
   return values[values.length - 1];
 }
 
+
+export async function updateVariantPrice(productId, variantId, price) {
+  const data = await shopifyGraphQL(`
+    mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+        productVariants { id price }
+        userErrors { field message }
+      }
+    }
+  `, {
+    productId,
+    variants: [{ id: variantId, price: price.toString() }],
+  });
+  const { userErrors } = data.productVariantsBulkUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.productVariantsBulkUpdate.productVariants[0];
+}
+
 const ADD_PRODUCT_VARIANT_MUTATION = `
   mutation ProductVariantsBulkCreate(
     $productId: ID!
@@ -397,6 +416,7 @@ export async function addVariantToProduct(
   existingVariants,
   patternLabel = null,
   imageUrl = null,
+  price = null
 ) {
   const primaryValue = patternLabel
     ? { optionName, name: patternLabel }
@@ -415,9 +435,13 @@ export async function addVariantToProduct(
     }
   }
 
-  const variantInput = imageUrl
-    ? { optionValues, mediaSrc: [imageUrl] }
-    : { optionValues };
+  const variantInput = {
+    optionValues,
+    ...(imageUrl && { mediaSrc: [imageUrl] }),
+    ...(price !== null && price !== undefined && {
+      price: price.toString(),
+    }),
+  };
 
   const variables = { productId, variants: [variantInput] };
   if (imageUrl) {
