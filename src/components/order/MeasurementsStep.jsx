@@ -268,12 +268,25 @@ export function AttributeEditor({
   );
 }
 
-function StyleDropdown({ label, opts, selected, onSelect }) {
+function StyleDropdown({ label, opts, selected, onSelect, searchable }) {
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const ref = useRef(null);
-  useClickOutside(ref, () => setOpen(false));
+  useClickOutside(ref, () => {
+    setOpen(false);
+    setSearchTerm("");
+  });
 
   const selectedLabel = opts.find((o) => o.label === selected)?.label ?? "";
+  
+  const filteredOpts = useMemo(() => {
+    if (!searchTerm) return opts;
+    const lower = searchTerm.toLowerCase();
+    return opts.filter(o => 
+      o.label.toLowerCase().includes(lower) || 
+      (o.colorName && o.colorName.toLowerCase().includes(lower))
+    );
+  }, [opts, searchTerm]);
 
   return (
     <div ref={ref} className="flex flex-col gap-[6px] min-w-0">
@@ -298,7 +311,20 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
         </button>
 
         {open && (
-          <div className="absolute left-0 right-0 top-full mt-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden border border-gc-border-input">
+          <div className="absolute left-0 right-0 top-full mt-[4px] bg-white rounded-[8px] shadow-lg z-50 overflow-hidden border border-gc-border-input flex flex-col">
+            {searchable && (
+              <div className="p-[8px] border-b border-gc-border-input bg-gray-50 flex-shrink-0">
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  autoFocus
+                  className="w-full bg-white border border-gc-border-input rounded-[4px] px-[8px] py-[6px] text-[12px] font-hanken outline-none focus:border-gc-primary transition-colors"
+                />
+              </div>
+            )}
             <ul className="max-h-[200px] overflow-y-auto py-[4px]">
               <li>
                 <button
@@ -313,7 +339,7 @@ function StyleDropdown({ label, opts, selected, onSelect }) {
                   {!selected && <Check size={12} className="text-gc-primary" />}
                 </button>
               </li>
-              {opts.map((opt) => (
+              {filteredOpts.map((opt) => (
                 <li key={opt.id}>
                   <button
                     type="button"
@@ -465,9 +491,14 @@ export function StyleOptionsSection({
                     !o.hideWhenGids.some((gid) => selectedOptionIds.has(gid)),
                 );
                 const selectionKey = `${garment}__${cat}`;
+                const isSearchable =
+                  opts.length > 10 ||
+                  opts.some((o) => o.isLiningCode || o.isButtonCode);
+                  
                 return (
                   <StyleDropdown
                     key={`${garment}-${cat}`}
+                    searchable={isSearchable}
                     label={
                       cat === "contrast_option"
                         ? "Contrast Color"
