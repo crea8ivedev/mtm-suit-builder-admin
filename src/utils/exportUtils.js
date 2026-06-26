@@ -90,6 +90,7 @@ export function generateSingleOrderCSV(order, labelMap = {}) {
     "Date",
     "Customer",
     "Email",
+    "Supplier",
     "Products Total",
     "Upcharge Amount",
     "Grand Total",
@@ -107,11 +108,16 @@ export function generateSingleOrderCSV(order, labelMap = {}) {
   const customerName = [order.customer?.firstName, order.customer?.lastName]
     .filter(Boolean)
     .join(" ");
+  const metaMap = Object.fromEntries(
+    (order.metafields?.edges ?? []).map((e) => [e.node.key, e.node.value]),
+  );
+  const supplierName = metaMap.supplier_name ?? "";
   const orderBase = [
     order.name ?? "",
     `="${dateIso}"`,
     customerName,
     order.customer?.email ?? "",
+    supplierName,
     formatMoneyRaw(productsTotal, currencyCode),
     formatMoneyRaw(upchargeAmt, currencyCode),
     formatMoneyRaw(subtotalAmt, currencyCode),
@@ -168,6 +174,7 @@ export function generateCSV(orders) {
     "Date",
     "Customer",
     "Email",
+    "Supplier",
     "Products Total",
     "Upcharge Amount",
     "Grand Total",
@@ -195,6 +202,7 @@ export function generateCSV(orders) {
       formatDateForCSV(order),
       order.customer.name,
       order.customer.email,
+      order.supplierName ?? "",
       formatMoneyRaw(productsTotal, curr),
       formatMoneyRaw(upchargeAmt, curr),
       formatMoneyRaw(subtotal, curr),

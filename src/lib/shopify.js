@@ -78,7 +78,7 @@ const GET_ORDERS_QUERY = `
               hasNextPage
             }
           }
-          metafields(first: 3, namespace: "suit_admin") {
+          metafields(first: 10, namespace: "suit_admin") {
             edges {
               node {
                 key
