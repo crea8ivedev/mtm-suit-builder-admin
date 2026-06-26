@@ -278,13 +278,14 @@ function StyleDropdown({ label, opts, selected, onSelect, searchable }) {
   });
 
   const selectedLabel = opts.find((o) => o.label === selected)?.label ?? "";
-  
+
   const filteredOpts = useMemo(() => {
     if (!searchTerm) return opts;
     const lower = searchTerm.toLowerCase();
-    return opts.filter(o => 
-      o.label.toLowerCase().includes(lower) || 
-      (o.colorName && o.colorName.toLowerCase().includes(lower))
+    return opts.filter(
+      (o) =>
+        o.label.toLowerCase().includes(lower) ||
+        (o.colorName && o.colorName.toLowerCase().includes(lower)),
     );
   }, [opts, searchTerm]);
 
@@ -494,7 +495,7 @@ export function StyleOptionsSection({
                 const isSearchable =
                   opts.length > 10 ||
                   opts.some((o) => o.isLiningCode || o.isButtonCode);
-                  
+
                 return (
                   <StyleDropdown
                     key={`${garment}-${cat}`}

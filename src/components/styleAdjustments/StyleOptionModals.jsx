@@ -20,7 +20,6 @@ const KNOWN_KEYS = new Set([
   "upcharge",
   "visible",
   "sort_order",
-  "conditional_hide",
   "hide_when",
   "kutetailer_code",
   "image",
@@ -242,7 +241,6 @@ export function AddStyleOptionModal({
       is_default: "false",
       upcharge: "",
       sort_order: "",
-      conditional_hide: "",
       kutetailer_code: "",
       image: "",
       image_url: "",
@@ -704,7 +702,6 @@ export function EditStyleOptionModal({
       is_default: option.isDefault ? "true" : "false",
       upcharge: option.upcharge ? String(option.upcharge) : "",
       sort_order: option.sortOrder ? String(option.sortOrder) : "",
-      conditional_hide: option.conditionalHide || "",
       kutetailer_code: option.kutetailerCode || "",
       visible: option.visible ? "true" : "false",
       image: option.imageGid || "",
@@ -792,7 +789,6 @@ export function EditStyleOptionModal({
     form.is_default !== (option.isDefault ? "true" : "false") ||
     form.upcharge !== (option.upcharge ? String(option.upcharge) : "") ||
     form.sort_order !== (option.sortOrder ? String(option.sortOrder) : "") ||
-    form.conditional_hide !== (option.conditionalHide || "") ||
     form.kutetailer_code !== (option.kutetailerCode || "") ||
     form.visible !== (option.visible ? "true" : "false") ||
     form.image !== (option.imageGid || "") ||
@@ -834,7 +830,11 @@ export function EditStyleOptionModal({
         }
       }
       const hideWhenJson = JSON.stringify([...hideWhenGids]);
-      await updateStyleOption(option.id, { ...form, hide_when: hideWhenJson });
+      const { conditional_hide: _removed, ...formToSave } = form;
+      await updateStyleOption(option.id, {
+        ...formToSave,
+        hide_when: hideWhenJson,
+      });
       const resolvedImageUrl =
         form.image_url ||
         (form.kutetailer_code
@@ -847,7 +847,6 @@ export function EditStyleOptionModal({
         isDefault: form.is_default === "true",
         upcharge: parseFloat(form.upcharge || 0),
         sortOrder: parseInt(form.sort_order || "0", 10),
-        conditionalHide: form.conditional_hide,
         kutetailerCode: form.kutetailer_code || null,
         visible: form.visible === "true",
         imageGid: form.image || null,

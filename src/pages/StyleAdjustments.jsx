@@ -574,7 +574,6 @@ export default function StyleAdjustments() {
       isDefault: formFields.is_default === "true",
       sortOrder,
       kutetailerCode: kuteCode,
-      conditionalHide: formFields.conditional_hide || "",
       imageGid: formFields.image || null,
       imageUrlStored: uploadedImageUrl,
       imageUrl:

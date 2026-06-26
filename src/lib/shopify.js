@@ -1631,7 +1631,6 @@ async function fetchStyleOptionsForType(type) {
           if (cat.includes("lining")) return "0714";
           return null;
         })(),
-        conditionalHide: fm.conditional_hide || "",
         hideWhenGids: (() => {
           try {
             return fm.hide_when ? JSON.parse(fm.hide_when) : [];
@@ -1807,7 +1806,6 @@ export async function fetchContrastOptions() {
         isDefault: fm.is_default === "true",
         sortOrder: parseInt(fm.sort_order || "9999", 10),
         kutetailerCode: fm.kutetailer_code || null,
-        conditionalHide: fm.conditional_hide || "",
         imageGid: fm.color_image || null,
         imageUrlStored: fm.image_url || null,
         imageUrl: fm.image_url || null,
