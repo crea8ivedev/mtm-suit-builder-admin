@@ -7,6 +7,7 @@ import {
   Save,
   Plus,
   ChevronLeft,
+  GripVertical,
 } from "lucide-react";
 import { useIsMobile } from "../hooks/useIsMobile";
 import DashboardLayout from "../components/layout/DashboardLayout";
@@ -20,6 +21,7 @@ import {
   fetchButtonCodes,
   clearButtonCodesCache,
   updateStyleOptionVisible,
+  updateStyleOption,
   clearStyleOptionsCache,
   syncStyleOptionImageUrls,
   GARMENT_TO_STYLE_TYPE,
@@ -72,6 +74,11 @@ export default function StyleAdjustments() {
   const [viewingLocation, setViewingLocation] = useState(null);
   const [editingLocation, setEditingLocation] = useState(null);
   const [deletingLocation, setDeletingLocation] = useState(null);
+  const [catDragSrc, setCatDragSrc] = useState(null);
+  const [catDragOver, setCatDragOver] = useState(null);
+  const [catSortSaving, setCatSortSaving] = useState(false);
+  const [catSortError, setCatSortError] = useState(null);
+  const [catOrderOverride, setCatOrderOverride] = useState({});
 
   const selectedGarment = searchParams.get("garment") || null;
   const selectedCategory = searchParams.get("category") || null;
@@ -285,15 +292,26 @@ export default function StyleAdjustments() {
         if (vis) e.visible++;
       }
     }
-    return [...map.entries()]
+    const defaultSorted = [...map.entries()]
       .map(([slug, info]) => ({ slug, ...info }))
       .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const override = catOrderOverride[selectedGarment];
+    if (!override) return defaultSorted;
+    const slugToItem = new Map(defaultSorted.map((c) => [c.slug, c]));
+    const result = override.map((s) => slugToItem.get(s)).filter(Boolean);
+    const overrideSet = new Set(override);
+    for (const cat of defaultSorted) {
+      if (!overrideSet.has(cat.slug)) result.push(cat);
+    }
+    return result;
   }, [
     options,
     selectedGarment,
     overrides,
     contrastLocations,
     locationOverrides,
+    catOrderOverride,
   ]);
 
   const categoryOptions = useMemo(
@@ -574,6 +592,7 @@ export default function StyleAdjustments() {
       isDefault: formFields.is_default === "true",
       sortOrder,
       kutetailerCode: kuteCode,
+      conditionalHide: formFields.conditional_hide || "",
       imageGid: formFields.image || null,
       imageUrlStored: uploadedImageUrl,
       imageUrl:
@@ -664,6 +683,73 @@ export default function StyleAdjustments() {
     });
   }
 
+  function handleCatDragStart(index) {
+    setCatDragSrc(index);
+  }
+
+  function handleCatDragOver(e, index) {
+    e.preventDefault();
+    setCatDragOver(index);
+  }
+
+  function handleCatDrop(e, dropIndex) {
+    e.preventDefault();
+    if (catDragSrc === null || catDragSrc === dropIndex) {
+      setCatDragSrc(null);
+      setCatDragOver(null);
+      return;
+    }
+    const reordered = [...categoriesForGarment];
+    const [moved] = reordered.splice(catDragSrc, 1);
+    reordered.splice(dropIndex, 0, moved);
+
+    setCatOrderOverride((prev) => ({
+      ...prev,
+      [selectedGarment]: reordered.map((c) => c.slug),
+    }));
+    setCatDragSrc(null);
+    setCatDragOver(null);
+
+    // Update style_sort for all options in each reordered category (skip paginated ones)
+    const updates = [];
+    reordered.forEach((cat, i) => {
+      if (
+        cat.slug === "lining_code" ||
+        cat.slug === "button_code" ||
+        cat.slug === "contrast_option"
+      )
+        return;
+      const newSort = i + 1;
+      options
+        .filter(
+          (o) =>
+            o.garment === selectedGarment &&
+            o.category === cat.slug &&
+            !o.isContrastOption &&
+            !o.isLiningCode &&
+            !o.isButtonCode,
+        )
+        .forEach((opt) =>
+          updates.push({ id: opt.id, style_sort: String(newSort) }),
+        );
+    });
+    if (!updates.length) return;
+
+    setCatSortSaving(true);
+    setCatSortError(null);
+    Promise.all(
+      updates.map((u) => updateStyleOption(u.id, { style_sort: u.style_sort })),
+    )
+      .then(() => clearStyleOptionsCache())
+      .catch((e) => setCatSortError(e.message))
+      .finally(() => setCatSortSaving(false));
+  }
+
+  function handleCatDragEnd() {
+    setCatDragSrc(null);
+    setCatDragOver(null);
+  }
+
   function selectGarment(g) {
     setOptionFilter("");
     const cats = [
@@ -720,40 +806,79 @@ export default function StyleAdjustments() {
               </p>
             ) : (
               <div className="flex flex-col gap-px px-[8px]">
-                {categoriesForGarment.map((cat) => {
+                {catSortError && (
+                  <p className="px-[8px] py-[4px] font-hanken text-[11px] text-failed">
+                    {catSortError}
+                  </p>
+                )}
+                {categoriesForGarment.map((cat, catIdx) => {
                   const active = selectedCategory === cat.slug;
+                  const isDraggableCat =
+                    cat.slug !== "lining_code" && cat.slug !== "button_code";
                   return (
-                    <button
+                    <div
                       key={cat.slug}
-                      onClick={() => {
-                        setSelectedCategory(cat.slug);
-                        setOptionFilter("");
-                        setSidebarOpen(false);
-                      }}
-                      className={`flex items-center justify-between w-full text-left transition-colors cursor-pointer ${
-                        active
-                          ? "bg-white border-t border-b border-gc-primary border-l-[4px] pl-[20px] pr-[16px] py-[13px]"
-                          : "px-[16px] py-[12px]"
-                      }`}
+                      draggable={isDraggableCat}
+                      onDragStart={
+                        isDraggableCat
+                          ? () => handleCatDragStart(catIdx)
+                          : undefined
+                      }
+                      onDragOver={
+                        isDraggableCat
+                          ? (e) => handleCatDragOver(e, catIdx)
+                          : undefined
+                      }
+                      onDrop={
+                        isDraggableCat
+                          ? (e) => handleCatDrop(e, catIdx)
+                          : undefined
+                      }
+                      onDragEnd={isDraggableCat ? handleCatDragEnd : undefined}
+                      className={`transition-opacity ${catDragSrc === catIdx ? "opacity-40" : ""} ${catDragOver === catIdx && catDragSrc !== catIdx ? "ring-1 ring-gc-primary rounded-[4px]" : ""}`}
                     >
-                      <span
-                        className={`font-hanken font-semibold text-[12px] md:text-[14px] leading-[16px] md:leading-[18px] truncate mr-[8px] ${active ? "text-gc-near-black" : "text-gc-primary"}`}
+                      <button
+                        onClick={() => {
+                          setSelectedCategory(cat.slug);
+                          setOptionFilter("");
+                          setSidebarOpen(false);
+                        }}
+                        className={`flex items-center justify-between w-full text-left transition-colors cursor-pointer ${
+                          active
+                            ? "bg-white border-t border-b border-gc-primary border-l-[4px] pl-[16px] pr-[16px] py-[13px]"
+                            : "px-[12px] py-[12px]"
+                        }`}
                       >
-                        {cat.displayLabel}
-                      </span>
-                      <div className="flex items-center gap-[8px] flex-shrink-0">
-                        {active && (
-                          <div className="w-[6px] h-[6px] rounded-[12px] flex-shrink-0 bg-gc-primary" />
+                        {isDraggableCat && (
+                          <GripVertical
+                            size={12}
+                            className="flex-shrink-0 mr-[4px] text-gc-muted-warm cursor-grab"
+                          />
                         )}
-                        <div
-                          className={`flex items-center justify-center font-hanken font-medium text-[12px] w-[40px] h-[20px] bg-gc-bg-warm text-gc-primary ${active ? "rounded-[2px]" : "rounded-[0px_2px_2px_2px]"}`}
+                        <span
+                          className={`font-hanken font-semibold text-[12px] md:text-[14px] leading-[16px] md:leading-[18px] truncate mr-[8px] flex-1 ${active ? "text-gc-near-black" : "text-gc-primary"}`}
                         >
-                          {cat.visible}/{cat.total}
+                          {cat.displayLabel}
+                        </span>
+                        <div className="flex items-center gap-[8px] flex-shrink-0">
+                          {active && (
+                            <div className="w-[6px] h-[6px] rounded-[12px] flex-shrink-0 bg-gc-primary" />
+                          )}
+                          <div
+                            className={`flex items-center justify-center font-hanken font-medium text-[12px] w-[40px] h-[20px] bg-gc-bg-warm text-gc-primary ${active ? "rounded-[2px]" : "rounded-[0px_2px_2px_2px]"}`}
+                          >
+                            {cat.visible}/{cat.total}
+                          </div>
                         </div>
-                      </div>
-                    </button>
+                      </button>
+                    </div>
                   );
                 })}
+                {catSortSaving && (
+                  <p className="px-[8px] py-[4px] font-hanken text-[11px] text-gc-muted-warm">
+                    Saving order…
+                  </p>
+                )}
               </div>
             )}
           </div>
