@@ -5,10 +5,7 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import AlertBanner from "../components/ui/AlertBanner";
 import { CustomerSelector } from "../components/order/CustomerStep";
-import {
-  ProductSelector,
-  VariantSelector,
-} from "../components/order/ProductStep";
+import { ProductSelector } from "../components/order/ProductStep";
 import {
   AttributeEditor,
   StyleOptionsSection,
@@ -36,10 +33,9 @@ import {
   fetchContrastLocations,
   fetchLiningCodes,
   fetchButtonCodes,
-  fetchFabricOptions,
-  clearFabricOptionsCache,
   fetchFitSizeOptions,
   setOrderMetafields,
+  fetchCustomerGcMeasurements,
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
 
@@ -307,13 +303,14 @@ export default function CreateOrder() {
   const [liningCodes, setLiningCodes] = useState([]);
   const [buttonCodes, setButtonCodes] = useState([]);
 
-  const [fabricOptions, setFabricOptions] = useState([]);
-  const [fabricLoading, setFabricLoading] = useState(false);
-  const [selectedFabric, setSelectedFabric] = useState(null);
+  const [fabricCode, setFabricCode] = useState("");
 
   const [fitSizeOptions, setFitSizeOptions] = useState([]);
   const [fitSizeSelections, setFitSizeSelections] = useState({});
   const [fitSizeLoading, setFitSizeLoading] = useState(false);
+
+  const [measurementType, setMeasurementType] = useState(null); // "body" | "finished" | null
+  const [gcMeasurementsData, setGcMeasurementsData] = useState({});
 
   useEffect(() => {
     fetchVestRanges()
@@ -342,13 +339,6 @@ export default function CreateOrder() {
     fetchButtonCodes()
       .then((codes) => setButtonCodes(codes))
       .catch(() => {});
-
-    clearFabricOptionsCache();
-    setFabricLoading(true);
-    fetchFabricOptions()
-      .then((opts) => setFabricOptions(opts))
-      .catch(() => {})
-      .finally(() => setFabricLoading(false));
 
     setFitSizeLoading(true);
     fetchFitSizeOptions()
@@ -466,6 +456,8 @@ export default function CreateOrder() {
     if (!selectedCustomer) {
       setCustomerOrders([]);
       setSelectedProduct(null);
+      setGcMeasurementsData({});
+      setMeasurementType(null);
       return;
     }
     setOrdersLoading(true);
@@ -476,6 +468,11 @@ export default function CreateOrder() {
         setOrdersLoading(false);
       })
       .catch(() => setOrdersLoading(false));
+    fetchCustomerGcMeasurements(selectedCustomer.id)
+      .then((data) => {
+        if (data) setGcMeasurementsData(data);
+      })
+      .catch(() => {});
   }, [selectedCustomer]);
 
   function applyDefaultSizeType(attrs) {
@@ -649,13 +646,14 @@ export default function CreateOrder() {
       setSelectedVariant(null);
       setPrice("0.00");
       setSelectedTemplate(null);
+      setMeasurementType(null);
       return;
     }
     const variants = selectedProduct.variants?.edges?.map((e) => e.node) ?? [];
     const hasVariantSelector =
       variants.length > 1 ||
       (variants.length === 1 && variants[0].title !== "Default Title");
-    setSelectedFabric(null);
+    setFabricCode("");
     if (variants[0]) {
       setSelectedVariant(hasVariantSelector ? variants[0] : null);
       setPrice(variants[0].price || "0.00");
@@ -664,17 +662,6 @@ export default function CreateOrder() {
       setPrice("0.00");
     }
   }, [selectedProduct]);
-
-  useEffect(() => {
-    if (!selectedVariant) {
-      setSelectedFabric(null);
-      return;
-    }
-    const matched = fabricOptions.find(
-      (f) => f.label.toLowerCase() === selectedVariant.title.toLowerCase(),
-    );
-    setSelectedFabric(matched ?? null);
-  }, [selectedVariant, fabricOptions]);
 
   useEffect(() => {
     if (!selectedProduct) {
@@ -927,6 +914,28 @@ export default function CreateOrder() {
     }
   }, [selectedTemplate, styleOptionsLoading]);
 
+  async function resolveFabricCode(code) {
+    try {
+      const res = await fetch(
+        `/api/kt/fabric/fabric/getSystemFabric?keyword=${encodeURIComponent(code)}&type=&pattern=&pageNum=1&pageSize=20`,
+      );
+      const json = await res.json().catch(() => ({}));
+      const records = Array.isArray(json?.data?.records)
+        ? json.data.records
+        : Array.isArray(json?.data)
+          ? json.data
+          : [];
+      const match = records.some(
+        (f) =>
+          (f.code ?? f.fabricCode ?? f.number ?? "").toLowerCase() ===
+          code.toLowerCase(),
+      );
+      return match ? code : "CMT";
+    } catch {
+      return "CMT";
+    }
+  }
+
   async function handleSubmit() {
     if (!selectedCustomer || !selectedProduct) return;
     setSubmitting(true);
@@ -1108,11 +1117,15 @@ export default function CreateOrder() {
         ? { variantId: selectedVariant.id }
         : { title: selectedProduct.title };
 
+      const resolvedFabric = fabricCode.trim()
+        ? await resolveFabricCode(fabricCode.trim())
+        : "";
+
       const draft = await createDraftOrder({
         customerId: selectedCustomer.id,
         customAttributes: [
-          ...(selectedFabric?.kutetailorCode
-            ? [{ key: "_kute_fabric", value: selectedFabric.kutetailorCode }]
+          ...(resolvedFabric
+            ? [{ key: "_kute_fabric", value: resolvedFabric }]
             : []),
           ...(garments.length
             ? [{ key: "_kute_garments", value: garments.join(",") }]
@@ -1131,9 +1144,13 @@ export default function CreateOrder() {
               ...styleAttrs,
               ...upchargeAttrs,
               ...fitSizeAttrs,
-              ...(selectedFabric
-                ? [{ key: "Fabric", value: selectedFabric.label }]
+              ...(fabricCode.trim()
+                ? [{ key: "Fabric", value: fabricCode.trim() }]
                 : []),
+              {
+                key: "measuresType",
+                value: measurementType === "body" ? "10001" : "10002",
+              },
             ],
           },
         ],
@@ -1267,6 +1284,51 @@ export default function CreateOrder() {
     return false;
   }, [styleSelections, expandedLiningCodes, expandedButtonCodes]);
 
+  const bodyMeasurementProfile = useMemo(() => {
+    for (const list of Object.values(gcMeasurementsData)) {
+      for (const p of list) {
+        if (p.isBodyMeasurement) return p;
+      }
+    }
+    return null;
+  }, [gcMeasurementsData]);
+
+  async function applyBodyMeasurement() {
+    if (!bodyMeasurementProfile || !selectedProduct) return;
+    setMeasurementType("body");
+    setSelectedTemplate(null);
+    const garments = garmentsFromGcBuilderValue(
+      selectedProduct.metafield?.value,
+    );
+    const combinedRanges = {
+      ...vestRanges,
+      ...trouserRanges,
+      ...jacketRanges,
+      ...shirtRanges,
+    };
+    const bodyAttrs = Object.entries(
+      bodyMeasurementProfile.measurements ?? {},
+    ).map(([key, value]) => ({ key, value: String(value ?? "") }));
+    if (garments.length) {
+      setFieldsLoading(true);
+      try {
+        const canonical = await getCanonicalFieldsForGarments(garments);
+        setAttributes(
+          applyDefaultSizeType(
+            prefillFromPastOrder(canonical, bodyAttrs, combinedRanges),
+          ),
+        );
+      } catch {
+        setAttributes(deduplicateByRange(bodyAttrs, combinedRanges));
+      } finally {
+        setFieldsLoading(false);
+      }
+    } else {
+      setAttributes(deduplicateByRange(bodyAttrs, combinedRanges));
+    }
+    setFitSizeSelections({});
+  }
+
   const canSubmit =
     !!selectedCustomer &&
     !!selectedProduct &&
@@ -1324,8 +1386,48 @@ export default function CreateOrder() {
           </div>
         )}
 
+        {selectedCustomer && selectedProduct && (
+          <div className="flex flex-col gap-[16px]">
+            <div className="flex flex-wrap items-center gap-[8px] pb-[17px] border-b border-gc-section-divider/30">
+              <span className="font-garamond text-[14px] font-medium uppercase text-[#A45D41]">
+                Measurement Type
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-[10px]">
+              {bodyMeasurementProfile && (
+                <button
+                  onClick={applyBodyMeasurement}
+                  className={cn(
+                    "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
+                    measurementType === "body"
+                      ? "text-white border border-gc-primary bg-gc-primary"
+                      : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
+                  )}
+                >
+                  Body Measurements
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setMeasurementType("finished");
+                  setSelectedTemplate(null);
+                }}
+                className={cn(
+                  "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
+                  measurementType === "finished"
+                    ? "text-white border border-gc-primary bg-gc-primary"
+                    : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
+                )}
+              >
+                Finished Measurements
+              </button>
+            </div>
+          </div>
+        )}
+
         {selectedCustomer &&
           selectedProduct &&
+          measurementType === "finished" &&
           pastOrdersForProduct.length > 0 && (
             <div className="flex flex-col gap-[16px]">
               <div className="flex flex-wrap items-center gap-[8px] pb-[17px] border-b border-gc-section-divider/30">
@@ -1524,26 +1626,29 @@ export default function CreateOrder() {
               </div>
             </div>
 
-            {(() => {
-              const variants =
-                selectedProduct.variants?.edges?.map((e) => e.node) ?? [];
-              const showSelector =
-                variants.length > 1 ||
-                (variants.length === 1 &&
-                  variants[0].title !== "Default Title");
-              if (!showSelector) return null;
-              return (
-                <VariantSelector
-                  variants={variants}
-                  fabricOptions={fabricOptions}
-                  selected={selectedVariant}
-                  onSelect={(v) => {
-                    setSelectedVariant(v);
-                    setPrice(v.price || "0.00");
-                  }}
-                />
-              );
-            })()}
+            <div className="bg-white/40 rounded-[12px] p-[31px] border border-gc-border-input">
+              <h2 className="font-garamond text-[28px] font-semibold text-gc-primary mb-[20px]">
+                Fabric
+              </h2>
+              <div className="w-full border-t border-gc-section-divider/30">
+                <div className="max-w-[320px] mt-[20px]">
+                  <label className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide block mb-[7px]">
+                    Fabric Code
+                  </label>
+                  <input
+                    type="text"
+                    value={fabricCode}
+                    onChange={(e) => setFabricCode(e.target.value)}
+                    className="font-hanken w-full bg-white px-[14px] h-[48px] rounded-[4px] text-[14px] text-[#1c1c19] outline-none border border-gc-scrollbar-thumb/60 placeholder:text-gc-muted"
+                    placeholder="Enter fabric code…"
+                  />
+                  <p className="font-hanken text-[11px] text-[#9ca3af] mt-[6px]">
+                    If the code is not found in KuteTailor, CMT will be used
+                    automatically.
+                  </p>
+                </div>
+              </div>
+            </div>
 
             {selectedProduct?.metafield?.value && (
               <StyleOptionsSection

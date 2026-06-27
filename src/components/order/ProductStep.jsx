@@ -1,5 +1,3 @@
-import { Check } from "lucide-react";
-
 export function ProductSelector({
   products,
   loading,
@@ -72,90 +70,6 @@ export function ProductSelector({
           </button>
         );
       })}
-    </div>
-  );
-}
-
-export function VariantSelector({
-  variants,
-  fabricOptions,
-  selected,
-  onSelect,
-}) {
-  return (
-    <div className="bg-white/40 rounded-[12px] p-[31px] border border-gc-border-input">
-      <h2 className="font-garamond text-[28px] font-semibold text-gc-primary mb-[20px]">
-        Fabrics
-      </h2>
-      <div className="w-full border-t border-gc-section-divider/30 pt-[20px]">
-        <label className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide block mb-[14px]">
-          Select Fabric
-        </label>
-        <div className="flex flex-wrap gap-[10px]">
-          {variants.map((v) => {
-            const isSelected = selected?.id === v.id;
-            const fabric = fabricOptions.find(
-              (f) => f.label.toLowerCase() === v.title.toLowerCase(),
-            );
-            return (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => onSelect(v)}
-                style={{
-                  backgroundColor: "#fff",
-                  color: "#1c1c19",
-                  borderColor: isSelected ? "#a45d41" : "#d1cac6",
-                  borderWidth: isSelected ? 2 : 1,
-                  boxShadow: isSelected
-                    ? "0 0 0 3px rgba(164,93,65,0.12)"
-                    : "none",
-                }}
-                className="font-hanken flex items-center gap-[10px] pl-[6px] pr-[14px] h-[52px] rounded-[10px] text-[13px] font-medium transition-all cursor-pointer border"
-              >
-                <div
-                  className="flex-shrink-0 rounded-[6px] overflow-hidden"
-                  style={{
-                    width: 40,
-                    height: 40,
-                    border: "1px solid rgba(0,0,0,0.08)",
-                    backgroundColor: fabric?.color ?? "#ede9e3",
-                  }}
-                >
-                  {fabric?.imageUrl && (
-                    <img
-                      src={fabric.imageUrl}
-                      alt={v.title}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        display: "block",
-                      }}
-                    />
-                  )}
-                </div>
-
-                <div className="flex flex-col items-start gap-[2px]">
-                  <span className="font-hanken text-[13px] font-semibold leading-tight text-[#1c1c19]">
-                    {v.title}
-                  </span>
-                  <span className="font-hanken text-[11px] font-medium text-[#7e7576]">
-                    {v.price}
-                  </span>
-                </div>
-
-                {isSelected && (
-                  <Check
-                    size={13}
-                    className="flex-shrink-0 ml-[2px] text-[#a45d41]"
-                  />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
