@@ -560,7 +560,7 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
     isSample,
     category,
     measuresType: parseInt(
-      kuteAttr(attrs, "measuresType") ?? customerMeta.measures_type ?? "10001",
+      kuteAttr(attrs, "measuresType") ?? customerMeta.measures_type ?? "10002",
       10,
     ), // 10001=body/net, 10002=finished, 10003=fitting
     fabric: kuteAttr(attrs, "fabric") ?? "",

@@ -85,11 +85,11 @@ export function VariantSelector({
   return (
     <div className="bg-white/40 rounded-[12px] p-[31px] border border-gc-border-input">
       <h2 className="font-garamond text-[28px] font-semibold text-gc-primary mb-[20px]">
-        Variant
+        Fabrics
       </h2>
       <div className="w-full border-t border-gc-section-divider/30 pt-[20px]">
         <label className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide block mb-[14px]">
-          Select Variant
+          Select Fabric
         </label>
         <div className="flex flex-wrap gap-[10px]">
           {variants.map((v) => {
