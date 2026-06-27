@@ -969,6 +969,30 @@ export default function CustomerDetail() {
     return map;
   }, [fitSizeOptions]);
 
+  const hasInvalidEditLiningOrButton = useMemo(() => {
+    if (!Object.keys(editingValues).length) return false;
+    const liningKeys = new Map();
+    for (const o of expandedLiningCodes) {
+      const key = `${o.garment} - ${o.category}`;
+      if (!liningKeys.has(key)) liningKeys.set(key, []);
+      liningKeys.get(key).push(o.label);
+    }
+    const buttonKeys = new Map();
+    for (const o of expandedButtonCodes) {
+      const key = `${o.garment} - ${o.category}`;
+      if (!buttonKeys.has(key)) buttonKeys.set(key, []);
+      buttonKeys.get(key).push(o.label);
+    }
+    for (const [k, value] of Object.entries(editingValues)) {
+      if (!value?.trim()) continue;
+      if (liningKeys.has(k) && !liningKeys.get(k).includes(value.trim()))
+        return true;
+      if (buttonKeys.has(k) && !buttonKeys.get(k).includes(value.trim()))
+        return true;
+    }
+    return false;
+  }, [editingValues, expandedLiningCodes, expandedButtonCodes]);
+
   const styleOptionsMap = useMemo(
     () =>
       buildStyleOptionsMap(
@@ -1600,7 +1624,9 @@ export default function CustomerDetail() {
                             <>
                               <button
                                 onClick={() => handleProfileSave(entry)}
-                                disabled={isSaving}
+                                disabled={
+                                  isSaving || hasInvalidEditLiningOrButton
+                                }
                                 className="font-hanken flex items-center gap-[8px] h-[44px] px-[16px] rounded-[8px] bg-gc-primary hover:bg-gc-primary-dark text-white text-[14px] font-semibold uppercase transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <Save size={13} />
@@ -1752,6 +1778,50 @@ export default function CustomerDetail() {
                                                   rawKeyLower,
                                               )?.[1] ??
                                               "";
+                                            const isLiningOrButton = opts.some(
+                                              (o) =>
+                                                o.isLiningCode ||
+                                                o.isButtonCode,
+                                            );
+                                            if (isLiningOrButton) {
+                                              const isValidCode =
+                                                !currentVal ||
+                                                opts.some(
+                                                  (o) =>
+                                                    o.label ===
+                                                    currentVal.trim(),
+                                                );
+                                              return (
+                                                <div
+                                                  key={rawKey}
+                                                  className="flex flex-col items-start px-[10px] py-[10px] sm:px-[16px] sm:py-[12px] min-w-0 overflow-hidden border-r border-b border-gc-section-divider/40"
+                                                >
+                                                  <span className="font-hanken text-[9px] sm:text-[10px] text-[#44474c] uppercase leading-[15px] truncate w-full">
+                                                    {opts[0]?.displayLabel ||
+                                                      cat}
+                                                  </span>
+                                                  <input
+                                                    type="text"
+                                                    value={currentVal}
+                                                    onChange={(e) =>
+                                                      handleProfileMeasurementChange(
+                                                        rawKey,
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    placeholder="Enter code..."
+                                                    className={`font-hanken mt-[4px] w-full text-[12px] sm:text-[14px] font-medium text-gc-near-black2 bg-gc-bg-warm rounded-[6px] px-[8px] py-[4px] border outline-none focus:border-gc-primary ${currentVal && !isValidCode ? "border-red-500" : "border-gc-border-input"}`}
+                                                  />
+                                                  {currentVal &&
+                                                    !isValidCode && (
+                                                      <span className="font-hanken text-[9px] text-red-500 mt-[2px]">
+                                                        Invalid code — not found
+                                                        in Shopify
+                                                      </span>
+                                                    )}
+                                                </div>
+                                              );
+                                            }
                                             return (
                                               <StyleOptionDropdown
                                                 key={rawKey}

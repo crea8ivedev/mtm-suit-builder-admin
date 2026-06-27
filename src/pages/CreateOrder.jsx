@@ -1068,6 +1068,40 @@ export default function CreateOrder() {
         }
       }
 
+      // Process manually typed lining/button codes (text inputs — no matching Shopify option required)
+      const liningKeySet = new Set(
+        expandedLiningCodes.map((o) => `${o.garment}__${o.category}`),
+      );
+      const buttonKeySet = new Set(
+        expandedButtonCodes.map((o) => `${o.garment}__${o.category}`),
+      );
+      for (const [compKey, value] of Object.entries(styleSelections)) {
+        if (!value?.trim()) continue;
+        const [selGarment, category] = compKey.split("__");
+        // Skip if already handled by the option-matched loop above
+        const alreadyHandled = allStyleOpts.some(
+          (o) =>
+            o.garment === selGarment &&
+            o.category === category &&
+            o.label === value &&
+            o.kutetailerCode,
+        );
+        if (alreadyHandled) continue;
+        const code = value.trim();
+        if (liningKeySet.has(compKey)) {
+          if (!craftsByGarment[selGarment]) craftsByGarment[selGarment] = [];
+          const craftCode = `0714:${code}`;
+          if (!craftsByGarment[selGarment].includes(craftCode))
+            craftsByGarment[selGarment].push(craftCode);
+        } else if (buttonKeySet.has(compKey)) {
+          if (!craftsByGarment[selGarment]) craftsByGarment[selGarment] = [];
+          const pid = selGarment === "Trouser" ? "3454" : "0638";
+          const craftCode = `${pid}:${code}`;
+          if (!craftsByGarment[selGarment].includes(craftCode))
+            craftsByGarment[selGarment].push(craftCode);
+        }
+      }
+
       const finalPrice = parseFloat(price || "0.00").toFixed(2);
 
       const lineItemBase = selectedVariant?.id
@@ -1204,12 +1238,42 @@ export default function CreateOrder() {
     );
   }, [attributes, rangeGroups]);
 
+  const hasInvalidLiningOrButton = useMemo(() => {
+    const liningKeys = new Map();
+    for (const o of expandedLiningCodes) {
+      const key = `${o.garment}__${o.category}`;
+      if (!liningKeys.has(key)) liningKeys.set(key, []);
+      liningKeys.get(key).push(o.label);
+    }
+    const buttonKeys = new Map();
+    for (const o of expandedButtonCodes) {
+      const key = `${o.garment}__${o.category}`;
+      if (!buttonKeys.has(key)) buttonKeys.set(key, []);
+      buttonKeys.get(key).push(o.label);
+    }
+    for (const [compKey, value] of Object.entries(styleSelections)) {
+      if (!value?.trim()) continue;
+      if (
+        liningKeys.has(compKey) &&
+        !liningKeys.get(compKey).includes(value.trim())
+      )
+        return true;
+      if (
+        buttonKeys.has(compKey) &&
+        !buttonKeys.get(compKey).includes(value.trim())
+      )
+        return true;
+    }
+    return false;
+  }, [styleSelections, expandedLiningCodes, expandedButtonCodes]);
+
   const canSubmit =
     !!selectedCustomer &&
     !!selectedProduct &&
     !submitting &&
     measurementsValid &&
-    !hasMissingMeasurements;
+    !hasMissingMeasurements &&
+    !hasInvalidLiningOrButton;
 
   const currentStep = selectedProduct ? 3 : selectedCustomer ? 2 : 1;
 

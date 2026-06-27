@@ -492,19 +492,53 @@ export function StyleOptionsSection({
                     !o.hideWhenGids.some((gid) => selectedOptionIds.has(gid)),
                 );
                 const selectionKey = `${garment}__${cat}`;
-                const isSearchable =
-                  opts.length > 10 ||
-                  opts.some((o) => o.isLiningCode || o.isButtonCode);
+                const isLiningOrButton = opts.some(
+                  (o) => o.isLiningCode || o.isButtonCode,
+                );
+                const isSearchable = opts.length > 10 || isLiningOrButton;
+                const fieldLabel =
+                  cat === "contrast_option"
+                    ? "Contrast Color"
+                    : opts[0]?.displayLabel || cat;
+
+                if (isLiningOrButton) {
+                  const typedVal = selections[selectionKey] ?? "";
+                  const isValid =
+                    !typedVal || opts.some((o) => o.label === typedVal);
+                  return (
+                    <div
+                      key={`${garment}-${cat}`}
+                      className="flex flex-col gap-[6px] min-w-0"
+                    >
+                      <span className="font-hanken text-[11px] font-semibold text-[rgba(28,28,25,0.7)] uppercase tracking-wide truncate">
+                        {fieldLabel}
+                      </span>
+                      <input
+                        type="text"
+                        value={typedVal}
+                        onChange={(e) =>
+                          onChange({
+                            ...selections,
+                            [selectionKey]: e.target.value,
+                          })
+                        }
+                        placeholder="Enter code..."
+                        className={`font-hanken w-full px-[10px] py-[9px] rounded-[8px] text-[12px] sm:text-[13px] font-medium text-gc-near-black2 bg-white border outline-none focus:border-gc-primary transition-colors ${typedVal && !isValid ? "border-red-500" : "border-gc-border-input"}`}
+                      />
+                      {typedVal && !isValid && (
+                        <span className="font-hanken text-[10px] text-red-500">
+                          Invalid code — not found in Kutetailor
+                        </span>
+                      )}
+                    </div>
+                  );
+                }
 
                 return (
                   <StyleDropdown
                     key={`${garment}-${cat}`}
                     searchable={isSearchable}
-                    label={
-                      cat === "contrast_option"
-                        ? "Contrast Color"
-                        : opts[0]?.displayLabel || cat
-                    }
+                    label={fieldLabel}
                     opts={visibleOpts}
                     selected={selections[selectionKey] ?? ""}
                     onSelect={(val) => {
