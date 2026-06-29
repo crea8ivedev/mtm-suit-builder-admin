@@ -57,6 +57,11 @@ const GET_ORDERS_QUERY = `
               currencyCode
             }
           }
+          subtotalPriceSet {
+            shopMoney {
+              amount
+            }
+          }
           lineItems(first: 10) {
             edges {
               node {
@@ -1103,7 +1108,6 @@ export async function createCustomer({
   firstName,
   lastName,
   email,
-  phone,
   country,
   address1,
   address2,
@@ -1112,7 +1116,6 @@ export async function createCustomer({
   zip,
 }) {
   const input = { firstName, lastName, email };
-  if (phone) input.phone = phone;
   const addr = {};
   if (country) addr.country = country;
   if (address1) addr.address1 = address1;
@@ -1321,40 +1324,46 @@ const GET_VEST_RANGES = `
 let _vestRangesCache = null;
 let _vestFieldsListCache = null;
 let _vestRangesCacheAt = 0;
+let _vestLoadPromise = null;
 const VEST_CACHE_TTL = 30 * 60 * 1000;
 
 async function _loadVestData() {
-  const data = await shopifyGraphQL(GET_VEST_RANGES);
-  const entries = data?.metaobjects?.edges ?? [];
-  const map = {};
-  const fieldsList = [];
-  for (const { node } of entries) {
-    if (node.capabilities?.publishable?.status === "DRAFT") continue;
-    const fm = {};
-    for (const f of node.fields) {
-      if (
-        f.key === "key" ||
-        f.key === "label" ||
-        f.key === "min" ||
-        f.key === "max"
-      )
-        fm[f.key] = f.value;
+  if (_vestLoadPromise) return _vestLoadPromise;
+  _vestLoadPromise = (async () => {
+    const data = await shopifyGraphQL(GET_VEST_RANGES);
+    const entries = data?.metaobjects?.edges ?? [];
+    const map = {};
+    const fieldsList = [];
+    for (const { node } of entries) {
+      if (node.capabilities?.publishable?.status === "DRAFT") continue;
+      const fm = {};
+      for (const f of node.fields) {
+        if (
+          f.key === "key" ||
+          f.key === "label" ||
+          f.key === "min" ||
+          f.key === "max"
+        )
+          fm[f.key] = f.value;
+      }
+      const label = (fm.label ?? "").trim();
+      const min = parseFloat(fm.min ?? 0);
+      const max = parseFloat(fm.max ?? 0);
+      const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : node.handle;
+      if (!label || isNaN(min) || isNaN(max)) continue;
+      const entry = { label, min, max, hint: `${min}–${max}` };
+      map[node.handle] = entry;
+      map[canonicalKey] = entry;
+      map[label] = entry;
+      map[`Vest ${label}`] = entry;
+      fieldsList.push({ key: canonicalKey, label, min, max });
     }
-    const label = (fm.label ?? "").trim();
-    const min = parseFloat(fm.min ?? 0);
-    const max = parseFloat(fm.max ?? 0);
-    const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : node.handle;
-    if (!label || isNaN(min) || isNaN(max)) continue;
-    const entry = { label, min, max, hint: `${min}–${max}` };
-    map[node.handle] = entry;
-    map[canonicalKey] = entry;
-    map[label] = entry;
-    map[`Vest ${label}`] = entry;
-    fieldsList.push({ key: canonicalKey, label, min, max });
-  }
-  _vestRangesCache = map;
-  _vestFieldsListCache = fieldsList;
-  _vestRangesCacheAt = Date.now();
+    _vestRangesCache = map;
+    _vestFieldsListCache = fieldsList;
+    _vestRangesCacheAt = Date.now();
+    _vestLoadPromise = null;
+  })();
+  return _vestLoadPromise;
 }
 
 export async function fetchVestRanges() {
@@ -1387,40 +1396,46 @@ const GET_SHIRT_RANGES = `
 let _shirtRangesCache = null;
 let _shirtFieldsListCache = null;
 let _shirtRangesCacheAt = 0;
+let _shirtLoadPromise = null;
 const SHIRT_CACHE_TTL = 30 * 60 * 1000;
 
 async function _loadShirtData() {
-  const data = await shopifyGraphQL(GET_SHIRT_RANGES);
-  const entries = data?.metaobjects?.edges ?? [];
-  const map = {};
-  const fieldsList = [];
-  for (const { node } of entries) {
-    if (node.capabilities?.publishable?.status === "DRAFT") continue;
-    const fm = {};
-    for (const f of node.fields) {
-      if (
-        f.key === "key" ||
-        f.key === "label" ||
-        f.key === "min" ||
-        f.key === "max"
-      )
-        fm[f.key] = f.value;
+  if (_shirtLoadPromise) return _shirtLoadPromise;
+  _shirtLoadPromise = (async () => {
+    const data = await shopifyGraphQL(GET_SHIRT_RANGES);
+    const entries = data?.metaobjects?.edges ?? [];
+    const map = {};
+    const fieldsList = [];
+    for (const { node } of entries) {
+      if (node.capabilities?.publishable?.status === "DRAFT") continue;
+      const fm = {};
+      for (const f of node.fields) {
+        if (
+          f.key === "key" ||
+          f.key === "label" ||
+          f.key === "min" ||
+          f.key === "max"
+        )
+          fm[f.key] = f.value;
+      }
+      const label = (fm.label ?? "").trim();
+      const min = parseFloat(fm.min ?? 0);
+      const max = parseFloat(fm.max ?? 0);
+      const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : node.handle;
+      if (!label || isNaN(min) || isNaN(max)) continue;
+      const entry = { label, min, max, hint: `${min}–${max}` };
+      map[node.handle] = entry;
+      map[canonicalKey] = entry;
+      map[label] = entry;
+      map[`Shirt ${label}`] = entry;
+      fieldsList.push({ key: canonicalKey, label, min, max });
     }
-    const label = (fm.label ?? "").trim();
-    const min = parseFloat(fm.min ?? 0);
-    const max = parseFloat(fm.max ?? 0);
-    const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : node.handle;
-    if (!label || isNaN(min) || isNaN(max)) continue;
-    const entry = { label, min, max, hint: `${min}–${max}` };
-    map[node.handle] = entry;
-    map[canonicalKey] = entry;
-    map[label] = entry;
-    map[`Shirt ${label}`] = entry;
-    fieldsList.push({ key: canonicalKey, label, min, max });
-  }
-  _shirtRangesCache = map;
-  _shirtFieldsListCache = fieldsList;
-  _shirtRangesCacheAt = Date.now();
+    _shirtRangesCache = map;
+    _shirtFieldsListCache = fieldsList;
+    _shirtRangesCacheAt = Date.now();
+    _shirtLoadPromise = null;
+  })();
+  return _shirtLoadPromise;
 }
 
 export async function fetchShirtRanges() {
@@ -1453,40 +1468,46 @@ const GET_TROUSER_RANGES = `
 let _trouserRangesCache = null;
 let _trouserFieldsListCache = null;
 let _trouserRangesCacheAt = 0;
+let _trouserLoadPromise = null;
 const TROUSER_CACHE_TTL = 30 * 60 * 1000;
 
 async function _loadTrouserData() {
-  const data = await shopifyGraphQL(GET_TROUSER_RANGES);
-  const entries = data?.metaobjects?.edges ?? [];
-  const map = {};
-  const fieldsList = [];
-  for (const { node } of entries) {
-    if (node.capabilities?.publishable?.status === "DRAFT") continue;
-    const fm = {};
-    for (const f of node.fields) {
-      if (
-        f.key === "key" ||
-        f.key === "label" ||
-        f.key === "min" ||
-        f.key === "max"
-      )
-        fm[f.key] = f.value;
+  if (_trouserLoadPromise) return _trouserLoadPromise;
+  _trouserLoadPromise = (async () => {
+    const data = await shopifyGraphQL(GET_TROUSER_RANGES);
+    const entries = data?.metaobjects?.edges ?? [];
+    const map = {};
+    const fieldsList = [];
+    for (const { node } of entries) {
+      if (node.capabilities?.publishable?.status === "DRAFT") continue;
+      const fm = {};
+      for (const f of node.fields) {
+        if (
+          f.key === "key" ||
+          f.key === "label" ||
+          f.key === "min" ||
+          f.key === "max"
+        )
+          fm[f.key] = f.value;
+      }
+      const label = (fm.label ?? "").trim();
+      const min = parseFloat(fm.min ?? 0);
+      const max = parseFloat(fm.max ?? 0);
+      const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : node.handle;
+      if (!label || isNaN(min) || isNaN(max)) continue;
+      const entry = { label, min, max, hint: `${min}–${max}` };
+      map[node.handle] = entry;
+      map[canonicalKey] = entry;
+      map[label] = entry;
+      map[`Trouser ${label}`] = entry;
+      fieldsList.push({ key: canonicalKey, label, min, max });
     }
-    const label = (fm.label ?? "").trim();
-    const min = parseFloat(fm.min ?? 0);
-    const max = parseFloat(fm.max ?? 0);
-    const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : node.handle;
-    if (!label || isNaN(min) || isNaN(max)) continue;
-    const entry = { label, min, max, hint: `${min}–${max}` };
-    map[node.handle] = entry;
-    map[canonicalKey] = entry;
-    map[label] = entry;
-    map[`Trouser ${label}`] = entry;
-    fieldsList.push({ key: canonicalKey, label, min, max });
-  }
-  _trouserRangesCache = map;
-  _trouserFieldsListCache = fieldsList;
-  _trouserRangesCacheAt = Date.now();
+    _trouserRangesCache = map;
+    _trouserFieldsListCache = fieldsList;
+    _trouserRangesCacheAt = Date.now();
+    _trouserLoadPromise = null;
+  })();
+  return _trouserLoadPromise;
 }
 
 export async function fetchTrouserRanges() {
@@ -1522,41 +1543,47 @@ const GET_JACKET_RANGES = `
 let _jacketRangesCache = null;
 let _jacketFieldsListCache = null;
 let _jacketRangesCacheAt = 0;
+let _jacketLoadPromise = null;
 const JACKET_CACHE_TTL = 30 * 60 * 1000;
 
 async function _loadJacketData() {
-  const data = await shopifyGraphQL(GET_JACKET_RANGES);
-  const entries = data?.metaobjects?.edges ?? [];
-  const map = {};
-  const fieldsList = [];
-  for (const { node } of entries) {
-    if (node.capabilities?.publishable?.status === "DRAFT") continue;
-    const fm = {};
-    for (const f of node.fields) {
-      if (
-        f.key === "key" ||
-        f.key === "label" ||
-        f.key === "min" ||
-        f.key === "max"
-      )
-        fm[f.key] = f.value;
+  if (_jacketLoadPromise) return _jacketLoadPromise;
+  _jacketLoadPromise = (async () => {
+    const data = await shopifyGraphQL(GET_JACKET_RANGES);
+    const entries = data?.metaobjects?.edges ?? [];
+    const map = {};
+    const fieldsList = [];
+    for (const { node } of entries) {
+      if (node.capabilities?.publishable?.status === "DRAFT") continue;
+      const fm = {};
+      for (const f of node.fields) {
+        if (
+          f.key === "key" ||
+          f.key === "label" ||
+          f.key === "min" ||
+          f.key === "max"
+        )
+          fm[f.key] = f.value;
+      }
+      const label = (fm.label ?? "").trim();
+      const min = parseFloat(fm.min ?? 0);
+      const max = parseFloat(fm.max ?? 0);
+      const handle = node.handle;
+      const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : handle;
+      if (!label || isNaN(min) || isNaN(max)) continue;
+      const entry = { label, min, max, hint: `${min}–${max}` };
+      map[handle] = entry;
+      map[canonicalKey] = entry;
+      map[label] = entry;
+      map[`Jacket ${label}`] = entry;
+      fieldsList.push({ key: canonicalKey, label, min, max });
     }
-    const label = (fm.label ?? "").trim();
-    const min = parseFloat(fm.min ?? 0);
-    const max = parseFloat(fm.max ?? 0);
-    const handle = node.handle;
-    const canonicalKey = fm.key ? fm.key.replace(/\s/g, "") : handle;
-    if (!label || isNaN(min) || isNaN(max)) continue;
-    const entry = { label, min, max, hint: `${min}–${max}` };
-    map[handle] = entry;
-    map[canonicalKey] = entry;
-    map[label] = entry;
-    map[`Jacket ${label}`] = entry;
-    fieldsList.push({ key: canonicalKey, label, min, max });
-  }
-  _jacketRangesCache = map;
-  _jacketFieldsListCache = fieldsList;
-  _jacketRangesCacheAt = Date.now();
+    _jacketRangesCache = map;
+    _jacketFieldsListCache = fieldsList;
+    _jacketRangesCacheAt = Date.now();
+    _jacketLoadPromise = null;
+  })();
+  return _jacketLoadPromise;
 }
 
 export async function fetchJacketRanges() {

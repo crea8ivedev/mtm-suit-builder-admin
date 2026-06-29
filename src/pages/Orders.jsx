@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronLeft,
@@ -16,6 +16,12 @@ import { useOrders } from "../hooks/useOrders";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { cn } from "../utils/cn";
 import { generateCSV } from "../utils/exportUtils";
+import {
+  fetchJacketMeasurementFields,
+  fetchTrouserMeasurementFields,
+  fetchVestMeasurementFields,
+  fetchShirtMeasurementFields,
+} from "../lib/shopify";
 
 const SUPPLIER_OPTIONS = ["Pending", "Processing", "Submitted", "Failed"];
 
@@ -31,6 +37,7 @@ export default function Orders() {
   const currentPage = parseInt(searchParams.get("page") || "1", 10);
   const { orders, stats, loading, error, progress, retry } = useOrders();
 
+  const [labelMap, setLabelMap] = useState({});
   const [filterOpen, setFilterOpen] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [entriesOpen, setEntriesOpen] = useState(false);
@@ -57,6 +64,23 @@ export default function Orders() {
 
   useClickOutside(filterRef, () => setFilterOpen(false));
   useClickOutside(entriesRef, () => setEntriesOpen(false));
+
+  useEffect(() => {
+    Promise.all([
+      fetchJacketMeasurementFields(),
+      fetchTrouserMeasurementFields(),
+      fetchVestMeasurementFields(),
+      fetchShirtMeasurementFields(),
+    ])
+      .then(([jacket, trouser, vest, shirt]) => {
+        const map = {};
+        for (const f of [...jacket, ...trouser, ...vest, ...shirt]) {
+          if (f.key && f.label) map[f.key] = f.label;
+        }
+        setLabelMap(map);
+      })
+      .catch(() => {});
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -86,7 +110,7 @@ export default function Orders() {
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
   }, [currentPage, totalPages]);
 
-  const handleExportCSV = () => generateCSV(filtered);
+  const handleExportCSV = () => generateCSV(filtered, labelMap);
 
   return (
     <DashboardLayout onRefresh={retry} isRefreshing={loading}>

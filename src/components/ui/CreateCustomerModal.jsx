@@ -11,7 +11,6 @@ const INITIAL = {
   firstName: "",
   lastName: "",
   email: "",
-  phone: "",
   country: "",
   address: "",
   apt: "",
@@ -174,86 +173,6 @@ function GCDropdown({
   );
 }
 
-function PhoneField({ phoneIso, onPhoneIsoChange, value, onChange }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  const allCountries = Country.getAllCountries();
-  const current = allCountries.find((c) => c.isoCode === phoneIso);
-
-  useClickOutside(ref, () => setOpen(false));
-
-  return (
-    <div className="flex gap-[8px]">
-      <div ref={ref} className="relative flex-shrink-0">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-[6px] h-[38px] px-[10px] bg-white border border-[#d1c7bd] rounded-[8px] outline-none hover:border-[#a45d41] transition-colors cursor-pointer"
-        >
-          <span className="text-[20px] leading-none">
-            {current?.flag ?? "🌐"}
-          </span>
-          <div className="flex flex-col items-center gap-[2px]">
-            <svg width="7" height="5" viewBox="0 0 7 5" fill="none">
-              <path d="M3.5 0L7 5H0L3.5 0Z" fill="#9ca3af" />
-            </svg>
-            <svg width="7" height="5" viewBox="0 0 7 5" fill="none">
-              <path d="M3.5 5L0 0H7L3.5 5Z" fill="#9ca3af" />
-            </svg>
-          </div>
-        </button>
-
-        {open && (
-          <div className="absolute top-[42px] left-0 z-[60] w-[260px] bg-white border border-[#d1c7bd] rounded-[10px] shadow-xl overflow-hidden">
-            <div className="overflow-y-auto max-h-[240px]">
-              {allCountries.map((c) => (
-                <button
-                  key={c.isoCode}
-                  type="button"
-                  onClick={() => {
-                    onPhoneIsoChange(c.isoCode);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    "w-full flex items-center gap-[10px] px-[14px] py-[8px] text-left hover:bg-[#fdf5f0] transition-colors",
-                    phoneIso === c.isoCode && "bg-[#fdf5f0]",
-                  )}
-                >
-                  <span className="text-[18px] leading-none w-[22px] flex-shrink-0">
-                    {c.flag}
-                  </span>
-                  <span className="font-hanken text-[13px] text-gc-near-black2 flex-1 truncate">
-                    {c.name}
-                  </span>
-                  <span className="font-hanken text-[12px] text-[#9ca3af] flex-shrink-0">
-                    +{c.phonecode}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-1 items-center h-[38px] bg-white border border-[#d1c7bd] rounded-[8px] focus-within:border-[#a45d41] transition-colors overflow-hidden">
-        {current && (
-          <span className="font-hanken text-[14px] text-gc-near-black2 pl-[14px] pr-[2px] select-none whitespace-nowrap flex-shrink-0">
-            +{current.phonecode}
-          </span>
-        )}
-        <input
-          type="tel"
-          value={value}
-          onChange={onChange}
-          placeholder={current ? "Phone number" : "+-- Phone number"}
-          className="font-hanken flex-1 h-full px-[10px] bg-transparent text-[14px] text-gc-near-black2 placeholder:text-gc-muted outline-none"
-        />
-      </div>
-    </div>
-  );
-}
-
 export default function CreateCustomerModal({ open, onClose, onCreated }) {
   const [form, setForm] = useState(INITIAL);
   const [errors, setErrors] = useState({});
@@ -261,7 +180,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
   const [saving, setSaving] = useState(false);
   const [countryIso, setCountryIso] = useState("");
   const [stateIso, setStateIso] = useState("");
-  const [phoneIso, setPhoneIso] = useState("US");
   const firstRef = useRef(null);
 
   useEffect(() => {
@@ -271,7 +189,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
       setApiError(null);
       setCountryIso("");
       setStateIso("");
-      setPhoneIso("US");
       setTimeout(() => firstRef.current?.focus(), 50);
     }
   }, [open]);
@@ -360,11 +277,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim(),
-        phone: form.phone?.trim()
-          ? phoneIso
-            ? `+${Country.getCountryByCode(phoneIso)?.phonecode ?? ""}${form.phone.trim()}`
-            : form.phone.trim()
-          : undefined,
         country: form.country?.trim() || undefined,
         address1: form.address.trim() || undefined,
         address2: form.apt.trim() || undefined,
@@ -460,20 +372,6 @@ export default function CreateCustomerModal({ open, onClose, onCreated }) {
                     {errors.email}
                   </p>
                 )}
-              </div>
-              <div>
-                <FieldLabel>
-                  Phone Number{" "}
-                  <span className="normal-case text-[#bbb] font-normal tracking-normal">
-                    (Optional)
-                  </span>
-                </FieldLabel>
-                <PhoneField
-                  phoneIso={phoneIso}
-                  onPhoneIsoChange={setPhoneIso}
-                  value={form.phone}
-                  onChange={set("phone")}
-                />
               </div>
             </div>
           </div>

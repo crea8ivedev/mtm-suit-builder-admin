@@ -249,7 +249,8 @@ export function AddStyleOptionModal({
   });
   const [imageUploading, setImageUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [apiError, setApiError] = useState(null);
   const garmentType = GARMENT_TO_STYLE_TYPE[garment];
 
   useEffect(() => {
@@ -286,28 +287,26 @@ export function AddStyleOptionModal({
 
   function set(key, val) {
     setForm((prev) => ({ ...prev, [key]: val }));
+    if (fieldErrors[key]) setFieldErrors((prev) => ({ ...prev, [key]: null }));
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.label.trim()) {
-      setError("Label is required.");
-      return;
-    }
-    if (!form.category.trim()) {
-      setError("Category is required.");
-      return;
-    }
-    if (!form.display_label.trim()) {
-      setError("Display Label is required.");
+    const errs = {};
+    if (!form.label.trim()) errs.label = "Label is required.";
+    if (!form.category.trim()) errs.category = "Category is required.";
+    if (!form.display_label.trim())
+      errs.display_label = "Display Label is required.";
+    if (Object.keys(errs).length) {
+      setFieldErrors(errs);
       return;
     }
     if (!garmentType) {
-      setError("Unknown garment type.");
+      setApiError("Unknown garment type.");
       return;
     }
     setSaving(true);
-    setError(null);
+    setApiError(null);
     try {
       const cat = normalizeCategory(form.category);
       const sameCatOpts = garmentOptions.filter((o) => o.category === cat);
@@ -324,16 +323,17 @@ export function AddStyleOptionModal({
       });
       onClose();
     } catch (err) {
-      setError(err.message);
+      setApiError(err.message);
     } finally {
       setSaving(false);
     }
   }
 
-  const inputCls =
-    "w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-gc-primary border border-gc-border-warm text-gc-near-black";
+  const inputCls = (field) =>
+    `w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-gc-primary border ${fieldErrors[field] ? "border-red-400" : "border-gc-border-warm"} text-gc-near-black`;
   const labelCls =
     "font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[4px] block text-gc-primary-deep";
+  const errCls = "font-hanken text-[11px] mt-[3px] text-failed";
 
   return (
     <ModalBase onClose={onClose}>
@@ -347,11 +347,12 @@ export function AddStyleOptionModal({
             Label <span className="text-failed">*</span>
           </label>
           <input
-            className={inputCls}
+            className={inputCls("label")}
             value={form.label}
             onChange={(e) => set("label", e.target.value)}
             placeholder="e.g. Half Canvas"
           />
+          {fieldErrors.label && <p className={errCls}>{fieldErrors.label}</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-[10px]">
@@ -360,23 +361,29 @@ export function AddStyleOptionModal({
               Category <span className="text-failed">*</span>
             </label>
             <input
-              className={inputCls}
+              className={inputCls("category")}
               value={form.category}
               onChange={(e) => set("category", e.target.value)}
               onBlur={(e) => set("category", normalizeCategory(e.target.value))}
               placeholder="e.g. canvas or lining style"
             />
+            {fieldErrors.category && (
+              <p className={errCls}>{fieldErrors.category}</p>
+            )}
           </div>
           <div>
             <label className={labelCls}>
               Display Label <span className="text-failed">*</span>
             </label>
             <input
-              className={inputCls}
+              className={inputCls("display_label")}
               value={form.display_label}
               onChange={(e) => set("display_label", e.target.value)}
               placeholder="e.g. Canvas"
             />
+            {fieldErrors.display_label && (
+              <p className={errCls}>{fieldErrors.display_label}</p>
+            )}
           </div>
         </div>
 
@@ -387,7 +394,7 @@ export function AddStyleOptionModal({
               type="number"
               step="0.01"
               min="0"
-              className={inputCls}
+              className={inputCls("")}
               value={form.upcharge}
               onChange={(e) => set("upcharge", e.target.value)}
             />
@@ -397,7 +404,7 @@ export function AddStyleOptionModal({
             <input
               type="number"
               min="0"
-              className={inputCls}
+              className={inputCls("")}
               value={form.sort_order}
               onChange={(e) => set("sort_order", e.target.value)}
             />
@@ -407,7 +414,7 @@ export function AddStyleOptionModal({
         <div>
           <label className={labelCls}>Kutetailor Code</label>
           <input
-            className={inputCls}
+            className={inputCls("")}
             value={form.kutetailer_code}
             onChange={(e) => set("kutetailer_code", e.target.value)}
             placeholder="e.g. 000B"
@@ -457,7 +464,7 @@ export function AddStyleOptionModal({
                       step={
                         def.type?.name === "number_decimal" ? "0.01" : undefined
                       }
-                      className={inputCls}
+                      className={inputCls("")}
                       value={form[def.key] ?? ""}
                       onChange={(e) => set(def.key, e.target.value)}
                       placeholder={def.name}
@@ -548,9 +555,9 @@ export function AddStyleOptionModal({
             ))}
         </div>
 
-        <p className="font-hanken text-[12px] h-[16px] text-failed">
-          {error || ""}
-        </p>
+        {apiError && (
+          <p className="font-hanken text-[12px] text-failed">{apiError}</p>
+        )}
 
         <ModalFooter
           onClose={onClose}
@@ -719,7 +726,8 @@ export function EditStyleOptionModal({
   const [hideWhenOpen, setHideWhenOpen] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [apiError, setApiError] = useState(null);
   const [shopifyUrl, setShopifyUrl] = useState(null);
   const garmentType = GARMENT_TO_STYLE_TYPE[garment];
 
@@ -769,6 +777,7 @@ export function EditStyleOptionModal({
 
   function set(key, val) {
     setForm((prev) => ({ ...prev, [key]: val }));
+    if (fieldErrors[key]) setFieldErrors((prev) => ({ ...prev, [key]: null }));
   }
 
   const originalHideWhenGids = (() => {
@@ -804,20 +813,17 @@ export function EditStyleOptionModal({
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.label.trim()) {
-      setError("Label is required.");
-      return;
-    }
-    if (!form.category.trim()) {
-      setError("Category is required.");
-      return;
-    }
-    if (!form.display_label.trim()) {
-      setError("Display Label is required.");
+    const errs = {};
+    if (!form.label.trim()) errs.label = "Label is required.";
+    if (!form.category.trim()) errs.category = "Category is required.";
+    if (!form.display_label.trim())
+      errs.display_label = "Display Label is required.";
+    if (Object.keys(errs).length) {
+      setFieldErrors(errs);
       return;
     }
     setSaving(true);
-    setError(null);
+    setApiError(null);
     try {
       if (form.is_default === "true") {
         const cat = normalizeCategory(form.category);
@@ -857,16 +863,17 @@ export function EditStyleOptionModal({
       clearStyleOptionsCache();
       onClose();
     } catch (err) {
-      setError(err.message);
+      setApiError(err.message);
     } finally {
       setSaving(false);
     }
   }
 
-  const inputCls =
-    "w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-gc-primary border border-gc-border-warm text-gc-near-black";
+  const inputCls = (field) =>
+    `w-full h-[38px] rounded-[6px] px-[10px] font-hanken text-[13px] outline-none focus:border-gc-primary border ${fieldErrors[field] ? "border-red-400" : "border-gc-border-warm"} text-gc-near-black`;
   const labelCls =
     "font-hanken font-semibold text-[11px] tracking-[0.4px] mb-[4px] block text-gc-primary-deep";
+  const errCls = "font-hanken text-[11px] mt-[3px] text-failed";
 
   return (
     <ModalBase onClose={onClose}>
@@ -900,10 +907,11 @@ export function EditStyleOptionModal({
             Label <span className="text-failed">*</span>
           </label>
           <input
-            className={inputCls}
+            className={inputCls("label")}
             value={form.label}
             onChange={(e) => set("label", e.target.value)}
           />
+          {fieldErrors.label && <p className={errCls}>{fieldErrors.label}</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-[10px]">
@@ -912,21 +920,27 @@ export function EditStyleOptionModal({
               Category <span className="text-failed">*</span>
             </label>
             <input
-              className={inputCls}
+              className={inputCls("category")}
               value={form.category}
               onChange={(e) => set("category", e.target.value)}
               onBlur={(e) => set("category", normalizeCategory(e.target.value))}
             />
+            {fieldErrors.category && (
+              <p className={errCls}>{fieldErrors.category}</p>
+            )}
           </div>
           <div>
             <label className={labelCls}>
               Display Label <span className="text-failed">*</span>
             </label>
             <input
-              className={inputCls}
+              className={inputCls("display_label")}
               value={form.display_label}
               onChange={(e) => set("display_label", e.target.value)}
             />
+            {fieldErrors.display_label && (
+              <p className={errCls}>{fieldErrors.display_label}</p>
+            )}
           </div>
         </div>
 
@@ -937,7 +951,7 @@ export function EditStyleOptionModal({
               type="number"
               step="0.01"
               min="0"
-              className={inputCls}
+              className={inputCls("")}
               value={form.upcharge}
               onChange={(e) => set("upcharge", e.target.value)}
             />
@@ -947,7 +961,7 @@ export function EditStyleOptionModal({
             <input
               type="number"
               min="0"
-              className={inputCls}
+              className={inputCls("")}
               value={form.sort_order}
               onChange={(e) => set("sort_order", e.target.value)}
             />
@@ -957,7 +971,7 @@ export function EditStyleOptionModal({
         <div>
           <label className={labelCls}>Kutetailor Code</label>
           <input
-            className={inputCls}
+            className={inputCls("")}
             value={form.kutetailer_code}
             onChange={(e) => set("kutetailer_code", e.target.value)}
           />
@@ -1093,7 +1107,7 @@ export function EditStyleOptionModal({
                       step={
                         def.type?.name === "number_decimal" ? "0.01" : undefined
                       }
-                      className={inputCls}
+                      className={inputCls("")}
                       value={form[def.key] ?? ""}
                       onChange={(e) => set(def.key, e.target.value)}
                     />
@@ -1183,9 +1197,9 @@ export function EditStyleOptionModal({
             ))}
         </div>
 
-        <p className="font-hanken text-[12px] h-[16px] text-failed">
-          {error || ""}
-        </p>
+        {apiError && (
+          <p className="font-hanken text-[12px] text-failed">{apiError}</p>
+        )}
 
         <ModalFooter
           onClose={onClose}

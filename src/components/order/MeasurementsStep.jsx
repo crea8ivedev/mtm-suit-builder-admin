@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import SectionHeader from "../ui/SectionHeader";
 import LoadingState from "../ui/LoadingState";
+import { MeasurementStepper } from "../ui/MeasurementStepper";
 import { useClickOutside } from "../../hooks/useClickOutside";
 import { cn } from "../../utils/cn";
 import { getRangeForKey, groupAttributes } from "../../utils/measurementUtils";
@@ -195,27 +196,39 @@ export function AttributeEditor({
                 return (
                   <div
                     key={originalKey}
-                    className="flex flex-col gap-[4px] min-w-0 sm:relative sm:h-[74px]"
+                    className="flex flex-col gap-[4px] min-w-0 sm:relative sm:h-[84px]"
                   >
                     <label className="font-hanken text-[9px] sm:text-[12px] font-semibold text-[rgba(28,28,25,0.7)] uppercase leading-tight truncate sm:absolute sm:top-0">
                       {getRangeForKey(sec.ranges, key)?.label ?? key}
                     </label>
-                    <input
-                      type="text"
-                      value={val}
-                      onChange={(e) => updateAttr(originalKey, e.target.value)}
-                      className={cn(
-                        "w-full h-[36px] sm:h-[40px] bg-white rounded-[8px] px-[8px] sm:px-[13px] font-garamond text-[14px] sm:text-[18px] outline-none transition-colors sm:absolute sm:top-[20px] border",
-                        isValid
-                          ? "text-green-700 border-green-500"
-                          : isInvalid
-                            ? "text-red-500 border-red-400"
-                            : "text-[#1c1c19] border-gc-section-divider/80",
-                      )}
-                    />
+                    {range ? (
+                      <MeasurementStepper
+                        value={val}
+                        onChange={(v) => updateAttr(originalKey, v)}
+                        rangeMin={range.min}
+                        rangeMax={range.max}
+                        className={cn(
+                          "sm:absolute sm:top-[20px] sm:left-0 sm:right-0",
+                          isValid
+                            ? "[&_input]:text-green-700 [&_input]:border-green-500"
+                            : isInvalid
+                              ? "[&_input]:text-red-500 [&_input]:border-red-400"
+                              : "",
+                        )}
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={val}
+                        onChange={(e) =>
+                          updateAttr(originalKey, e.target.value)
+                        }
+                        className="w-full h-[36px] sm:h-[40px] bg-white rounded-[8px] px-[8px] sm:px-[13px] font-garamond text-[14px] sm:text-[18px] text-[#1c1c19] outline-none transition-colors sm:absolute sm:top-[20px] border border-gc-section-divider/80"
+                      />
+                    )}
                     <p
                       className={cn(
-                        "font-hanken text-[10px] font-medium sm:absolute sm:top-[67px] sm:left-[4px]",
+                        "font-hanken text-[10px] font-medium sm:absolute sm:top-[50px] sm:left-[4px]",
                         isValid
                           ? "text-green-600"
                           : isInvalid
@@ -223,7 +236,7 @@ export function AttributeEditor({
                             : "text-[rgba(28,28,25,0.4)]",
                       )}
                     >
-                      {range ? `Range: ${range.min}–${range.max}` : ""}
+                      {range ? `${range.min}–${range.max}` : ""}
                     </p>
                   </div>
                 );

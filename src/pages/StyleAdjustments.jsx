@@ -865,7 +865,7 @@ export default function StyleAdjustments() {
                             <div className="w-[6px] h-[6px] rounded-[12px] flex-shrink-0 bg-gc-primary" />
                           )}
                           <div
-                            className={`flex items-center justify-center font-hanken font-medium text-[12px] w-[40px] h-[20px] bg-gc-bg-warm text-gc-primary ${active ? "rounded-[2px]" : "rounded-[0px_2px_2px_2px]"}`}
+                            className={`flex items-center justify-center font-hanken font-medium text-[12px] min-w-[40px] px-[6px] h-[20px] bg-gc-bg-warm text-gc-primary ${active ? "rounded-[2px]" : "rounded-[0px_2px_2px_2px]"}`}
                           >
                             {cat.visible}/{cat.total}
                           </div>

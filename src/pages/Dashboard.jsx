@@ -20,6 +20,7 @@ function ItemsBadge({ count }) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const userName = localStorage.getItem("suit_admin_name") || "Admin";
   const search = searchParams.get("search") || "";
   const { orders, stats, loading, error, progress, retry } = useOrders();
 
@@ -45,7 +46,7 @@ export default function Dashboard() {
             ? "Fetching from Shopify…"
             : error
               ? "Could not load data"
-              : `Welcome back, Admin. ${stats.total} total orders in your store.`}
+              : `Welcome back, ${userName}. ${stats.total} total orders in your store.`}
         </p>
       </div>
 

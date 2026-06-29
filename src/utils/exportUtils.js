@@ -37,24 +37,39 @@ function formatMoneyRaw(amount, currencyCode) {
   }
 }
 
-// Strip garment prefix from style option keys ("Jacket - Lapel Style" → "Lapel Style")
-// Use labelMap for measurement field display labels
+const GARMENT_PREFIXES = ["Jacket ", "Trouser ", "Vest ", "Shirt "];
+
+const ATTR_ALIASES = {
+  "R/Outseam": "Outseam R",
+  "Outseam (R)": "Outseam R",
+  "L/Outseam": "Outseam L",
+  "Outseam (L)": "Outseam L",
+  "Side Pocket": "Side Pockets",
+};
+
+function normalizeAttrKey(key) {
+  let k = key;
+  // Strip garment prefix ("Jacket Canvas", "Trouser Waist", etc.)
+  for (const p of GARMENT_PREFIXES) {
+    if (k.startsWith(p)) {
+      k = k.slice(p.length);
+      break;
+    }
+  }
+  // Strip leading "- " left after garment prefix removal ("Jacket - Canvas" → "- Canvas" → "Canvas")
+  if (k.startsWith("- ")) k = k.slice(2);
+  // Strip "Style: " prefix ("Style: Vents" → "Vents")
+  if (k.startsWith("Style: ")) k = k.slice("Style: ".length);
+  // Handle " - " separator ("Something - Label" → "Label")
+  if (k.includes(" - ")) k = k.split(" - ").slice(1).join(" - ");
+  // Apply explicit aliases
+  return ATTR_ALIASES[k] ?? k;
+}
+
 function attrDisplayLabel(key, labelMap = {}) {
   if (labelMap[key]) return labelMap[key];
-  if (key.startsWith("Jacket ")) {
-    const stripped = key.slice("Jacket ".length);
-    return labelMap[stripped] ?? stripped;
-  }
-  if (key.startsWith("Trouser ")) {
-    const stripped = key.slice("Trouser ".length);
-    return labelMap[stripped] ?? stripped;
-  }
-  if (key.startsWith("Vest ")) {
-    const stripped = key.slice("Vest ".length);
-    return labelMap[stripped] ?? stripped;
-  }
-  if (key.includes(" - ")) return key.split(" - ").slice(1).join(" - ");
-  return key;
+  const normalized = normalizeAttrKey(key);
+  return labelMap[normalized] ?? normalized;
 }
 
 export function generateSingleOrderCSV(order, labelMap = {}) {
@@ -156,18 +171,28 @@ export function generateSingleOrderCSV(order, labelMap = {}) {
   URL.revokeObjectURL(url);
 }
 
-export function generateCSV(orders) {
+export function generateCSV(orders, labelMap = {}) {
   if (!orders.length) return;
 
   const attrKeySet = new LinkedSet();
   orders.forEach((order) => {
     order.lineItemDetails?.forEach((item) => {
       item.customAttributes?.forEach((a) => {
-        if (!EXCLUDED_ATTR_KEYS.test(a.key)) attrKeySet.add(a.key);
+        if (!EXCLUDED_ATTR_KEYS.test(a.key) && !a.key.startsWith("_"))
+          attrKeySet.add(a.key);
       });
     });
   });
-  const attrKeys = attrKeySet.toArray();
+  // Deduplicate by normalised display label (case-insensitive).
+  // Different raw keys that strip to the same label ("Jacket - Canvas" vs "Canvas",
+  // "U-rise" vs "U-Rise") produce one column each.
+  const seenLabels = new Set();
+  const attrKeys = attrKeySet.toArray().filter((k) => {
+    const label = attrDisplayLabel(k, labelMap).toLowerCase();
+    if (seenLabels.has(label)) return false;
+    seenLabels.add(label);
+    return true;
+  });
 
   const ORDER_COLS = [
     "Order ID",
@@ -183,7 +208,7 @@ export function generateCSV(orders) {
     "Item #",
     "Product",
     "Quantity",
-    ...attrKeys.map((k) => attrDisplayLabel(k)),
+    ...attrKeys.map((k) => attrDisplayLabel(k, labelMap)),
   ];
   const headers = [...ORDER_COLS, ...ITEM_COLS];
   const BLANK_ORDER = new Array(ORDER_COLS.length).fill("");
@@ -212,16 +237,23 @@ export function generateCSV(orders) {
       rows.push([...orderBase, "", "", ...attrKeys.map(() => "")]);
     } else {
       items.forEach((item, idx) => {
-        const attrMap = Object.fromEntries(
-          item.customAttributes
-            .filter((a) => !EXCLUDED_ATTR_KEYS.test(a.key))
-            .map((a) => [a.key, a.value]),
-        );
+        // Build label-keyed map (lowercase keys) so dedup matches regardless of prefix/case
+        const attrMap = {};
+        (item.customAttributes ?? [])
+          .filter(
+            (a) => !EXCLUDED_ATTR_KEYS.test(a.key) && !a.key.startsWith("_"),
+          )
+          .forEach((a) => {
+            const label = attrDisplayLabel(a.key, labelMap).toLowerCase();
+            if (!(label in attrMap)) attrMap[label] = a.value;
+          });
         const itemCols = [
           idx + 1,
           item.title,
           item.quantity,
-          ...attrKeys.map((k) => attrMap[k] ?? ""),
+          ...attrKeys.map(
+            (k) => attrMap[attrDisplayLabel(k, labelMap).toLowerCase()] ?? "",
+          ),
         ];
         rows.push([...(idx === 0 ? orderBase : BLANK_ORDER), ...itemCols]);
       });
@@ -230,7 +262,16 @@ export function generateCSV(orders) {
     if (oi < orders.length - 1) rows.push(BLANK_ROW);
   });
 
-  const csv = rows.map((r) => r.map(esc).join(",")).join("\n");
+  // Drop columns (beyond ORDER_COLS) that are entirely empty across all data rows
+  const dataRows = rows.slice(1).filter((r) => r.some((c) => c !== ""));
+  const colCount = headers.length;
+  const keepCol = Array.from({ length: colCount }, (_, ci) => {
+    if (ci < ORDER_COLS.length) return true;
+    return dataRows.some((r) => (r[ci] ?? "") !== "");
+  });
+  const filteredRows = rows.map((r) => r.filter((_, ci) => keepCol[ci]));
+
+  const csv = filteredRows.map((r) => r.map(esc).join(",")).join("\n");
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

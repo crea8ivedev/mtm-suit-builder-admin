@@ -17,6 +17,7 @@ import StatusPill from "../components/ui/StatusPill";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
+import { MeasurementStepper } from "../components/ui/MeasurementStepper";
 import { useCustomerDetail } from "../hooks/useCustomerDetail";
 import {
   formatCurrency,
@@ -82,12 +83,14 @@ function normalizeEditingValues(
   contrastOptions,
   expandedLC = [],
   expandedBC = [],
+  expandedContrastLocs = [],
 ) {
   const allOpts = [
     ...styleOptions,
     ...contrastOptions,
     ...expandedLC,
     ...expandedBC,
+    ...expandedContrastLocs,
   ];
   const normalized = {};
   for (const [k, v] of Object.entries(source)) {
@@ -672,19 +675,30 @@ function renderMeasureGrid(
                   {key}
                 </span>
                 {isEditing ? (
-                  <input
-                    type="text"
-                    value={val}
-                    onChange={(e) => handleChange(rawKey, e.target.value)}
-                    className={cn(
-                      "font-garamond mt-[3px] w-full text-[16px] sm:text-[20px] text-black bg-transparent outline-none border-b",
-                      isValid
-                        ? "border-green-500 text-green-700"
-                        : isInvalid
-                          ? "border-red-400 text-red-600"
-                          : "border-[#d1c7bd]",
-                    )}
-                  />
+                  range ? (
+                    <MeasurementStepper
+                      value={val}
+                      onChange={(v) => handleChange(rawKey, v)}
+                      rangeMin={range.min}
+                      rangeMax={range.max}
+                      baseValue={displayVal}
+                      className={cn(
+                        "mt-[3px]",
+                        isValid
+                          ? "[&_input]:text-green-700 [&_input]:border-green-500"
+                          : isInvalid
+                            ? "[&_input]:text-red-500 [&_input]:border-red-400"
+                            : "",
+                      )}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={val}
+                      onChange={(e) => handleChange(rawKey, e.target.value)}
+                      className="font-garamond mt-[3px] w-full text-[16px] sm:text-[20px] text-black bg-transparent outline-none border-b border-[#d1c7bd]"
+                    />
+                  )
                 ) : (
                   <span className="font-garamond text-[14px] sm:text-[22px] text-black leading-[18px] sm:leading-[30px] mt-[3px]">
                     {val}
@@ -899,6 +913,22 @@ export default function CustomerDetail() {
         return targets.map((g) => ({ ...item, garment: g }));
       }),
     [buttonCodes, allGarments],
+  );
+
+  const expandedMappedContrastLocations = useMemo(
+    () =>
+      contrastLocations
+        .filter((l) => l.visible)
+        .flatMap((l) => {
+          const targets = l.garment ? [l.garment] : allGarments;
+          return targets.map((g) => ({
+            ...l,
+            garment: g,
+            category: "contrast_location",
+            displayLabel: "Contrast Color Location",
+          }));
+        }),
+    [contrastLocations, allGarments],
   );
 
   const styleKeyMap = useMemo(() => {
@@ -1146,6 +1176,7 @@ export default function CustomerDetail() {
         contrastOptions,
         expandedLiningCodes,
         expandedButtonCodes,
+        expandedMappedContrastLocations,
       ),
     );
     setEditingProfileId(entry.id);
