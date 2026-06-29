@@ -681,7 +681,6 @@ function renderMeasureGrid(
                       onChange={(v) => handleChange(rawKey, v)}
                       rangeMin={range.min}
                       rangeMax={range.max}
-                      baseValue={displayVal}
                       className={cn(
                         "mt-[3px]",
                         isValid
