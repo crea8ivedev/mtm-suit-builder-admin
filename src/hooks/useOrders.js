@@ -31,14 +31,14 @@ export function setOrderSupplierOverride(shopifyGid, supplierStatus) {
 }
 
 export function useOrders() {
-  const [rawOrders, setRawOrders] = useState(_cache || []);
-  const [loading, setLoading] = useState(!_cache);
+  const [rawOrders, setRawOrders] = useState(_cache ?? []);
+  const [loading, setLoading] = useState(_cache === null);
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState(_cache?.length || 0);
   const cancelRef = useRef(false);
 
   function load() {
-    if (_cache) {
+    if (_cache !== null) {
       setRawOrders(_cache);
       setLoading(false);
       setProgress(_cache.length);
@@ -96,6 +96,8 @@ export function useOrders() {
 
   function retry() {
     _cache = null;
+    setError(null);
+    setLoading(true);
     load();
   }
 

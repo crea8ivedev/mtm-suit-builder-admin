@@ -11,6 +11,7 @@ import {
   StyleOptionsSection,
 } from "../components/order/MeasurementsStep";
 import { getRangeForKey, groupAttributes } from "../utils/measurementUtils";
+import { invalidateOrdersCache } from "../hooks/useOrders";
 import {
   fetchGcBuilderProducts,
   fetchCustomerWithOrders,
@@ -1219,6 +1220,7 @@ export default function CreateOrder() {
       }
 
       clearOrdersCache();
+      invalidateOrdersCache();
       clearCustomerDetailCache(selectedCustomer.id);
       navigate(`/orders/${numericId}`);
     } catch (err) {

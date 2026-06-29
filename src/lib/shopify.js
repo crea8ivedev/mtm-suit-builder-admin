@@ -92,7 +92,28 @@ const GET_ORDERS_QUERY = `
   }
 `;
 
-async function shopifyGraphQL(query, variables = {}) {
+// Serialize all Shopify requests — prevents simultaneous calls draining the rate-limit bucket
+const _gqlQueue = [];
+let _gqlActive = false;
+
+function _drainQueue() {
+  if (_gqlActive || _gqlQueue.length === 0) return;
+  _gqlActive = true;
+  const { fn, resolve, reject } = _gqlQueue.shift();
+  fn()
+    .then((v) => {
+      _gqlActive = false;
+      resolve(v);
+      _drainQueue();
+    })
+    .catch((e) => {
+      _gqlActive = false;
+      reject(e);
+      _drainQueue();
+    });
+}
+
+async function _executeRequest(query, variables, retries) {
   const res = await fetch(ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -106,10 +127,27 @@ async function shopifyGraphQL(query, variables = {}) {
   const json = await res.json();
 
   if (json.errors?.length) {
-    throw new Error(json.errors[0].message || "Unknown GraphQL error");
+    const err = json.errors[0];
+    if (err.extensions?.code === "THROTTLED" && retries > 0) {
+      const wait = (err.extensions?.retryAfter ?? 2) * 1000;
+      await new Promise((r) => setTimeout(r, wait));
+      return _executeRequest(query, variables, retries - 1);
+    }
+    throw new Error(err.message || "Unknown GraphQL error");
   }
 
   return json.data;
+}
+
+function shopifyGraphQL(query, variables = {}) {
+  return new Promise((resolve, reject) => {
+    _gqlQueue.push({
+      fn: () => _executeRequest(query, variables, 3),
+      resolve,
+      reject,
+    });
+    _drainQueue();
+  });
 }
 
 // ─── Single-order detail query ─────────────────────────────────────────────
@@ -598,10 +636,12 @@ export async function fetchOrderById(shopifyGid) {
   return data.order;
 }
 
-// ─── Only orders that contain at least one gc_builder product ─────────────
+// ─── Only orders from this admin (gc_builder metafield OR custom attributes) ─
 function isGcBuilderOrder(node) {
   return (node.lineItems?.edges ?? []).some(
-    (e) => e.node.product?.metafield?.value,
+    (e) =>
+      e.node.product?.metafield?.value ||
+      (e.node.customAttributes ?? []).length > 0,
   );
 }
 
@@ -615,6 +655,7 @@ async function _doFetch(onProgress) {
     const data = await shopifyGraphQL(GET_ORDERS_QUERY, {
       first: 50,
       after: cursor,
+      query: "tag:admin-created",
     });
 
     const { edges, pageInfo } = data.orders;
@@ -657,7 +698,9 @@ export async function fetchOrdersPage({
   searchQuery = "",
 }) {
   const variables = { first, after: after || undefined };
-  if (searchQuery) variables.query = searchQuery;
+  variables.query = searchQuery
+    ? `tag:admin-created AND (${searchQuery})`
+    : "tag:admin-created";
   const data = await shopifyGraphQL(GET_ORDERS_QUERY, variables);
   const { edges, pageInfo } = data.orders;
   return {
