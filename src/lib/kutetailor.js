@@ -361,21 +361,21 @@ function _resolvePositionEcode(shopifyKey, ktPositionMap, garmentHint = null) {
   }
   const normLabel = _normalizeKtName(label);
   if (garment) {
-    const categoryId = _GARMENT_CATEGORY_IDS[garment];
-    // 1. Dynamic KT map for this garment
-    const dynHit = ktPositionMap[categoryId]?.[normLabel];
-    if (dynHit) return dynHit;
-    // 2. Static fallback for this garment
+    // 1. Static map for this garment (manually verified — takes priority)
     const staticHit = _STATIC_POSITION_ECODES[garment]?.[normLabel];
     if (staticHit) return staticHit;
+    // 2. Dynamic KT map for this garment (fallback for unmapped positions)
+    const categoryId = _GARMENT_CATEGORY_IDS[garment];
+    const dynHit = ktPositionMap[categoryId]?.[normLabel];
+    if (dynHit) return dynHit;
   }
-  // 3. Search all dynamic categories
-  for (const catMap of Object.values(ktPositionMap)) {
-    if (catMap[normLabel]) return catMap[normLabel];
-  }
-  // 4. Search all static fallbacks
+  // 3. Search all static maps
   for (const staticMap of Object.values(_STATIC_POSITION_ECODES)) {
     if (staticMap[normLabel]) return staticMap[normLabel];
+  }
+  // 4. Search all dynamic categories
+  for (const catMap of Object.values(ktPositionMap)) {
+    if (catMap[normLabel]) return catMap[normLabel];
   }
   return null;
 }
@@ -543,7 +543,7 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
       {
         categoryCode: kuteAttr(itemAttrs, "categoryCode") ?? "MXF",
         styleCode,
-        crafts,
+        crafts: _deduplicateCraftsByPid(sharedCrafts),
         sizeNames,
         versionStyle,
         orderSizes: mapSizes(itemAttrs, ktPositionMap),
@@ -559,11 +559,27 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
     amount: lineItems.reduce((s, i) => s + (i.quantity ?? 1), 0),
     isSample,
     category,
-    measuresType: parseInt(
-      kuteAttr(attrs, "measuresType") ?? customerMeta.measures_type ?? "10002",
-      10,
-    ), // 10001=body/net, 10002=finished, 10003=fitting
-    fabric: kuteAttr(attrs, "fabric") ?? "",
+    measuresType: 10001, // always body/net measurements — position ecodes 1-42 are body-sheet ecodes
+    fabric: (() => {
+      const fromOrder = kuteAttr(attrs, "fabric");
+      const fromLineItem = lineItems.reduce((found, item) => {
+        if (found) return found;
+        return (
+          (item.customAttributes ?? []).find(
+            (a) =>
+              a.key.toLowerCase() === "fabric" ||
+              a.key.toLowerCase() === "fabriccode" ||
+              a.key.toLowerCase() === "fabric code",
+          )?.value ?? null
+        );
+      }, null);
+      const fromVariant = lineItems.reduce((found, item) => {
+        if (found) return found;
+        const vt = item.variant?.title;
+        return vt && vt !== "Default Title" ? vt : null;
+      }, null);
+      return fromOrder ?? fromLineItem ?? fromVariant ?? "";
+    })(),
     customer: {
       nickname:
         `${firstName} ${lastName}`.trim() || (order.customer?.email ?? "Guest"),
@@ -704,10 +720,36 @@ async function postSaveOrder(token, payload) {
   return { res, rawText, body };
 }
 
+async function resolveKtFabric(code, token) {
+  try {
+    const res = await ktFetch(
+      `/fabric/fabric/queryFabric?fabricCode=${encodeURIComponent(code)}`,
+      token,
+    );
+    return res?.code === "0" && Array.isArray(res?.data) && res.data.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendToKutetailor(order, { submit = true } = {}) {
   const token = await getToken();
   const ktPositionMap = await fetchKtPositionMap(token).catch(() => ({}));
   const payload = buildOrderPayload(order, { submit, ktPositionMap });
+
+  if (payload.fabric) {
+    const found = await resolveKtFabric(payload.fabric, token);
+    console.log(
+      "[KT] fabric check:",
+      payload.fabric,
+      found ? "found" : "not found",
+    );
+    if (!found) {
+      throw new Error(
+        `Fabric code "${payload.fabric}" was not found in KuteTailor. Please update the order with a valid fabric code.`,
+      );
+    }
+  }
 
   if (!payload.fabric) {
     throw new Error(
@@ -719,6 +761,12 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
   payload.orderDetails = payload.orderDetails.filter(
     (d) => d.orderSizes.length > 0,
   );
+
+  if (payload.orderDetails.length === 0) {
+    throw new Error(
+      "No measurement data found for this order. Please add measurements before submitting to KuteTailor.",
+    );
+  }
 
   // Inject default crafts when blank or stored in legacy [{pid,craftId}] JSON format
   for (const detail of payload.orderDetails) {
@@ -811,6 +859,26 @@ export async function sendToKutetailor(order, { submit = true } = {}) {
           .map((e) => e.trim())
           .filter((e) => e && !badCodes.has(_craftCode(e)))
           .join(",");
+      }
+    } else if (msg.includes("Incorrect measurement position")) {
+      // e.g. "Incorrect measurement position : 8 in Jacket"
+      const posMatch = msg.match(
+        /Incorrect measurement position\s*:\s*(\d+)\s+in\s+(\w+)/i,
+      );
+      if (!posMatch) break;
+      const badEcode = posMatch[1];
+      const badGarment = posMatch[2];
+      const badCategoryCode = _GARMENT_CATEGORY_CODES[badGarment] ?? null;
+      console.log(
+        `[KT] removing invalid position ecode ${badEcode} from ${badGarment}, attempt`,
+        craftRetries,
+      );
+      for (const detail of payload.orderDetails) {
+        if (badCategoryCode && detail.categoryCode !== badCategoryCode)
+          continue;
+        detail.orderSizes = detail.orderSizes.filter(
+          (s) => String(s.positionEcode) !== badEcode,
+        );
       }
     } else if (msg === "") {
       // KT returned empty message — transient server glitch. Retry once with unchanged payload.

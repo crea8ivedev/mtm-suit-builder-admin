@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { fetchOrdersPage, transformOrder } from "../lib/shopify";
+import {
+  fetchOrdersPage,
+  fetchFrontendGcOrders,
+  transformOrder,
+} from "../lib/shopify";
 
 let _cache = null;
 
@@ -76,6 +80,23 @@ export function useOrders() {
           hasNextPage = result.hasNextPage;
           cursor = result.endCursor;
         }
+
+        // Also merge recent frontend gc_builder orders (not tagged admin-created)
+        try {
+          const frontendOrders = await fetchFrontendGcOrders();
+          const existingIds = new Set(all.map((o) => o.id));
+          const newFrontend = frontendOrders.filter(
+            (o) => !existingIds.has(o.id),
+          );
+          if (newFrontend.length > 0) {
+            all.push(...newFrontend);
+            all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            if (!cancelRef.current) {
+              setRawOrders([...all]);
+              setProgress(all.length);
+            }
+          }
+        } catch {}
 
         _cache = [...all];
       } catch (err) {

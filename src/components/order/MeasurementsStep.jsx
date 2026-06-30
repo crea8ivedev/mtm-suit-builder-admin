@@ -445,17 +445,31 @@ export function StyleOptionsSection({
       ...liningCodes.filter((o) => o.visible),
       ...buttonCodes.filter((o) => o.visible),
     ];
+    // catSort tracks min categorySort per [garment][category]
+    const catSort = {};
     for (const opt of all) {
       const g = opt.garment || "General";
       if (!map[g]) map[g] = {};
       const cat = opt.category || "General";
       if (!map[g][cat]) map[g][cat] = [];
       map[g][cat].push(opt);
+      if (!catSort[g]) catSort[g] = {};
+      const cs = opt.categorySort ?? 9999;
+      if (catSort[g][cat] === undefined || cs < catSort[g][cat])
+        catSort[g][cat] = cs;
     }
     for (const g in map) {
       for (const cat in map[g]) {
         map[g][cat].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
       }
+      // Sort categories by their minimum categorySort value
+      const sorted = {};
+      Object.keys(map[g])
+        .sort((a, b) => (catSort[g][a] ?? 9999) - (catSort[g][b] ?? 9999))
+        .forEach((cat) => {
+          sorted[cat] = map[g][cat];
+        });
+      map[g] = sorted;
     }
     return map;
   }, [

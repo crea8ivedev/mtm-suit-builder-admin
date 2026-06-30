@@ -1,6 +1,12 @@
 import { cn } from "../../utils/cn";
 
-export function MeasurementStepper({ value, onChange, rangeMin, rangeMax, className }) {
+export function MeasurementStepper({
+  value,
+  onChange,
+  rangeMin,
+  rangeMax,
+  className,
+}) {
   const STEP = 0.5;
   const low = rangeMin ?? -Infinity;
   const high = rangeMax ?? Infinity;
@@ -30,7 +36,14 @@ export function MeasurementStepper({ value, onChange, rangeMin, rangeMax, classN
         )}
       >
         <svg width="10" height="2" viewBox="0 0 10 2" fill="none">
-          <rect x="0" y="0.5" width="10" height="1" rx="0.5" fill="currentColor" />
+          <rect
+            x="0"
+            y="0.5"
+            width="10"
+            height="1"
+            rx="0.5"
+            fill="currentColor"
+          />
         </svg>
       </button>
 
@@ -53,8 +66,22 @@ export function MeasurementStepper({ value, onChange, rangeMin, rangeMax, classN
         )}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <rect x="4.5" y="0" width="1" height="10" rx="0.5" fill="currentColor" />
-          <rect x="0" y="4.5" width="10" height="1" rx="0.5" fill="currentColor" />
+          <rect
+            x="4.5"
+            y="0"
+            width="1"
+            height="10"
+            rx="0.5"
+            fill="currentColor"
+          />
+          <rect
+            x="0"
+            y="4.5"
+            width="10"
+            height="1"
+            rx="0.5"
+            fill="currentColor"
+          />
         </svg>
       </button>
     </div>

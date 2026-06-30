@@ -915,28 +915,6 @@ export default function CreateOrder() {
     }
   }, [selectedTemplate, styleOptionsLoading]);
 
-  async function resolveFabricCode(code) {
-    try {
-      const res = await fetch(
-        `/api/kt/fabric/fabric/getSystemFabric?keyword=${encodeURIComponent(code)}&type=&pattern=&pageNum=1&pageSize=20`,
-      );
-      const json = await res.json().catch(() => ({}));
-      const records = Array.isArray(json?.data?.records)
-        ? json.data.records
-        : Array.isArray(json?.data)
-          ? json.data
-          : [];
-      const match = records.some(
-        (f) =>
-          (f.code ?? f.fabricCode ?? f.number ?? "").toLowerCase() ===
-          code.toLowerCase(),
-      );
-      return match ? code : "CMT";
-    } catch {
-      return "CMT";
-    }
-  }
-
   async function handleSubmit() {
     if (!selectedCustomer || !selectedProduct) return;
     setSubmitting(true);
@@ -1118,9 +1096,7 @@ export default function CreateOrder() {
         ? { variantId: selectedVariant.id }
         : { title: selectedProduct.title };
 
-      const resolvedFabric = fabricCode.trim()
-        ? await resolveFabricCode(fabricCode.trim())
-        : "";
+      const resolvedFabric = fabricCode.trim();
 
       const draft = await createDraftOrder({
         customerId: selectedCustomer.id,
@@ -1131,6 +1107,10 @@ export default function CreateOrder() {
           ...(garments.length
             ? [{ key: "_kute_garments", value: garments.join(",") }]
             : []),
+          {
+            key: "_kute_measuresType",
+            value: measurementType === "body" ? "10001" : "10002",
+          },
         ],
         lineItems: [
           {
@@ -1334,6 +1314,7 @@ export default function CreateOrder() {
   const canSubmit =
     !!selectedCustomer &&
     !!selectedProduct &&
+    !!fabricCode.trim() &&
     !submitting &&
     measurementsValid &&
     !hasMissingMeasurements &&
@@ -1644,10 +1625,10 @@ export default function CreateOrder() {
                     className="font-hanken w-full bg-white px-[14px] h-[48px] rounded-[4px] text-[14px] text-[#1c1c19] outline-none border border-gc-scrollbar-thumb/60 placeholder:text-gc-muted"
                     placeholder="Enter fabric code…"
                   />
-                  <p className="font-hanken text-[11px] text-[#9ca3af] mt-[6px]">
+                  {/* <p className="font-hanken text-[11px] text-[#9ca3af] mt-[6px]">
                     If the code is not found in KuteTailor, CMT will be used
                     automatically.
-                  </p>
+                  </p> */}
                 </div>
               </div>
             </div>
@@ -1708,6 +1689,13 @@ export default function CreateOrder() {
                 />
               </div>
             </div>
+
+            {!fabricCode.trim() && (
+              <AlertBanner
+                variant="error"
+                message="Fabric code is required before creating the order."
+              />
+            )}
 
             {hasMissingMeasurements && (
               <AlertBanner

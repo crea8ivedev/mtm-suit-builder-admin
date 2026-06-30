@@ -175,17 +175,29 @@ function buildStyleOptionsByGarment(
     ...expandedBC.filter((o) => o.visible),
   ];
   const byGarment = {};
+  const catSort = {};
   for (const opt of all) {
     const g = opt.garment || "General";
     if (!byGarment[g]) byGarment[g] = {};
     const cat = opt.category || "General";
     if (!byGarment[g][cat]) byGarment[g][cat] = [];
     byGarment[g][cat].push(opt);
+    if (!catSort[g]) catSort[g] = {};
+    const cs = opt.categorySort ?? 9999;
+    if (catSort[g][cat] === undefined || cs < catSort[g][cat])
+      catSort[g][cat] = cs;
   }
   for (const g in byGarment) {
     for (const cat in byGarment[g]) {
       byGarment[g][cat].sort((a, b) => a.sortOrder - b.sortOrder);
     }
+    const sorted = {};
+    Object.keys(byGarment[g])
+      .sort((a, b) => (catSort[g][a] ?? 9999) - (catSort[g][b] ?? 9999))
+      .forEach((cat) => {
+        sorted[cat] = byGarment[g][cat];
+      });
+    byGarment[g] = sorted;
   }
   return byGarment;
 }

@@ -660,7 +660,6 @@ async function _doFetch(onProgress) {
     const data = await shopifyGraphQL(GET_ORDERS_QUERY, {
       first: 50,
       after: cursor,
-      query: "tag:admin-created",
     });
 
     const { edges, pageInfo } = data.orders;
@@ -713,6 +712,18 @@ export async function fetchOrdersPage({
     hasNextPage: pageInfo.hasNextPage,
     endCursor: pageInfo.endCursor,
   };
+}
+
+// ─── Fetch recent frontend (non-admin-created) gc_builder orders ──────────
+export async function fetchFrontendGcOrders() {
+  const data = await shopifyGraphQL(GET_ORDERS_QUERY, { first: 50 });
+  return (data.orders?.edges ?? [])
+    .map((e) => e.node)
+    .filter((node) =>
+      (node.lineItems?.edges ?? []).some(
+        (e) => e.node.product?.metafield?.value,
+      ),
+    );
 }
 
 // ─── Customer queries ──────────────────────────────────────────────────────
@@ -1296,7 +1307,7 @@ const GET_ORDER_FOR_SUPPLIER = `
         edges { node { key value } }
       }
       lineItems(first: 50) {
-        edges { node { id title quantity customAttributes { key value } } }
+        edges { node { id title quantity variant { title } customAttributes { key value } } }
       }
     }
   }

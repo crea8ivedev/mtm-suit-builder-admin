@@ -79,6 +79,7 @@ const INLINE_KEYS = new Set([
   "product price",
   "style upcharge",
   "order total",
+  "measurestype",
 ]);
 
 function resolveLabel(rawKey, labelMap) {
@@ -345,7 +346,7 @@ function SupplierCard({ orderId, supplierMeta, onSettled }) {
           Sent on {formatDate(supplierSubmittedAt)}
         </p>
       )}
-      {((isFailed && supplierError) || submitError) && (
+      {((isFailed && supplierError) || (submitError && !isSubmitted)) && (
         <div className="mt-[12px] px-[14px] py-[10px] bg-red-50 border border-red-200 rounded-[8px]">
           <p className="font-hanken text-[12px] font-semibold text-red-700 mb-[2px]">
             Submission failed
@@ -793,12 +794,6 @@ export default function OrderDetail() {
                                   : "—"}
                               </span>
                             </div>
-                            {item.variant?.title &&
-                              item.variant.title !== "Default Title" && (
-                                <span className="font-hanken text-[13px] font-medium text-[#a45d41] uppercase tracking-[0.6px]">
-                                  {item.variant.title}
-                                </span>
-                              )}
                             <p className="font-hanken text-[14px] font-semibold text-[#6d6d6d]">
                               {sizeType ? `Size type: ${sizeType} • ` : ""}
                               {item.quantity} ×{" "}
