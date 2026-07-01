@@ -462,10 +462,17 @@ export function StyleOptionsSection({
       for (const cat in map[g]) {
         map[g][cat].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
       }
-      // Sort categories by their minimum categorySort value
+      // Sort categories by their minimum categorySort value; lining/button codes always last
       const sorted = {};
+      const isLiningOrButtonCat = (cat) =>
+        map[g][cat].some((o) => o.isLiningCode || o.isButtonCode);
       Object.keys(map[g])
-        .sort((a, b) => (catSort[g][a] ?? 9999) - (catSort[g][b] ?? 9999))
+        .sort((a, b) => {
+          const aLast = isLiningOrButtonCat(a) ? 1 : 0;
+          const bLast = isLiningOrButtonCat(b) ? 1 : 0;
+          if (aLast !== bLast) return aLast - bLast;
+          return (catSort[g][a] ?? 9999) - (catSort[g][b] ?? 9999);
+        })
         .forEach((cat) => {
           sorted[cat] = map[g][cat];
         });

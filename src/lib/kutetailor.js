@@ -318,6 +318,29 @@ const _STATIC_POSITION_ECODES = {
   },
 };
 
+const _STATIC_POSITION_ECODES_FINISHED = {
+  Jacket: {
+    chest: "XF01",
+    stomach: "XF02",
+    seat: "XF03",
+    bicep: "XF04",
+    sleevel: "XF05",
+    sleever: "XF06",
+    backlength: "XF07",
+    shoulder: "XF08",
+  },
+  Trouser: {
+    waist: "XK01",
+    seat: "XK02",
+    thigh: "XK03",
+    urise: "XK04",
+    outseaml: "XK05",
+    outseamr: "XK06",
+    bottom: "XK07",
+    knee: "XK08",
+  },
+};
+
 let _ktPositionMapCache = null;
 
 async function fetchKtPositionMap(token) {
@@ -349,7 +372,12 @@ function _normalizeKtName(name) {
     .replace(/[^a-z0-9]/g, "");
 }
 
-function _resolvePositionEcode(shopifyKey, ktPositionMap, garmentHint = null) {
+function _resolvePositionEcode(
+  shopifyKey,
+  ktPositionMap,
+  garmentHint = null,
+  isFinished = false,
+) {
   let garment = garmentHint;
   let label = shopifyKey;
   for (const g of Object.keys(_GARMENT_CATEGORY_IDS)) {
@@ -360,32 +388,43 @@ function _resolvePositionEcode(shopifyKey, ktPositionMap, garmentHint = null) {
     }
   }
   const normLabel = _normalizeKtName(label);
+  const staticMap = isFinished
+    ? _STATIC_POSITION_ECODES_FINISHED
+    : _STATIC_POSITION_ECODES;
   if (garment) {
     // 1. Static map for this garment (manually verified — takes priority)
-    const staticHit = _STATIC_POSITION_ECODES[garment]?.[normLabel];
+    const staticHit = staticMap[garment]?.[normLabel];
     if (staticHit) return staticHit;
-    // 2. Dynamic KT map for this garment (fallback for unmapped positions)
-    const categoryId = _GARMENT_CATEGORY_IDS[garment];
-    const dynHit = ktPositionMap[categoryId]?.[normLabel];
-    if (dynHit) return dynHit;
+    // 2. Dynamic KT map for this garment (fallback for unmapped positions — body only)
+    if (!isFinished) {
+      const categoryId = _GARMENT_CATEGORY_IDS[garment];
+      const dynHit = ktPositionMap[categoryId]?.[normLabel];
+      if (dynHit) return dynHit;
+    }
   }
   // 3. Search all static maps
-  for (const staticMap of Object.values(_STATIC_POSITION_ECODES)) {
-    if (staticMap[normLabel]) return staticMap[normLabel];
+  for (const m of Object.values(staticMap)) {
+    if (m[normLabel]) return m[normLabel];
   }
-  // 4. Search all dynamic categories
-  for (const catMap of Object.values(ktPositionMap)) {
-    if (catMap[normLabel]) return catMap[normLabel];
+  // 4. Search all dynamic categories (body only)
+  if (!isFinished) {
+    for (const catMap of Object.values(ktPositionMap)) {
+      if (catMap[normLabel]) return catMap[normLabel];
+    }
   }
   return null;
 }
 
-function mapSizes(customAttributes = [], ktPositionMap = {}) {
+function mapSizes(
+  customAttributes = [],
+  ktPositionMap = {},
+  isFinished = false,
+) {
   const result = [];
   for (const a of customAttributes) {
     if (a.key.startsWith("_") || !a.value || isNaN(parseFloat(a.value)))
       continue;
-    const ecode = _resolvePositionEcode(a.key, ktPositionMap);
+    const ecode = _resolvePositionEcode(a.key, ktPositionMap, null, isFinished);
     if (!ecode) continue;
     result.push({ positionEcode: ecode, size: parseFloat(a.value) });
   }
@@ -396,6 +435,7 @@ function mapSizesForGarment(
   customAttributes = [],
   garment,
   ktPositionMap = {},
+  isFinished = false,
 ) {
   const seenEcodes = new Set();
   const result = [];
@@ -416,7 +456,12 @@ function mapSizesForGarment(
       }
     }
     if (belongsToOtherGarment) continue;
-    const ecode = _resolvePositionEcode(label, ktPositionMap, garment);
+    const ecode = _resolvePositionEcode(
+      label,
+      ktPositionMap,
+      garment,
+      isFinished,
+    );
     if (!ecode || seenEcodes.has(ecode)) continue;
     seenEcodes.add(ecode);
     result.push({ positionEcode: ecode, size: parseFloat(a.value) });
@@ -446,6 +491,12 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
   const orderMeta = Object.fromEntries(
     (order.metafields?.edges ?? []).map((e) => [e.node.key, e.node.value]),
   );
+
+  const measuresTypeRaw = parseInt(
+    kuteAttr(attrs, "measuresType") ?? "10001",
+    10,
+  );
+  const isFinished = measuresTypeRaw === 10002;
 
   const height =
     parseFloat(kuteAttr(attrs, "height") ?? customerMeta.height ?? "71") || 71;
@@ -514,6 +565,7 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
           itemAttrs,
           garment,
           ktPositionMap,
+          isFinished,
         );
         if (!orderSizes.length) {
           console.warn(
@@ -546,7 +598,7 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
         crafts: _deduplicateCraftsByPid(sharedCrafts),
         sizeNames,
         versionStyle,
-        orderSizes: mapSizes(itemAttrs, ktPositionMap),
+        orderSizes: mapSizes(itemAttrs, ktPositionMap, isFinished),
         orderEmbs: [],
       },
     ];
@@ -559,7 +611,7 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
     amount: lineItems.reduce((s, i) => s + (i.quantity ?? 1), 0),
     isSample,
     category,
-    measuresType: 10001, // always body/net measurements — position ecodes 1-42 are body-sheet ecodes
+    measuresType: measuresTypeRaw,
     fabric: (() => {
       const fromOrder = kuteAttr(attrs, "fabric");
       const fromLineItem = lineItems.reduce((found, item) => {

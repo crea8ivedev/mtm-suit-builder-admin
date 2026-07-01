@@ -501,7 +501,7 @@ function buildMeasurementProfiles(
       }
       result[productName].push({
         id: `prof_${counter++}`,
-        name: profileName || `Measurement ${idx}`,
+        name: order.name || profileName || `Measurement ${idx}`,
         created,
         style,
         measurements,
@@ -613,7 +613,9 @@ function mergeProfilesWithSaved(fromOrders, saved) {
         // Index/name-based pairing is unstable: Shopify API sort order can vary per request,
         // causing buildMeasurementProfiles to assign different names to the same profile,
         // which swaps measurement data between profiles on each refresh.
-        return match;
+        // Always use the order-derived name (order.name) so tabs show order names, not old profile names.
+        const orderName = orderProfiles[idx]?.name;
+        return orderName ? { ...match, name: orderName } : match;
       }
       // Old flat format (style keys mixed into measurements) — fall back to order-derived profile.
       const byName = orderProfiles.find((p) => p.name === match.name);
@@ -1165,7 +1167,21 @@ export default function CustomerDetail() {
           productGarmentsMap,
         )
       : activeProfiles;
+    // Ensure first profile always has isBodyMeasurement = true if none is set
+    const hasBodyToggle = Object.values(profilesToSave).some((list) =>
+      list.some((p) => p.isBodyMeasurement),
+    );
+    if (!hasBodyToggle) {
+      const firstProduct = Object.keys(profilesToSave)[0];
+      if (firstProduct && profilesToSave[firstProduct]?.length) {
+        const list = profilesToSave[firstProduct];
+        const lastIdx = list.length - 1; // oldest order (array is newest-first)
+        list[lastIdx] = { ...list[lastIdx], isBodyMeasurement: true };
+      }
+    }
     setCustomerProductsMetafield(shopifyGid, profilesToSave).catch(() => {});
+    setCommittedProfiles(profilesToSave);
+    setGcMeasurements(profilesToSave);
   }, [
     orders,
     displayKeyMap,

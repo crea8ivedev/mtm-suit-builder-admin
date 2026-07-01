@@ -434,7 +434,13 @@ export default function CreateOrder() {
           ),
         };
       })
-      .filter((o) => o.attributes.length > 0);
+      .filter((o) => {
+        if (!o.attributes.length) return false;
+        const measType = o.attributes.find(
+          (a) => a.key === "measuresType",
+        )?.value;
+        return measType === "10002";
+      });
   }, [selectedProduct, customerOrders]);
 
   useEffect(() => {
@@ -1267,12 +1273,15 @@ export default function CreateOrder() {
   }, [styleSelections, expandedLiningCodes, expandedButtonCodes]);
 
   const bodyMeasurementProfile = useMemo(() => {
+    let oldest = null;
     for (const list of Object.values(gcMeasurementsData)) {
       for (const p of list) {
         if (p.isBodyMeasurement) return p;
       }
+      // last element = oldest order (array is newest-first)
+      if (list.length) oldest = list[list.length - 1];
     }
-    return null;
+    return oldest; // default: oldest profile if none has toggle on
   }, [gcMeasurementsData]);
 
   async function applyBodyMeasurement() {
