@@ -219,6 +219,19 @@ export default function StyleAdjustments() {
     return () => clearTimeout(timer);
   }, [options]);
 
+  // Category-reorder saves are a batch of sequential network calls (one per
+  // option in the category) — block accidental reload/close mid-save so it
+  // can't be interrupted before every option's style_sort has persisted.
+  useEffect(() => {
+    if (!catSortSaving) return;
+    const handler = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [catSortSaving]);
+
   // Restore default garment+category if URL params are missing but data is loaded
   useEffect(() => {
     if (!options.length || selectedGarment) return;
@@ -692,7 +705,7 @@ export default function StyleAdjustments() {
     setCatDragOver(index);
   }
 
-  function handleCatDrop(e, dropIndex) {
+  async function handleCatDrop(e, dropIndex) {
     e.preventDefault();
     if (catDragSrc === null || catDragSrc === dropIndex) {
       setCatDragSrc(null);
@@ -710,16 +723,20 @@ export default function StyleAdjustments() {
     setCatDragSrc(null);
     setCatDragOver(null);
 
-    // Update style_sort for all options in each reordered category (skip paginated ones)
+    // Update style_sort for all options in each reordered category (skip
+    // paginated ones — lining/button/contrast codes are sorted separately).
+    // Sort numbers only count draggable categories so they stay sequential
+    // (1,2,3…) even when a paginated category sits between them.
     const updates = [];
-    reordered.forEach((cat, i) => {
+    let nextSort = 1;
+    reordered.forEach((cat) => {
       if (
         cat.slug === "lining_code" ||
         cat.slug === "button_code" ||
         cat.slug === "contrast_option"
       )
         return;
-      const newSort = i + 1;
+      const newSort = nextSort++;
       options
         .filter(
           (o) =>
@@ -737,12 +754,29 @@ export default function StyleAdjustments() {
 
     setCatSortSaving(true);
     setCatSortError(null);
-    Promise.all(
+    // Awaited (not fire-and-forget) so a page reload right after dropping
+    // can't abort the still-in-flight saves — see the beforeunload guard
+    // below, which blocks navigation entirely while this is running.
+    const results = await Promise.allSettled(
       updates.map((u) => updateStyleOption(u.id, { style_sort: u.style_sort })),
-    )
-      .then(() => clearStyleOptionsCache())
-      .catch((e) => setCatSortError(e.message))
-      .finally(() => setCatSortSaving(false));
+    );
+    const failed = results.filter((r) => r.status === "rejected");
+    if (failed.length) {
+      setCatSortError(
+        `Failed to save order for ${failed.length} option${failed.length === 1 ? "" : "s"} — try dragging again.`,
+      );
+    } else {
+      const sortById = new Map(
+        updates.map((u) => [u.id, parseInt(u.style_sort, 10)]),
+      );
+      setOptions((prev) =>
+        prev.map((o) =>
+          sortById.has(o.id) ? { ...o, categorySort: sortById.get(o.id) } : o,
+        ),
+      );
+      clearStyleOptionsCache();
+    }
+    setCatSortSaving(false);
   }
 
   function handleCatDragEnd() {
