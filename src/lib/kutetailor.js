@@ -772,6 +772,24 @@ async function postSaveOrder(token, payload) {
   return { res, rawText, body };
 }
 
+export async function fetchKtFabricDetails(fabricCode) {
+  const token = await getToken();
+  const res = await ktFetch(
+    `/fabric/fabric/queryFabric?fabricCode=${encodeURIComponent(fabricCode)}`,
+    token,
+  );
+  if (res?.code !== "0" || !Array.isArray(res?.data) || !res.data.length) {
+    return null;
+  }
+  const d = res.data[0];
+  return {
+    fabricHouse: d.factoryCode ?? "",
+    color: d.colorName ?? "",
+    material: d.material ?? "",
+    imageUrl: d.imageUrl ?? null,
+  };
+}
+
 async function resolveKtFabric(code, token) {
   try {
     const res = await ktFetch(

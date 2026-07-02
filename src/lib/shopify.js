@@ -253,67 +253,6 @@ const GET_ORDER_QUERY = `
   }
 `;
 
-// ─── Fabric products query (gc_builder metafield not null, with image) ──────
-const GET_FABRIC_PRODUCTS_QUERY = `
-  query GetFabricProducts($first: Int!, $after: String) {
-    products(first: $first, after: $after) {
-      pageInfo { hasNextPage endCursor }
-      edges {
-        node {
-          id
-          title
-          status
-          featuredImage {
-            url
-            altText
-          }
-          priceRangeV2 {
-            minVariantPrice { amount currencyCode }
-          }
-          metafield(namespace: "custom", key: "gc_builder") {
-            value
-          }
-        }
-      }
-    }
-  }
-`;
-
-let _fabricProductsCache = null;
-
-export async function fetchFabricProducts() {
-  if (_fabricProductsCache) return _fabricProductsCache;
-  const all = [];
-  let hasNextPage = true;
-  let cursor = null;
-  while (hasNextPage) {
-    const data = await shopifyGraphQL(GET_FABRIC_PRODUCTS_QUERY, {
-      first: 50,
-      after: cursor,
-    });
-    const { edges, pageInfo } = data.products;
-    for (const { node } of edges) {
-      if (!node.metafield?.value) continue;
-      all.push({
-        id: node.id,
-        title: node.title,
-        price: node.priceRangeV2?.minVariantPrice?.amount ?? "0",
-        currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode ?? "USD",
-        imageUrl: node.featuredImage?.url ?? null,
-        imageAlt: node.featuredImage?.altText ?? node.title,
-      });
-    }
-    hasNextPage = pageInfo.hasNextPage;
-    cursor = pageInfo.endCursor;
-  }
-  _fabricProductsCache = all;
-  return all;
-}
-
-export function clearFabricProductsCache() {
-  _fabricProductsCache = null;
-}
-
 const GET_PRODUCT_OPTIONS_QUERY = `
   query GetProductOptions($id: ID!) {
     product(id: $id) {
@@ -581,7 +520,7 @@ const GET_PRODUCTS_QUERY = `
               }
             }
           }
-          metafield(namespace: "custom", key: "gc_builder") {
+          metafield(namespace: "custom", key: "fabric") {
             value
           }
         }
@@ -592,7 +531,7 @@ const GET_PRODUCTS_QUERY = `
 
 let _gcProductsCache = null;
 
-export async function fetchGcBuilderProducts() {
+export async function fetchCustomSuitProducts() {
   if (_gcProductsCache) return _gcProductsCache;
   const all = [];
   let hasNextPage = true;
@@ -2442,6 +2381,17 @@ export async function uploadImageToShopify(file) {
   return { gid: files[0].id, cdnUrl: target.resourceUrl };
 }
 
+// For images already hosted elsewhere (e.g. KuteTailor's fabric image URL) —
+// Shopify fetches and imports the file itself, no staged upload needed.
+export async function createImageFromUrl(url) {
+  const data = await shopifyGraphQL(FILE_CREATE, {
+    files: [{ originalSource: url, contentType: "IMAGE" }],
+  });
+  const { files, userErrors } = data.fileCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return files[0].id;
+}
+
 let _shopDomain = null;
 
 export async function fetchShopAdminDomain() {
@@ -2710,3 +2660,451 @@ export async function deleteColorPattern(id) {
 
 export const fetchFabricOptions = fetchShopifyColorPattern;
 export const clearFabricOptionsCache = clearShopifyColorPatternCache;
+
+// ─── GC Fabrics (fabric-as-product) ────────────────────────────────────────
+// Field keys are Shopify's auto-generated snake_case slugs of the admin
+// field labels (Fabric Code, Fabric House, Color, Material, Weight, Image).
+const GC_FABRICS_QUERY = `
+  query GetGcFabrics($first: Int!, $after: String) {
+    metaobjects(type: "gc_fabrics", first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          handle
+          fields { key value }
+        }
+      }
+    }
+  }
+`;
+
+let _gcFabricsCache = null;
+
+export async function fetchGcFabrics() {
+  if (_gcFabricsCache) return _gcFabricsCache;
+  const all = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(GC_FABRICS_QUERY, {
+      first: 250,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.metaobjects;
+    for (const { node } of edges) {
+      const fm = Object.fromEntries(node.fields.map((f) => [f.key, f.value]));
+      const imageGid =
+        typeof fm.image === "string" && fm.image.startsWith("gid://")
+          ? fm.image
+          : null;
+      all.push({
+        id: node.id,
+        handle: node.handle,
+        fabricCode: fm.fabric_code ?? "",
+        fabricHouse: fm.fabric_house ?? "",
+        color: fm.color ?? "",
+        material: fm.material ?? "",
+        weight: fm.weight ?? "",
+        imageGid,
+        imageUrl: null,
+      });
+    }
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+
+  const toResolve = all.filter((f) => f.imageGid);
+  if (toResolve.length) {
+    try {
+      const data = await shopifyGraphQL(RESOLVE_MEDIA_IMAGES_QUERY, {
+        ids: toResolve.map((f) => f.imageGid),
+      });
+      const urlMap = Object.fromEntries(
+        (data.nodes ?? [])
+          .filter((n) => n?.image?.url)
+          .map((n) => [n.id, n.image.url]),
+      );
+      for (const f of all) {
+        if (f.imageGid && urlMap[f.imageGid]) f.imageUrl = urlMap[f.imageGid];
+      }
+    } catch {}
+  }
+
+  _gcFabricsCache = all;
+  return all;
+}
+
+export function clearGcFabricsCache() {
+  _gcFabricsCache = null;
+}
+
+export async function createGcFabric({
+  fabricCode,
+  fabricHouse,
+  color,
+  material,
+  weight,
+  imageGid,
+}) {
+  const fields = [
+    { key: "fabric_code", value: fabricCode || "" },
+    { key: "fabric_house", value: fabricHouse || "" },
+    { key: "color", value: color || "" },
+    { key: "material", value: material || "" },
+    { key: "weight", value: weight || "" },
+  ];
+  if (imageGid) fields.push({ key: "image", value: imageGid });
+  const data = await shopifyGraphQL(CREATE_METAOBJECT_MUTATION, {
+    metaobject: {
+      type: "gc_fabrics",
+      fields,
+      capabilities: { publishable: { status: "ACTIVE" } },
+    },
+  });
+  const { metaobject, userErrors } = data.metaobjectCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return metaobject;
+}
+
+export async function updateGcFabric(
+  id,
+  { fabricCode, fabricHouse, color, material, weight, imageGid },
+) {
+  const fieldInputs = [
+    { key: "fabric_code", value: fabricCode || "" },
+    { key: "fabric_house", value: fabricHouse || "" },
+    { key: "color", value: color || "" },
+    { key: "material", value: material || "" },
+    { key: "weight", value: weight || "" },
+    { key: "image", value: imageGid ?? "" },
+  ];
+  const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
+    id,
+    metaobject: { fields: fieldInputs },
+  });
+  const { userErrors } = data.metaobjectUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectUpdate.metaobject;
+}
+
+export async function deleteGcFabric(id) {
+  const data = await shopifyGraphQL(DELETE_METAOBJECT_MUTATION, { id });
+  const { userErrors } = data.metaobjectDelete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectDelete.deletedId;
+}
+
+// ─── Fabric products (custom.fabric metafield — product-based model) ──────
+export const GARMENT_TYPES = [
+  "Two Piece Suit",
+  "Jacket Only",
+  "Pants Only",
+  "Vest Only",
+  "Shirt Only",
+];
+
+const GET_FABRIC_PRODUCTS_V2_QUERY = `
+  query GetFabricProductsV2($first: Int!, $after: String) {
+    products(first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          title
+          status
+          featuredImage { url altText }
+          priceRangeV2 { minVariantPrice { amount currencyCode } }
+          metafield(namespace: "custom", key: "fabric") { value }
+        }
+      }
+    }
+  }
+`;
+
+let _fabricProductsV2Cache = null;
+
+export async function fetchFabricProductsV2() {
+  if (_fabricProductsV2Cache) return _fabricProductsV2Cache;
+  const all = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(GET_FABRIC_PRODUCTS_V2_QUERY, {
+      first: 50,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.products;
+    for (const { node } of edges) {
+      if (!node.metafield?.value) continue;
+      all.push({
+        id: node.id,
+        title: node.title,
+        status: node.status,
+        price: node.priceRangeV2?.minVariantPrice?.amount ?? "0",
+        currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode ?? "USD",
+        imageUrl: node.featuredImage?.url ?? null,
+        imageAlt: node.featuredImage?.altText ?? node.title,
+      });
+    }
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+  _fabricProductsV2Cache = all;
+  return all;
+}
+
+export function clearFabricProductsV2Cache() {
+  _fabricProductsV2Cache = null;
+}
+
+const PRODUCT_CREATE_MUTATION = `
+  mutation productCreate($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
+    productCreate(product: $product, media: $media) {
+      product { id title handle status }
+      userErrors { field message }
+    }
+  }
+`;
+
+// productCreate only creates ONE variant regardless of how many option
+// values are declared — it's linked to the first value of each option.
+// The rest of garmentTypes are turned into variants right after, via
+// createGarmentVariants (Shopify links them to these pre-declared values).
+export async function createFabricProduct({
+  title,
+  status,
+  gcFabricMetaobjectId,
+  garmentTypes,
+  media,
+}) {
+  const data = await shopifyGraphQL(PRODUCT_CREATE_MUTATION, {
+    product: {
+      title,
+      status,
+      metafields: [
+        {
+          namespace: "custom",
+          key: "fabric",
+          type: "metaobject_reference",
+          value: gcFabricMetaobjectId,
+        },
+      ],
+      productOptions: [
+        {
+          name: "Type",
+          values: garmentTypes.map((name) => ({ name })),
+        },
+      ],
+    },
+    media: media?.length
+      ? media.map(({ cdnUrl, alt }) => ({
+          originalSource: cdnUrl,
+          alt: alt || "",
+          mediaContentType: "IMAGE",
+        }))
+      : undefined,
+  });
+  const { product, userErrors } = data.productCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return product;
+}
+
+const PRODUCT_UPDATE_MUTATION = `
+  mutation productUpdate($product: ProductUpdateInput!, $media: [CreateMediaInput!]) {
+    productUpdate(product: $product, media: $media) {
+      product { id title status }
+      userErrors { field message }
+    }
+  }
+`;
+
+export async function updateFabricProduct(productId, { title, status, media }) {
+  const data = await shopifyGraphQL(PRODUCT_UPDATE_MUTATION, {
+    product: { id: productId, title, status },
+    media: media?.length
+      ? media.map(({ cdnUrl, alt }) => ({
+          originalSource: cdnUrl,
+          alt: alt || "",
+          mediaContentType: "IMAGE",
+        }))
+      : undefined,
+  });
+  const { userErrors } = data.productUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.productUpdate.product;
+}
+
+export async function addProductImages(productId, uploaded) {
+  const data = await shopifyGraphQL(PRODUCT_UPDATE_MUTATION, {
+    product: { id: productId },
+    media: uploaded.map(({ cdnUrl, alt }) => ({
+      originalSource: cdnUrl,
+      alt: alt || "",
+      mediaContentType: "IMAGE",
+    })),
+  });
+  const { userErrors } = data.productUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.productUpdate.product;
+}
+
+// Creates variants for garment types — links to a pre-declared option value
+// by name if one exists (e.g. from productCreate's productOptions), or
+// creates a brand-new option value otherwise (Shopify handles both the same
+// way through this one mutation, per productVariantsBulkCreate semantics).
+export async function createGarmentVariants(productId, optionName, types) {
+  const data = await shopifyGraphQL(ADD_PRODUCT_VARIANT_MUTATION, {
+    productId,
+    variants: types.map(({ name, price }) => ({
+      optionValues: [{ optionName, name }],
+      price: price.toString(),
+    })),
+  });
+  const { productVariants, userErrors } = data.productVariantsBulkCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return productVariants;
+}
+
+const UPDATE_VARIANT_PRICES_MUTATION = `
+  mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+    productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+      productVariants { id price }
+      userErrors { field message }
+    }
+  }
+`;
+
+export async function updateVariantPrices(productId, updates) {
+  const data = await shopifyGraphQL(UPDATE_VARIANT_PRICES_MUTATION, {
+    productId,
+    variants: updates.map(({ id, price }) => ({ id, price: price.toString() })),
+  });
+  const { userErrors } = data.productVariantsBulkUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.productVariantsBulkUpdate.productVariants;
+}
+
+const GET_FABRIC_PRODUCT_DETAIL_QUERY = `
+  query GetFabricProductDetail($id: ID!) {
+    product(id: $id) {
+      id
+      title
+      status
+      metafield(namespace: "custom", key: "fabric") {
+        reference {
+          ... on Metaobject {
+            id
+            handle
+            fields { key value }
+          }
+        }
+      }
+      media(first: 50) {
+        edges {
+          node {
+            id
+            alt
+            ... on MediaImage { image { url } }
+          }
+        }
+      }
+      options {
+        id
+        name
+        values
+        optionValues { id name }
+      }
+      variants(first: 250) {
+        edges {
+          node {
+            id
+            title
+            price
+            selectedOptions { name value }
+            inventoryQuantity
+            inventoryItem { id }
+          }
+        }
+      }
+    }
+  }
+`;
+
+// Products created before this feature (or edited directly in Shopify admin)
+// may have their garment-type variants under an option not literally named
+// "Type" — detect it by matching option VALUES against GARMENT_TYPES instead
+// of relying on the option name, so existing variants still show pre-selected.
+function detectGarmentOptionName(options) {
+  for (const opt of options) {
+    if (
+      (opt.values ?? []).some((v) =>
+        GARMENT_TYPES.some((t) => t.toLowerCase() === v.toLowerCase()),
+      )
+    ) {
+      return opt.name;
+    }
+  }
+  return "Type";
+}
+
+export async function fetchFabricProductDetail(productId) {
+  const data = await shopifyGraphQL(GET_FABRIC_PRODUCT_DETAIL_QUERY, {
+    id: productId,
+  });
+  const product = data?.product;
+  if (!product) return null;
+  const metaobject = product.metafield?.reference ?? null;
+  const gcFabric = metaobject
+    ? Object.fromEntries(metaobject.fields.map((f) => [f.key, f.value]))
+    : null;
+  const imageGid =
+    typeof gcFabric?.image === "string" && gcFabric.image.startsWith("gid://")
+      ? gcFabric.image
+      : null;
+  const options = product.options ?? [];
+  return {
+    id: product.id,
+    title: product.title,
+    status: product.status,
+    gcFabricId: metaobject?.id ?? null,
+    gcFabric: gcFabric
+      ? {
+          fabricCode: gcFabric.fabric_code ?? "",
+          fabricHouse: gcFabric.fabric_house ?? "",
+          color: gcFabric.color ?? "",
+          material: gcFabric.material ?? "",
+          weight: gcFabric.weight ?? "",
+          imageGid,
+        }
+      : null,
+    images: (product.media?.edges ?? [])
+      .map(({ node }) => ({
+        id: node.id,
+        alt: node.alt,
+        url: node.image?.url ?? null,
+      }))
+      .filter((m) => m.url),
+    options,
+    garmentOptionName: detectGarmentOptionName(options),
+    variants: (product.variants?.edges ?? []).map((e) => e.node),
+  };
+}
+
+const FILE_DELETE_MUTATION = `
+  mutation fileDelete($fileIds: [ID!]!) {
+    fileDelete(fileIds: $fileIds) {
+      deletedFileIds
+      userErrors { field message }
+    }
+  }
+`;
+
+export async function removeProductImage(mediaId) {
+  const data = await shopifyGraphQL(FILE_DELETE_MUTATION, {
+    fileIds: [mediaId],
+  });
+  const { userErrors } = data.fileDelete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.fileDelete.deletedFileIds;
+}

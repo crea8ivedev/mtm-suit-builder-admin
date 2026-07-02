@@ -13,7 +13,8 @@ import {
 import { getRangeForKey, groupAttributes } from "../utils/measurementUtils";
 import { invalidateOrdersCache } from "../hooks/useOrders";
 import {
-  fetchGcBuilderProducts,
+  fetchCustomSuitProducts,
+  fetchFabricProductDetail,
   fetchCustomerWithOrders,
   clearOrdersCache,
   clearCustomerDetailCache,
@@ -140,6 +141,10 @@ function attrsFromLineItem(node, emptyValues = false) {
     );
 }
 
+// Derives garment names (Jacket/Trouser/Vest/Shirt) from a fabric product's
+// selected garment-type VARIANT title (e.g. "Two Piece Suit", "Pants Only") —
+// NOT from the product's custom.fabric metafield, which now holds a
+// metaobject reference GID rather than garment text.
 function garmentsFromGcBuilderValue(value, allGarments) {
   if (!value) return [];
   const v = value.toLowerCase();
@@ -149,7 +154,7 @@ function garmentsFromGcBuilderValue(value, allGarments) {
   // fallback: derive from known garment keywords in value
   const found = [];
   if (v.includes("jacket")) found.push("Jacket");
-  if (v.includes("trouser")) found.push("Trouser");
+  if (v.includes("trouser") || v.includes("pant")) found.push("Trouser");
   if (v.includes("vest")) found.push("Vest");
   if (v.includes("shirt")) found.push("Shirt");
   if (!found.length && v.includes("suit")) {
@@ -157,10 +162,6 @@ function garmentsFromGcBuilderValue(value, allGarments) {
     found.push("Trouser");
   }
   return found;
-}
-
-function styleGarmentsForProduct(product, allGarments) {
-  return garmentsFromGcBuilderValue(product?.metafield?.value, allGarments);
 }
 
 function buildStyleOptionsForJson(
@@ -349,10 +350,8 @@ export default function CreateOrder() {
   }, []);
 
   const rangeGroups = useMemo(() => {
-    if (!selectedProduct) return [];
-    const garments = garmentsFromGcBuilderValue(
-      selectedProduct.metafield?.value,
-    );
+    if (!selectedVariant) return [];
+    const garments = garmentsFromGcBuilderValue(selectedVariant.title);
     const groups = [];
     if (garments.includes("Jacket") && jacketRanges)
       groups.push({ label: "Jacket", ranges: jacketRanges });
@@ -363,7 +362,7 @@ export default function CreateOrder() {
     if (garments.includes("Shirt") && shirtRanges)
       groups.push({ label: "Shirt", ranges: shirtRanges });
     return groups;
-  }, [selectedProduct, jacketRanges, trouserRanges, vestRanges, shirtRanges]);
+  }, [selectedVariant, jacketRanges, trouserRanges, vestRanges, shirtRanges]);
 
   const allStyleGarments = useMemo(
     () => [
@@ -377,10 +376,8 @@ export default function CreateOrder() {
   );
 
   const expandedLiningCodes = useMemo(() => {
-    if (!selectedProduct || !liningCodes.length) return [];
-    const garments = garmentsFromGcBuilderValue(
-      selectedProduct.metafield?.value,
-    );
+    if (!selectedVariant || !liningCodes.length) return [];
+    const garments = garmentsFromGcBuilderValue(selectedVariant.title);
     if (!garments.length) return [];
     const normalizeG = (g) =>
       garments.find((ag) => ag.toLowerCase() === g.toLowerCase()) ?? null;
@@ -391,13 +388,11 @@ export default function CreateOrder() {
           : garments;
       return targets.map((g) => ({ ...item, garment: g }));
     });
-  }, [selectedProduct, liningCodes]);
+  }, [selectedVariant, liningCodes]);
 
   const expandedButtonCodes = useMemo(() => {
-    if (!selectedProduct || !buttonCodes.length) return [];
-    const garments = garmentsFromGcBuilderValue(
-      selectedProduct.metafield?.value,
-    );
+    if (!selectedVariant || !buttonCodes.length) return [];
+    const garments = garmentsFromGcBuilderValue(selectedVariant.title);
     if (!garments.length) return [];
     const normalizeG = (g) =>
       garments.find((ag) => ag.toLowerCase() === g.toLowerCase()) ?? null;
@@ -408,7 +403,7 @@ export default function CreateOrder() {
           : garments;
       return targets.map((g) => ({ ...item, garment: g }));
     });
-  }, [selectedProduct, buttonCodes]);
+  }, [selectedVariant, buttonCodes]);
 
   const pastOrdersForProduct = useMemo(() => {
     if (!selectedProduct || !customerOrders.length) return [];
@@ -451,7 +446,7 @@ export default function CreateOrder() {
   }, []);
 
   useEffect(() => {
-    fetchGcBuilderProducts()
+    fetchCustomSuitProducts()
       .then((products) => {
         setGcProducts(products);
         setProductsLoading(false);
@@ -541,8 +536,8 @@ export default function CreateOrder() {
     });
   }
 
-  async function getFieldsForProduct(product) {
-    const garments = garmentsFromGcBuilderValue(product.metafield?.value);
+  async function getFieldsForProduct(product, variantTitle) {
+    const garments = garmentsFromGcBuilderValue(variantTitle);
     if (garments.length) {
       const canonical = await getCanonicalFieldsForGarments(garments);
       if (canonical.length)
@@ -588,12 +583,10 @@ export default function CreateOrder() {
     setStyleSelections(defaults);
     if (!selectedProduct) return;
     const _variants = selectedProduct.variants?.edges?.map((e) => e.node) ?? [];
-    const _hasSelector =
-      _variants.length > 1 ||
-      (_variants.length === 1 && _variants[0].title !== "Default Title");
-    const _defaultV = _hasSelector ? _variants[0] : null;
+    const _defaultV = _variants.length === 1 ? _variants[0] : null;
     setSelectedVariant(_defaultV);
-    setPrice(_defaultV?.price || _variants[0]?.price || "0.00");
+    setPrice(_defaultV?.price || "0.00");
+    if (!_defaultV) return;
 
     const pastNode = findPastLineItem(
       customerOrders,
@@ -606,9 +599,7 @@ export default function CreateOrder() {
       ...jacketRanges,
       ...shirtRanges,
     };
-    const garments = garmentsFromGcBuilderValue(
-      selectedProduct.metafield?.value,
-    );
+    const garments = garmentsFromGcBuilderValue(_defaultV.title);
 
     if (pastNode?.customAttributes?.length > 0 && garments.length) {
       setFieldsLoading(true);
@@ -639,7 +630,10 @@ export default function CreateOrder() {
 
     setFieldsLoading(true);
     try {
-      const fields = await getFieldsForProduct(selectedProduct);
+      const fields = await getFieldsForProduct(
+        selectedProduct,
+        _defaultV.title,
+      );
       setAttributes(applyDefaultSizeType(fields));
     } catch {
       setAttributes([]);
@@ -648,71 +642,60 @@ export default function CreateOrder() {
     }
   }
 
+  // Variant defaulting/reset lives in the pastOrdersForProduct effect below
+  // (it always runs alongside this one and is the authoritative source).
+  // This effect only auto-fills the Fabric Code from the product's linked
+  // gc_fabrics metaobject entry.
   useEffect(() => {
     if (!selectedProduct) {
-      setSelectedVariant(null);
-      setPrice("0.00");
       setSelectedTemplate(null);
       setMeasurementType(null);
+      setFabricCode("");
       return;
     }
-    const variants = selectedProduct.variants?.edges?.map((e) => e.node) ?? [];
-    const hasVariantSelector =
-      variants.length > 1 ||
-      (variants.length === 1 && variants[0].title !== "Default Title");
     setFabricCode("");
-    if (variants[0]) {
-      setSelectedVariant(hasVariantSelector ? variants[0] : null);
-      setPrice(variants[0].price || "0.00");
-    } else {
-      setSelectedVariant(null);
-      setPrice("0.00");
-    }
+    if (!selectedProduct.metafield?.value) return;
+    fetchFabricProductDetail(selectedProduct.id)
+      .then((detail) => setFabricCode(detail?.gcFabric?.fabricCode || ""))
+      .catch(() => {});
   }, [selectedProduct]);
 
-  useEffect(() => {
-    if (!selectedProduct) {
+  // Fetches/prefills measurement `attributes` for a specific chosen variant
+  // (garment-type). Shared by the auto-load effect below and any manual
+  // variant/template selection so both paths behave identically.
+  async function loadAttributesForVariant(variant) {
+    if (!selectedProduct || !variant) {
       setAttributes([]);
       return;
     }
-
-    if (!selectedProduct.metafield?.value) {
-      setAttributes([]);
-      return;
-    }
-
     const pastNode = findPastLineItem(
       customerOrders,
       selectedProduct.id,
       selectedProduct.title,
     );
-
     const combinedRanges = {
       ...vestRanges,
       ...trouserRanges,
       ...jacketRanges,
       ...shirtRanges,
     };
-    const garments = garmentsFromGcBuilderValue(
-      selectedProduct.metafield?.value,
-    );
+    const garments = garmentsFromGcBuilderValue(variant.title);
 
     if (pastNode?.customAttributes?.length > 0 && garments.length) {
       setFieldsLoading(true);
       const pastAttrs = attrsFromLineItem(pastNode, false);
-      getCanonicalFieldsForGarments(garments)
-        .then((canonical) => {
-          const filled = prefillFromPastOrder(
-            canonical,
-            pastAttrs,
-            combinedRanges,
-          );
-          setAttributes(applyDefaultSizeType(filled));
-        })
-        .catch(() =>
-          setAttributes(deduplicateByRange(pastAttrs, combinedRanges)),
-        )
-        .finally(() => setFieldsLoading(false));
+      try {
+        const canonical = await getCanonicalFieldsForGarments(garments);
+        setAttributes(
+          applyDefaultSizeType(
+            prefillFromPastOrder(canonical, pastAttrs, combinedRanges),
+          ),
+        );
+      } catch {
+        setAttributes(deduplicateByRange(pastAttrs, combinedRanges));
+      } finally {
+        setFieldsLoading(false);
+      }
       return;
     }
 
@@ -723,26 +706,26 @@ export default function CreateOrder() {
       return;
     }
 
-    if (!selectedProduct.metafield?.value) {
-      setAttributes([]);
-      return;
-    }
     setFieldsLoading(true);
-    getFieldsForProduct(selectedProduct)
-      .then((fields) => setAttributes(applyDefaultSizeType(fields)))
-      .catch(() => setAttributes([]))
-      .finally(() => setFieldsLoading(false));
-  }, [selectedProduct, customerOrders]);
+    try {
+      const fields = await getFieldsForProduct(selectedProduct, variant.title);
+      setAttributes(applyDefaultSizeType(fields));
+    } catch {
+      setAttributes([]);
+    } finally {
+      setFieldsLoading(false);
+    }
+  }
 
   useEffect(() => {
     setStyleOptions([]);
     setContrastOptions([]);
     setStyleSelections({});
-    if (!selectedProduct?.metafield?.value) {
+    if (!selectedVariant) {
       setFitSizeSelections({});
       return;
     }
-    const garments = styleGarmentsForProduct(selectedProduct);
+    const garments = garmentsFromGcBuilderValue(selectedVariant.title);
     if (!garments.length) {
       setFitSizeSelections({});
       return;
@@ -797,7 +780,7 @@ export default function CreateOrder() {
       .finally(() => setStyleOptionsLoading(false));
 
     setFitSizeSelections({});
-  }, [selectedProduct, fitSizeOptions]);
+  }, [selectedVariant, fitSizeOptions]);
 
   useEffect(() => {
     if (selectedTemplate) return;
@@ -820,35 +803,27 @@ export default function CreateOrder() {
     });
   }, [expandedLiningCodes, expandedButtonCodes, selectedTemplate]);
 
+  // Resolves the default/matching variant for the selected product and loads
+  // its measurement fields — the single authoritative place this happens on
+  // product selection (manual variant/template picks handle their own reload
+  // via loadAttributesForVariant so they don't race with this effect).
   useEffect(() => {
     const allVariants =
       selectedProduct?.variants?.edges?.map((e) => e.node) ?? [];
-    const hasVariantSelector =
-      allVariants.length > 1 ||
-      (allVariants.length === 1 && allVariants[0].title !== "Default Title");
-    const defaultVariant = hasVariantSelector ? allVariants[0] : null;
-
-    const fallbackPrice =
-      defaultVariant?.price || allVariants[0]?.price || "0.00";
+    const onlyVariant = allVariants.length === 1 ? allVariants[0] : null;
+    let resolvedVariant = onlyVariant;
 
     if (pastOrdersForProduct.length > 0) {
       const first = pastOrdersForProduct[0];
       setSelectedTemplate(first.orderId);
-      if (first.variantTitle && selectedProduct) {
-        const match = allVariants.find(
-          (v) => v.title.toLowerCase() === first.variantTitle.toLowerCase(),
-        );
-        if (match) {
-          setSelectedVariant(match);
-          setPrice(match.price || fallbackPrice);
-        } else {
-          setSelectedVariant(defaultVariant);
-          setPrice(fallbackPrice);
-        }
-      } else {
-        setSelectedVariant(defaultVariant);
-        setPrice(fallbackPrice);
-      }
+      const match = first.variantTitle
+        ? allVariants.find(
+            (v) => v.title.toLowerCase() === first.variantTitle.toLowerCase(),
+          )
+        : null;
+      resolvedVariant = match || onlyVariant;
+      setSelectedVariant(resolvedVariant);
+      setPrice(resolvedVariant?.price || "0.00");
 
       const fitPrefill = {};
       for (const attr of first.attributes) {
@@ -865,10 +840,12 @@ export default function CreateOrder() {
       if (Object.keys(fitPrefill).length) setFitSizeSelections(fitPrefill);
     } else {
       setSelectedTemplate(null);
-      setSelectedVariant(defaultVariant);
-      setPrice(fallbackPrice);
+      setSelectedVariant(resolvedVariant);
+      setPrice(resolvedVariant?.price || "0.00");
     }
-  }, [pastOrdersForProduct, fitSizeOptions]);
+
+    loadAttributesForVariant(resolvedVariant);
+  }, [selectedProduct, customerOrders, pastOrdersForProduct, fitSizeOptions]);
 
   useEffect(() => {
     if (styleOptionsLoading) return;
@@ -922,7 +899,7 @@ export default function CreateOrder() {
   }, [selectedTemplate, styleOptionsLoading]);
 
   async function handleSubmit() {
-    if (!selectedCustomer || !selectedProduct) return;
+    if (!selectedCustomer || !selectedProduct || !selectedVariant) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -985,9 +962,7 @@ export default function CreateOrder() {
           value,
         }));
 
-      const garments = garmentsFromGcBuilderValue(
-        selectedProduct.metafield?.value,
-      );
+      const garments = garmentsFromGcBuilderValue(selectedVariant?.title);
 
       // Pre-scan: which garments already have an explicit button or lining selection
       // (across ANY category — button_code type OR regular style option with craftPrefix).
@@ -1192,7 +1167,10 @@ export default function CreateOrder() {
               contrastLocations,
               liningCodes,
               buttonCodes,
-              styleGarmentsForProduct(selectedProduct, allStyleGarments),
+              garmentsFromGcBuilderValue(
+                selectedVariant?.title,
+                allStyleGarments,
+              ),
             ),
           };
           const fullProfiles = {
@@ -1285,12 +1263,10 @@ export default function CreateOrder() {
   }, [gcMeasurementsData]);
 
   async function applyBodyMeasurement() {
-    if (!bodyMeasurementProfile || !selectedProduct) return;
+    if (!bodyMeasurementProfile || !selectedProduct || !selectedVariant) return;
     setMeasurementType("body");
     setSelectedTemplate(null);
-    const garments = garmentsFromGcBuilderValue(
-      selectedProduct.metafield?.value,
-    );
+    const garments = garmentsFromGcBuilderValue(selectedVariant.title);
     const combinedRanges = {
       ...vestRanges,
       ...trouserRanges,
@@ -1323,6 +1299,7 @@ export default function CreateOrder() {
   const canSubmit =
     !!selectedCustomer &&
     !!selectedProduct &&
+    !!selectedVariant &&
     !!fabricCode.trim() &&
     !submitting &&
     measurementsValid &&
@@ -1378,7 +1355,42 @@ export default function CreateOrder() {
           </div>
         )}
 
-        {selectedCustomer && selectedProduct && (
+        {/* ── Variant (garment type) ── */}
+        {selectedCustomer &&
+          selectedProduct &&
+          (selectedProduct.variants?.edges?.length ?? 0) > 0 && (
+            <div className="flex flex-col gap-[16px]">
+              <div className="flex flex-wrap items-center gap-[8px] pb-[17px] border-b border-gc-section-divider/30">
+                <span className="font-garamond text-[14px] font-medium uppercase text-[#A45D41]">
+                  Variant
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-[10px]">
+                {selectedProduct.variants.edges.map(({ node: v }) => (
+                  <button
+                    key={v.id}
+                    onClick={() => {
+                      setSelectedVariant(v);
+                      setPrice(v.price || "0.00");
+                      setSelectedTemplate(null);
+                      loadAttributesForVariant(v);
+                    }}
+                    className={cn(
+                      "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
+                      selectedVariant?.id === v.id
+                        ? "text-white border border-gc-primary bg-gc-primary"
+                        : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
+                    )}
+                  >
+                    {v.title}
+                    <span className="text-[11px] opacity-70">{v.price}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+        {selectedCustomer && selectedProduct && selectedVariant && (
           <div className="flex flex-col gap-[16px]">
             <div className="flex flex-wrap items-center gap-[8px] pb-[17px] border-b border-gc-section-divider/30">
               <span className="font-garamond text-[14px] font-medium uppercase text-[#A45D41]">
@@ -1451,19 +1463,13 @@ export default function CreateOrder() {
                     onClick={async () => {
                       setSelectedTemplate(o.orderId);
 
+                      let chosenVariant;
                       {
                         const variants =
                           selectedProduct.variants?.edges?.map((e) => e.node) ??
                           [];
-                        const hasVariantSelector =
-                          variants.length > 1 ||
-                          (variants.length === 1 &&
-                            variants[0].title !== "Default Title");
-                        const defaultVariant = hasVariantSelector
-                          ? variants[0]
-                          : null;
-                        const basePrice =
-                          defaultVariant?.price || variants[0]?.price || "0.00";
+                        const onlyVariant =
+                          variants.length === 1 ? variants[0] : null;
                         const match = o.variantTitle
                           ? variants.find(
                               (v) =>
@@ -1471,17 +1477,13 @@ export default function CreateOrder() {
                                 o.variantTitle.toLowerCase(),
                             )
                           : null;
-                        if (match) {
-                          setSelectedVariant(match);
-                          setPrice(match.price || basePrice);
-                        } else {
-                          setSelectedVariant(defaultVariant);
-                          setPrice(basePrice);
-                        }
+                        chosenVariant = match || onlyVariant;
+                        setSelectedVariant(chosenVariant);
+                        setPrice(chosenVariant?.price || "0.00");
                       }
 
                       const garments = garmentsFromGcBuilderValue(
-                        selectedProduct.metafield?.value,
+                        chosenVariant?.title,
                       );
                       const combinedRanges = {
                         ...vestRanges,
@@ -1634,15 +1636,14 @@ export default function CreateOrder() {
                     className="font-hanken w-full bg-white px-[14px] h-[48px] rounded-[4px] text-[14px] text-[#1c1c19] outline-none border border-gc-scrollbar-thumb/60 placeholder:text-gc-muted"
                     placeholder="Enter fabric code…"
                   />
-                  {/* <p className="font-hanken text-[11px] text-[#9ca3af] mt-[6px]">
-                    If the code is not found in KuteTailor, CMT will be used
-                    automatically.
-                  </p> */}
+                  <p className="font-hanken text-[11px] text-[#9ca3af] mt-[6px]">
+                    Auto-filled from the selected fabric — edit if needed.
+                  </p>
                 </div>
               </div>
             </div>
 
-            {selectedProduct?.metafield?.value && (
+            {selectedProduct?.metafield?.value && selectedVariant && (
               <StyleOptionsSection
                 styleOptions={styleOptions}
                 contrastOptions={contrastOptions}
@@ -1655,7 +1656,13 @@ export default function CreateOrder() {
               />
             )}
 
-            {fieldsLoading ? (
+            {!selectedVariant ? (
+              <div className="bg-white rounded-[12px] px-[31px] py-[24px] border border-gc-divider">
+                <p className="font-hanken text-[14px] text-[#6b7280]">
+                  Select a variant to continue.
+                </p>
+              </div>
+            ) : fieldsLoading ? (
               <div className="bg-white rounded-[12px] p-[31px] border border-gc-divider">
                 <LoadingState message="Loading product fields…" />
               </div>

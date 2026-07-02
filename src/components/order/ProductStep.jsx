@@ -16,7 +16,7 @@ export function ProductSelector({
   if (products.length === 0) {
     return (
       <p className="font-hanken text-[14px] text-[#6b7280]">
-        No gc_builder products found in store.
+        No custom suit products found in store.
       </p>
     );
   }

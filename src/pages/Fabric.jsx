@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
+import { Plus } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
-import ColorPatternModal from "../components/ui/ColorPatternModal";
-import { fetchFabricProducts } from "../lib/shopify";
+import { fetchFabricProductsV2 } from "../lib/shopify";
 
 function formatPrice(amount, currencyCode) {
   try {
@@ -21,7 +21,6 @@ export default function Fabric() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedProduct, setSelectedProduct] = useState(null);
   const [searchParams] = useSearchParams();
   const search = searchParams.get("search") || "";
 
@@ -34,7 +33,7 @@ export default function Fabric() {
   function load() {
     setLoading(true);
     setError(null);
-    fetchFabricProducts()
+    fetchFabricProductsV2()
       .then(setProducts)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -46,17 +45,26 @@ export default function Fabric() {
 
   return (
     <DashboardLayout>
-      <div className="mb-[24px] sm:mb-[30px]">
-        <h2 className="gc-page-title">Fabric</h2>
-        <p className="gc-page-subtitle">
-          {loading
-            ? "Loading products…"
-            : error
-              ? "Could not load products"
-              : search
-                ? `${filteredProducts.length} of ${products.length} fabric product${products.length !== 1 ? "s" : ""}`
-                : `${products.length} fabric product${products.length !== 1 ? "s" : ""}`}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-[12px] mb-[24px] sm:mb-[30px]">
+        <div>
+          <h2 className="gc-page-title">Fabric</h2>
+          <p className="gc-page-subtitle">
+            {loading
+              ? "Loading products…"
+              : error
+                ? "Could not load products"
+                : search
+                  ? `${filteredProducts.length} of ${products.length} fabric product${products.length !== 1 ? "s" : ""}`
+                  : `${products.length} fabric product${products.length !== 1 ? "s" : ""}`}
+          </p>
+        </div>
+        <Link
+          to="/fabric/new"
+          className="font-hanken flex items-center gap-[6px] bg-gc-primary text-white text-[13px] font-semibold px-[14px] py-[9px] rounded-lg hover:bg-gc-primary-dark transition-colors cursor-pointer"
+        >
+          <Plus size={14} />
+          Create Fabric
+        </Link>
       </div>
 
       {loading && (
@@ -88,7 +96,7 @@ export default function Fabric() {
           ) : (
             <div className="divide-y divide-gc-divider">
               {/* Header row — desktop only */}
-              <div className="hidden sm:grid sm:grid-cols-[100px_1fr_130px] bg-gc-bg-warm px-[20px] py-[10px]">
+              <div className="hidden sm:grid sm:grid-cols-[100px_1fr_100px_130px] bg-gc-bg-warm px-[20px] py-[10px]">
                 <span className="font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest">
                   Image
                 </span>
@@ -96,14 +104,17 @@ export default function Fabric() {
                   Product
                 </span>
                 <span className="font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest pl-[12px]">
+                  Status
+                </span>
+                <span className="font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest pl-[12px]">
                   Price
                 </span>
               </div>
               {filteredProducts.map((product) => (
-                <div
+                <Link
                   key={product.id}
-                  onClick={() => setSelectedProduct(product)}
-                  className="flex sm:grid sm:grid-cols-[100px_1fr_130px] items-center gap-[12px] sm:gap-0 px-[16px] sm:px-[20px] py-[12px] cursor-pointer hover:bg-gc-bg-warm transition-colors"
+                  to={`/fabric/${product.id.split("/").pop()}`}
+                  className="flex sm:grid sm:grid-cols-[100px_1fr_100px_130px] items-center gap-[12px] sm:gap-0 px-[16px] sm:px-[20px] py-[12px] cursor-pointer hover:bg-gc-bg-warm transition-colors"
                 >
                   <div className="w-[64px] h-[64px] sm:w-[78px] sm:h-[78px] rounded-[8px] overflow-hidden border border-gc-divider bg-gc-bg-warm flex-shrink-0">
                     {product.imageUrl ? (
@@ -125,22 +136,26 @@ export default function Fabric() {
                     </p>
                   </div>
                   <div className="hidden sm:block sm:pl-[12px]">
+                    <span
+                      className={`font-hanken text-[11px] font-semibold uppercase px-[8px] py-[3px] rounded-full ${
+                        product.status === "ACTIVE"
+                          ? "text-emerald-700 bg-emerald-50"
+                          : "text-gc-muted bg-gc-bg-warm"
+                      }`}
+                    >
+                      {product.status === "ACTIVE" ? "Active" : "Draft"}
+                    </span>
+                  </div>
+                  <div className="hidden sm:block sm:pl-[12px]">
                     <p className="font-hanken text-[13px] text-gc-primary font-medium">
                       {formatPrice(product.price, product.currencyCode)}
                     </p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
         </div>
-      )}
-
-      {selectedProduct && (
-        <ColorPatternModal
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-        />
       )}
     </DashboardLayout>
   );

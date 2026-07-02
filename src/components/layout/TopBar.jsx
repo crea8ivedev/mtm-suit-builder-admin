@@ -20,11 +20,14 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
   const isCustomersPage = location.pathname === "/customers";
   const isStyleAdjustmentsPage = location.pathname === "/kuttailor";
   const isFabricPage = location.pathname === "/fabric";
+  const isFabricFormPage =
+    !!useMatch("/fabric/new") || !!useMatch("/fabric/:productId");
   const isSearchablePage =
     !isOrderDetail &&
     !isCustomerDetail &&
     !isCustomersPage &&
     !isStyleAdjustmentsPage &&
+    !isFabricFormPage &&
     (location.pathname === "/orders" ||
       location.pathname === "/dashboard" ||
       isFabricPage);
@@ -89,7 +92,7 @@ export default function TopBar({ onMenuClick, onRefresh, isRefreshing }) {
             </button>
             <div className="hidden sm:block w-px h-[24px] flex-shrink-0 bg-gc-divider" />
           </div>
-        ) : isCustomersPage || isStyleAdjustmentsPage ? (
+        ) : isCustomersPage || isStyleAdjustmentsPage || isFabricFormPage ? (
           <div />
         ) : (
           <div className="flex items-center w-full max-w-[351px] rounded-[12px] px-[12px] sm:px-[17px] py-[9px] bg-gc-bg border border-gc-border-input">
