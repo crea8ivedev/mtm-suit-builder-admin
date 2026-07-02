@@ -772,6 +772,18 @@ async function postSaveOrder(token, payload) {
   return { res, rawText, body };
 }
 
+export async function queryKtFabric(code) {
+  const token = await getToken();
+  const res = await ktFetch(
+    `/fabric/fabric/queryFabric?fabricCode=${encodeURIComponent(code)}`,
+    token,
+  );
+  if (res?.code !== "0" || !Array.isArray(res?.data) || !res.data.length) {
+    return null;
+  }
+  return res.data[0];
+}
+
 async function resolveKtFabric(code, token) {
   try {
     const res = await ktFetch(

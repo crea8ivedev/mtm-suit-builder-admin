@@ -357,6 +357,7 @@ const GET_PRODUCT_VARIANTS_DETAIL_QUERY = `
             selectedOptions { name value }
             inventoryQuantity
             inventoryItem { id }
+            image { url }
           }
         }
       }
@@ -445,14 +446,86 @@ const ADD_PRODUCT_VARIANT_MUTATION = `
   mutation ProductVariantsBulkCreate(
     $productId: ID!
     $variants: [ProductVariantsBulkInput!]!
-    $media: [CreateMediaInput!]
   ) {
-    productVariantsBulkCreate(productId: $productId, variants: $variants, media: $media) {
+    productVariantsBulkCreate(productId: $productId, variants: $variants) {
       productVariants { id title selectedOptions { name value } inventoryItem { id } }
       userErrors { field message }
     }
   }
 `;
+
+const PRODUCT_ADD_MEDIA_MUTATION = `
+  mutation ProductUpdateAddMedia($product: ProductUpdateInput!, $media: [CreateMediaInput!]) {
+    productUpdate(product: $product, media: $media) {
+      product {
+        media(first: 1, sortKey: ID, reverse: true) {
+          nodes { id }
+        }
+      }
+      userErrors { field message }
+    }
+  }
+`;
+
+const APPEND_VARIANT_MEDIA_MUTATION = `
+  mutation ProductVariantAppendMedia(
+    $productId: ID!
+    $variantMedia: [ProductVariantAppendMediaInput!]!
+  ) {
+    productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+      productVariants { id }
+      userErrors { field message }
+    }
+  }
+`;
+
+const MEDIA_STATUS_QUERY = `
+  query MediaStatus($id: ID!) {
+    node(id: $id) {
+      ... on Media {
+        status
+      }
+    }
+  }
+`;
+
+async function waitForMediaStatus(mediaId, attempts = 25, delayMs = 1200) {
+  for (let i = 0; i < attempts; i++) {
+    const data = await shopifyGraphQL(MEDIA_STATUS_QUERY, { id: mediaId });
+    const status = data?.node?.status;
+    if (status === "READY" || status === "FAILED") return status;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return "TIMEOUT";
+}
+
+export async function attachImageToVariant(productId, variantId, imageUrl) {
+  const mediaData = await shopifyGraphQL(PRODUCT_ADD_MEDIA_MUTATION, {
+    product: { id: productId },
+    media: [{ originalSource: imageUrl, mediaContentType: "IMAGE" }],
+  });
+  const { product, userErrors: mediaErrors } = mediaData.productUpdate;
+  if (mediaErrors?.length) throw new Error(mediaErrors[0].message);
+  const mediaId = product?.media?.nodes?.[0]?.id;
+  if (!mediaId) throw new Error("Image upload did not return a media ID.");
+
+  const status = await waitForMediaStatus(mediaId);
+  if (status === "FAILED") {
+    throw new Error("Shopify failed to process the fabric image.");
+  }
+  if (status === "TIMEOUT") {
+    throw new Error(
+      "Image is still processing on Shopify's side — reopen this product in a moment and re-attach it.",
+    );
+  }
+
+  const appendData = await shopifyGraphQL(APPEND_VARIANT_MEDIA_MUTATION, {
+    productId,
+    variantMedia: [{ variantId, mediaIds: [mediaId] }],
+  });
+  const { userErrors } = appendData.productVariantAppendMedia;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+}
 
 export async function addVariantToProduct(
   productId,
@@ -482,21 +555,23 @@ export async function addVariantToProduct(
 
   const variantInput = {
     optionValues,
-    ...(imageUrl && { mediaSrc: [imageUrl] }),
     ...(price !== null &&
       price !== undefined && {
         price: price.toString(),
       }),
   };
 
-  const variables = { productId, variants: [variantInput] };
-  if (imageUrl) {
-    variables.media = [{ originalSource: imageUrl, mediaContentType: "IMAGE" }];
-  }
-
-  const data = await shopifyGraphQL(ADD_PRODUCT_VARIANT_MUTATION, variables);
+  const data = await shopifyGraphQL(ADD_PRODUCT_VARIANT_MUTATION, {
+    productId,
+    variants: [variantInput],
+  });
   const { productVariants, userErrors } = data.productVariantsBulkCreate;
   if (userErrors?.length) throw new Error(userErrors[0].message);
+
+  if (imageUrl && productVariants?.[0]?.id) {
+    await attachImageToVariant(productId, productVariants[0].id, imageUrl);
+  }
+
   return productVariants;
 }
 
@@ -2410,6 +2485,15 @@ const FILE_CREATE = `
   }
 `;
 
+async function createShopifyFileFromSource(originalSource) {
+  const fileData = await shopifyGraphQL(FILE_CREATE, {
+    files: [{ originalSource, contentType: "IMAGE" }],
+  });
+  const { files, userErrors } = fileData.fileCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return files[0].id;
+}
+
 export async function uploadImageToShopify(file) {
   const stageData = await shopifyGraphQL(STAGED_UPLOADS_CREATE, {
     input: [
@@ -2433,13 +2517,13 @@ export async function uploadImageToShopify(file) {
   if (!uploadRes.ok)
     throw new Error(`Image upload failed (${uploadRes.status})`);
 
-  const fileData = await shopifyGraphQL(FILE_CREATE, {
-    files: [{ originalSource: target.resourceUrl, contentType: "IMAGE" }],
-  });
-  const { files, userErrors: fileErrors } = fileData.fileCreate;
-  if (fileErrors?.length) throw new Error(fileErrors[0].message);
+  const gid = await createShopifyFileFromSource(target.resourceUrl);
+  return { gid, cdnUrl: target.resourceUrl };
+}
 
-  return { gid: files[0].id, cdnUrl: target.resourceUrl };
+export async function importImageFromUrl(sourceUrl) {
+  const gid = await createShopifyFileFromSource(sourceUrl);
+  return { gid, cdnUrl: sourceUrl };
 }
 
 let _shopDomain = null;
@@ -2529,6 +2613,7 @@ export async function fetchShopifyColorPattern() {
         label: fieldMap.label ?? node.displayName,
         color: fieldMap.color ?? null,
         code: fieldMap.code ?? null,
+        brand: fieldMap.brand_name ?? null,
         kutetailorCode: fieldMap.kutetailor_code ?? null,
         collections: fieldMap.collections
           ? JSON.parse(fieldMap.collections)
@@ -2668,11 +2753,12 @@ export async function addUpchargeLineItem(orderId, amount, currencyCode) {
   return commitData.orderEditCommit.order;
 }
 
-export async function createColorPattern({ label, color, imageGid, code }) {
+export async function createColorPattern({ label, color, imageGid, code, brand }) {
   const fields = [{ key: "label", value: label }];
   if (color) fields.push({ key: "color", value: color });
   if (imageGid) fields.push({ key: "image", value: imageGid });
   if (code) fields.push({ key: "code", value: code });
+  if (brand) fields.push({ key: "brand_name", value: brand });
   const data = await shopifyGraphQL(CREATE_METAOBJECT_MUTATION, {
     metaobject: {
       type: "shopify-color-pattern",
@@ -2685,12 +2771,16 @@ export async function createColorPattern({ label, color, imageGid, code }) {
   return metaobject;
 }
 
-export async function updateColorPattern(id, { label, color, imageGid, code }) {
+export async function updateColorPattern(
+  id,
+  { label, color, imageGid, code, brand },
+) {
   const fieldInputs = [
     { key: "label", value: label || "" },
     { key: "color", value: color ?? "" },
     { key: "image", value: imageGid ?? "" },
     { key: "code", value: code ?? "" },
+    { key: "brand_name", value: brand ?? "" },
   ];
   const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
     id,
@@ -2710,3 +2800,18 @@ export async function deleteColorPattern(id) {
 
 export const fetchFabricOptions = fetchShopifyColorPattern;
 export const clearFabricOptionsCache = clearShopifyColorPatternCache;
+
+// ─── Fabric usage lookup (which style-category products use a fabric) ──────
+export async function findFabricUsage(label, products) {
+  const lower = label.toLowerCase();
+  const results = await Promise.all(
+    products.map(async (product) => {
+      const { variants } = await fetchProductVariantsDetail(product.id);
+      const used = variants.some((v) =>
+        v.selectedOptions.some((o) => o.value.toLowerCase() === lower),
+      );
+      return used ? product : null;
+    }),
+  );
+  return results.filter(Boolean);
+}
