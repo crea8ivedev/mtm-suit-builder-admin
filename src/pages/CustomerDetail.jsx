@@ -800,6 +800,7 @@ export default function CustomerDetail() {
   const [liningCodes, setLiningCodes] = useState([]);
   const [buttonCodes, setButtonCodes] = useState([]);
   const [gcMeasurements, setGcMeasurements] = useState({});
+  const [gcMeasurementsLoaded, setGcMeasurementsLoaded] = useState(false);
   const [fitSizeOptions, setFitSizeOptions] = useState([]);
 
   useClickOutside(entriesRef, () => setEntriesOpen(false));
@@ -866,7 +867,8 @@ export default function CustomerDetail() {
       .then((data) => {
         if (data && Object.keys(data).length) setGcMeasurements(data);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setGcMeasurementsLoaded(true));
     fetchFitSizeOptions()
       .then(setFitSizeOptions)
       .catch(() => {});
@@ -1154,6 +1156,7 @@ export default function CustomerDetail() {
 
   useEffect(() => {
     if (autoFixedRef.current) return;
+    if (!gcMeasurementsLoaded) return;
     if (!orders.length) return;
     if (!Object.keys(displayKeyMap).length || !Object.keys(styleKeyMap).length)
       return;
@@ -1187,6 +1190,7 @@ export default function CustomerDetail() {
     displayKeyMap,
     styleKeyMap,
     gcMeasurements,
+    gcMeasurementsLoaded,
     activeProfiles,
     styleOptions,
     styleOptionsMap,
