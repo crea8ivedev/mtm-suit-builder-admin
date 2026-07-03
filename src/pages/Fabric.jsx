@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
@@ -58,13 +58,22 @@ export default function Fabric() {
                   : `${products.length} fabric product${products.length !== 1 ? "s" : ""}`}
           </p>
         </div>
-        <Link
-          to="/fabric/new"
-          className="font-hanken flex items-center gap-[6px] bg-gc-primary text-white text-[13px] font-semibold px-[14px] py-[9px] rounded-lg hover:bg-gc-primary-dark transition-colors cursor-pointer"
-        >
-          <Plus size={14} />
-          Create Fabric
-        </Link>
+        <div className="flex items-center gap-[10px]">
+          <Link
+            to="/fabric/bulk-import"
+            className="font-hanken flex items-center gap-[6px] text-gc-primary border border-gc-border-input text-[13px] font-semibold px-[14px] py-[9px] rounded-lg hover:bg-gc-primary/[4%] transition-colors cursor-pointer"
+          >
+            <Upload size={14} />
+            Bulk Import
+          </Link>
+          <Link
+            to="/fabric/new"
+            className="font-hanken flex items-center gap-[6px] bg-gc-primary text-white text-[13px] font-semibold px-[14px] py-[9px] rounded-lg hover:bg-gc-primary-dark transition-colors cursor-pointer"
+          >
+            <Plus size={14} />
+            Create Fabric
+          </Link>
+        </div>
       </div>
 
       {loading && (

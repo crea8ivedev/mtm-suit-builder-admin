@@ -8,24 +8,24 @@ import AlertBanner from "../components/ui/AlertBanner";
 import GcFabricFieldsForm from "../components/fabric/GcFabricFieldsForm";
 import ProductMediaUploader from "../components/fabric/ProductMediaUploader";
 import GarmentTypeVariantManager from "../components/fabric/GarmentTypeVariantManager";
+import CollectionMultiSelect from "../components/fabric/CollectionMultiSelect";
 import { cn } from "../utils/cn";
 import {
   fetchGcFabrics,
   clearGcFabricsCache,
-  createGcFabric,
   updateGcFabric,
   uploadImageToShopify,
   createImageFromUrl,
-  createFabricProduct,
+  createFabricProductComplete,
   updateFabricProduct,
   fetchFabricProductDetail,
-  fetchProductVariantsDetail,
   createGarmentVariants,
   updateVariantPrices,
   removeVariantsFromProduct,
   removeProductImage,
   setVariantInventoryQuantity,
   clearFabricProductsV2Cache,
+  fetchCollections,
   GARMENT_TYPES,
 } from "../lib/shopify";
 import { fetchKtFabricDetails, isKtFabricRegistered } from "../lib/kutetailor";
@@ -87,11 +87,15 @@ export default function FabricForm({ mode, productId }) {
   const [titleTouched, setTitleTouched] = useState(false);
   const [status, setStatus] = useState("ACTIVE");
 
+  const [collections, setCollections] = useState([]);
+  const [collectionsLoading, setCollectionsLoading] = useState(true);
+  const [collectionIds, setCollectionIds] = useState([]);
+  const [originalCollectionIds, setOriginalCollectionIds] = useState([]);
+
   const [images, setImages] = useState([]);
   const [garmentSelections, setGarmentSelections] = useState({});
   const [originalVariants, setOriginalVariants] = useState({});
 
-  const [createdProduct, setCreatedProduct] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitKtNotFound, setSubmitKtNotFound] = useState(false);
@@ -106,6 +110,13 @@ export default function FabricForm({ mode, productId }) {
   }, []);
 
   useEffect(() => {
+    fetchCollections()
+      .then(setCollections)
+      .catch(() => {})
+      .finally(() => setCollectionsLoading(false));
+  }, []);
+
+  useEffect(() => {
     if (!isEdit) return;
     const gid = `gid://shopify/Product/${productId}`;
     fetchFabricProductDetail(gid)
@@ -117,6 +128,8 @@ export default function FabricForm({ mode, productId }) {
         setTitle(detail.title);
         setTitleTouched(true);
         setStatus(detail.status);
+        setCollectionIds(detail.collectionIds);
+        setOriginalCollectionIds(detail.collectionIds);
         setGcFabricId(detail.gcFabricId);
         if (detail.gcFabric) {
           setFields({
@@ -326,7 +339,7 @@ export default function FabricForm({ mode, productId }) {
       setKtVerifying(false);
       if (!registered) {
         setSubmitError(
-          `Fabric code "${fields.fabricCode}" isn't in KuteTailor yet. Create it there before activating this fabric — it can still be saved as Draft.`,
+          `Fabric code "${fields.fabricCode}" isn't in KuteTailor yet. Create it there before activating this fabric - it can still be saved as Draft.`,
         );
         setSubmitKtNotFound(true);
         return;
@@ -361,69 +374,29 @@ export default function FabricForm({ mode, productId }) {
   }
 
   async function submitCreate() {
-    let product = createdProduct;
     let fabricId = gcFabricId;
-
-    if (!fabricId) {
-      if (useExisting) {
-        fabricId = selectedFabricId;
-      } else {
-        const created = await createGcFabric({
-          ...fields,
-          imageGid: await resolveFabricImageGid(),
-        });
-        fabricId = created.id;
-      }
-      setGcFabricId(fabricId);
+    if (!fabricId && useExisting) {
+      fabricId = selectedFabricId;
     }
 
-    if (!product) {
-      const media = images
-        .filter((img) => img.cdnUrl)
-        .map((img) => ({ cdnUrl: img.cdnUrl, alt: title }));
-      product = await createFabricProduct({
+    const media = images
+      .filter((img) => img.cdnUrl)
+      .map((img) => ({ cdnUrl: img.cdnUrl, alt: title }));
+
+    const { product, fabricId: usedFabricId } =
+      await createFabricProductComplete({
+        fabricId,
+        fabricFields: fabricId
+          ? undefined
+          : { ...fields, imageGid: await resolveFabricImageGid() },
         title,
         status,
-        gcFabricMetaobjectId: fabricId,
-        garmentTypes: selectedTypes,
+        collectionIds,
         media,
+        selectedTypes,
+        garmentSelections,
       });
-      setCreatedProduct(product);
-    }
-
-    const detail = await fetchProductVariantsDetail(product.id);
-    const seedVariant = detail.variants[0];
-    const remaining = selectedTypes.slice(1);
-
-    let createdVariants = [];
-    if (remaining.length) {
-      createdVariants = await createGarmentVariants(
-        product.id,
-        "Type",
-        remaining.map((t) => ({ name: t, price: garmentSelections[t].price })),
-      );
-    }
-
-    await updateVariantPrices(product.id, [
-      { id: seedVariant.id, price: garmentSelections[selectedTypes[0]].price },
-    ]);
-
-    const allVariants = [
-      { ...seedVariant, typeName: selectedTypes[0] },
-      ...createdVariants.map((v) => ({
-        ...v,
-        typeName: v.selectedOptions.find((o) => o.name === "Type")?.value,
-      })),
-    ];
-
-    await Promise.all(
-      allVariants.map((v) =>
-        setVariantInventoryQuantity(
-          v.inventoryItem.id,
-          garmentSelections[v.typeName].quantity,
-        ),
-      ),
-    );
+    setGcFabricId(usedFabricId);
 
     clearFabricProductsV2Cache();
     clearGcFabricsCache();
@@ -446,7 +419,19 @@ export default function FabricForm({ mode, productId }) {
     const newMedia = images
       .filter((img) => !img.isExisting && img.cdnUrl)
       .map((img) => ({ cdnUrl: img.cdnUrl, alt: title }));
-    await updateFabricProduct(gid, { title, status, media: newMedia });
+    const collectionsToJoin = collectionIds.filter(
+      (id) => !originalCollectionIds.includes(id),
+    );
+    const collectionsToLeave = originalCollectionIds.filter(
+      (id) => !collectionIds.includes(id),
+    );
+    await updateFabricProduct(gid, {
+      title,
+      status,
+      media: newMedia,
+      collectionsToJoin,
+      collectionsToLeave,
+    });
 
     const origTypes = Object.keys(originalVariants);
     const toRemove = origTypes.filter((t) => !garmentSelections[t]);
@@ -597,6 +582,15 @@ export default function FabricForm({ mode, productId }) {
                   </button>
                 ))}
               </div>
+            </div>
+            <div>
+              <label className={INPUT_LABEL_CLASS}>Collections</label>
+              <CollectionMultiSelect
+                collections={collections}
+                selectedIds={collectionIds}
+                onChange={setCollectionIds}
+                loading={collectionsLoading}
+              />
             </div>
           </div>
         </div>

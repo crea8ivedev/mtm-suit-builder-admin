@@ -2795,6 +2795,40 @@ export async function deleteGcFabric(id) {
   return data.metaobjectDelete.deletedId;
 }
 
+const COLLECTIONS_QUERY = `
+  query GetCollections($first: Int!, $after: String) {
+    collections(first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      nodes { id title }
+    }
+  }
+`;
+
+let _collectionsCache = null;
+
+export async function fetchCollections() {
+  if (_collectionsCache) return _collectionsCache;
+  const all = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(COLLECTIONS_QUERY, {
+      first: 100,
+      after: cursor,
+    });
+    const { nodes, pageInfo } = data.collections;
+    all.push(...nodes);
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+  _collectionsCache = all;
+  return all;
+}
+
+export function clearCollectionsCache() {
+  _collectionsCache = null;
+}
+
 // ─── Fabric products (custom.fabric metafield — product-based model) ──────
 export const GARMENT_TYPES = [
   "Two Piece Suit",
@@ -2877,6 +2911,7 @@ export async function createFabricProduct({
   gcFabricMetaobjectId,
   garmentTypes,
   media,
+  collectionIds,
 }) {
   const data = await shopifyGraphQL(PRODUCT_CREATE_MUTATION, {
     product: {
@@ -2896,6 +2931,7 @@ export async function createFabricProduct({
           values: garmentTypes.map((name) => ({ name })),
         },
       ],
+      collectionsToJoin: collectionIds?.length ? collectionIds : undefined,
     },
     media: media?.length
       ? media.map(({ cdnUrl, alt }) => ({
@@ -2910,6 +2946,71 @@ export async function createFabricProduct({
   return product;
 }
 
+// Full create pipeline shared by the single-fabric form and bulk import:
+// gc_fabrics metaobject (if not reusing an existing one) → product →
+// remaining garment-type variants → prices → inventory quantities.
+export async function createFabricProductComplete({
+  fabricId,
+  fabricFields,
+  title,
+  status,
+  collectionIds,
+  media,
+  selectedTypes,
+  garmentSelections,
+}) {
+  let fid = fabricId;
+  if (!fid) {
+    const created = await createGcFabric(fabricFields);
+    fid = created.id;
+  }
+
+  const product = await createFabricProduct({
+    title,
+    status,
+    gcFabricMetaobjectId: fid,
+    garmentTypes: selectedTypes,
+    media,
+    collectionIds,
+  });
+
+  const detail = await fetchProductVariantsDetail(product.id);
+  const seedVariant = detail.variants[0];
+  const remaining = selectedTypes.slice(1);
+
+  let createdVariants = [];
+  if (remaining.length) {
+    createdVariants = await createGarmentVariants(
+      product.id,
+      "Type",
+      remaining.map((t) => ({ name: t, price: garmentSelections[t].price })),
+    );
+  }
+
+  await updateVariantPrices(product.id, [
+    { id: seedVariant.id, price: garmentSelections[selectedTypes[0]].price },
+  ]);
+
+  const allVariants = [
+    { ...seedVariant, typeName: selectedTypes[0] },
+    ...createdVariants.map((v) => ({
+      ...v,
+      typeName: v.selectedOptions.find((o) => o.name === "Type")?.value,
+    })),
+  ];
+
+  await Promise.all(
+    allVariants.map((v) =>
+      setVariantInventoryQuantity(
+        v.inventoryItem.id,
+        garmentSelections[v.typeName].quantity,
+      ),
+    ),
+  );
+
+  return { product, fabricId: fid };
+}
+
 const PRODUCT_UPDATE_MUTATION = `
   mutation productUpdate($product: ProductUpdateInput!, $media: [CreateMediaInput!]) {
     productUpdate(product: $product, media: $media) {
@@ -2919,9 +3020,22 @@ const PRODUCT_UPDATE_MUTATION = `
   }
 `;
 
-export async function updateFabricProduct(productId, { title, status, media }) {
+export async function updateFabricProduct(
+  productId,
+  { title, status, media, collectionsToJoin, collectionsToLeave },
+) {
   const data = await shopifyGraphQL(PRODUCT_UPDATE_MUTATION, {
-    product: { id: productId, title, status },
+    product: {
+      id: productId,
+      title,
+      status,
+      collectionsToJoin: collectionsToJoin?.length
+        ? collectionsToJoin
+        : undefined,
+      collectionsToLeave: collectionsToLeave?.length
+        ? collectionsToLeave
+        : undefined,
+    },
     media: media?.length
       ? media.map(({ cdnUrl, alt }) => ({
           originalSource: cdnUrl,
@@ -2991,6 +3105,9 @@ const GET_FABRIC_PRODUCT_DETAIL_QUERY = `
       id
       title
       status
+      collections(first: 20) {
+        edges { node { id title } }
+      }
       metafield(namespace: "custom", key: "fabric") {
         reference {
           ... on Metaobject {
@@ -3074,6 +3191,7 @@ export async function fetchFabricProductDetail(productId) {
     id: product.id,
     title: product.title,
     status: product.status,
+    collectionIds: (product.collections?.edges ?? []).map((e) => e.node.id),
     gcFabricId: metaobject?.id ?? null,
     gcFabric: gcFabric
       ? {

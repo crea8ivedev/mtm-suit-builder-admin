@@ -174,7 +174,7 @@ export default function GcFabricFieldsForm({
                   onClick={onCreateInKuteTailor}
                   className="font-hanken text-[12px] font-medium text-gc-primary hover:text-gc-primary-dark underline mt-[4px] cursor-pointer"
                 >
-                  Not in KuteTailor yet — create it there
+                  Not in KuteTailor yet - create it there
                 </button>
               )}
               {fieldsLocked && !kuteTailorNotFound && (

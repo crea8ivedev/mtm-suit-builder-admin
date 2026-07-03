@@ -13,6 +13,7 @@ const StyleAdjustments = lazy(() => import("./pages/StyleAdjustments"));
 const Fabric = lazy(() => import("./pages/Fabric"));
 const FabricCreate = lazy(() => import("./pages/FabricCreate"));
 const FabricEdit = lazy(() => import("./pages/FabricEdit"));
+const FabricBulkImport = lazy(() => import("./pages/FabricBulkImport"));
 
 function PrivateRoute({ children }) {
   const isAuth = localStorage.getItem("suit_admin_auth") === "true";
@@ -94,6 +95,14 @@ export default function App() {
             element={
               <PrivateRoute>
                 <FabricCreate />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/fabric/bulk-import"
+            element={
+              <PrivateRoute>
+                <FabricBulkImport />
               </PrivateRoute>
             }
           />
