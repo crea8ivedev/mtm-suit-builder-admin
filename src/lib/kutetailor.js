@@ -772,8 +772,18 @@ async function postSaveOrder(token, payload) {
   return { res, rawText, body };
 }
 
-export async function fetchKtFabricDetails(fabricCode) {
-  const token = await getToken();
+function decodeJwtPayload(token) {
+  try {
+    const payload = token.split(".")[1];
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+// KT's global fabric catalog (what the "ALL" tab in materialLibrary shows).
+async function queryCatalogFabric(fabricCode, token) {
   const res = await ktFetch(
     `/fabric/fabric/queryFabric?fabricCode=${encodeURIComponent(fabricCode)}`,
     token,
@@ -786,20 +796,62 @@ export async function fetchKtFabricDetails(fabricCode) {
     fabricHouse: d.factoryCode ?? "",
     color: d.colorName ?? "",
     material: d.material ?? "",
+    weight: "",
     imageUrl: d.imageUrl ?? null,
   };
 }
 
+// Fabrics added under materialLibrary's "Customer Supplied" tab — these live
+// in a separate list keyed by the account's storeCode, not the global catalog.
+async function queryCustomerSuppliedFabric(fabricCode, token) {
+  const storeCode = decodeJwtPayload(token)?.owned_store;
+  if (!storeCode) return null;
+  const res = await ktFetch(
+    `/fabric/fabric/backgroundFabric?keyword=${encodeURIComponent(fabricCode)}&pageNum=1&pageSize=20&source=1&storeCode=${encodeURIComponent(storeCode)}`,
+    token,
+  );
+  const match = (res?.records ?? []).find(
+    (r) => (r.code ?? "").toLowerCase() === fabricCode.toLowerCase(),
+  );
+  if (!match) return null;
+  return {
+    fabricHouse: match.millName || match.millEnName || "",
+    color: match.colorName || "",
+    material: match.material || "",
+    weight: match.weight || "",
+    imageUrl: null,
+  };
+}
+
+export async function fetchKtFabricDetails(fabricCode) {
+  const token = await getToken();
+  return (
+    (await queryCatalogFabric(fabricCode, token)) ??
+    (await queryCustomerSuppliedFabric(fabricCode, token))
+  );
+}
+
+async function resolveKtFabricWithToken(code, token) {
+  return (
+    (await queryCatalogFabric(code, token)) ??
+    (await queryCustomerSuppliedFabric(code, token))
+  ) !== null;
+}
+
 async function resolveKtFabric(code, token) {
   try {
-    const res = await ktFetch(
-      `/fabric/fabric/queryFabric?fabricCode=${encodeURIComponent(code)}`,
-      token,
-    );
-    return res?.code === "0" && Array.isArray(res?.data) && res.data.length > 0;
+    return await resolveKtFabricWithToken(code, token);
   } catch {
     return false;
   }
+}
+
+// Used to gate activating a fabric product — a fabric must exist in
+// KuteTailor (catalog or Customer Supplied) before it can go ACTIVE,
+// otherwise order submission for it fails later at sendToKutetailor.
+export async function isKtFabricRegistered(fabricCode) {
+  const token = await getToken();
+  return resolveKtFabricWithToken(fabricCode, token);
 }
 
 export async function sendToKutetailor(order, { submit = true } = {}) {

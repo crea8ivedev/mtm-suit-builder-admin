@@ -2996,7 +2996,13 @@ const GET_FABRIC_PRODUCT_DETAIL_QUERY = `
           ... on Metaobject {
             id
             handle
-            fields { key value }
+            fields {
+              key
+              value
+              reference {
+                ... on MediaImage { image { url } }
+              }
+            }
           }
         }
       }
@@ -3058,6 +3064,7 @@ export async function fetchFabricProductDetail(productId) {
   const gcFabric = metaobject
     ? Object.fromEntries(metaobject.fields.map((f) => [f.key, f.value]))
     : null;
+  const imageField = metaobject?.fields.find((f) => f.key === "image");
   const imageGid =
     typeof gcFabric?.image === "string" && gcFabric.image.startsWith("gid://")
       ? gcFabric.image
@@ -3076,6 +3083,7 @@ export async function fetchFabricProductDetail(productId) {
           material: gcFabric.material ?? "",
           weight: gcFabric.weight ?? "",
           imageGid,
+          imageUrl: imageField?.reference?.image?.url ?? null,
         }
       : null,
     images: (product.media?.edges ?? [])

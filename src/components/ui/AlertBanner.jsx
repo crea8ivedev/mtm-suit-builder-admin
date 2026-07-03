@@ -24,7 +24,7 @@ const VARIANTS = {
   },
 };
 
-export default function AlertBanner({ variant = "error", title, message }) {
+export default function AlertBanner({ variant = "error", title, message, action }) {
   const v = VARIANTS[variant] ?? VARIANTS.error;
   return (
     <div
@@ -42,6 +42,7 @@ export default function AlertBanner({ variant = "error", title, message }) {
             {message}
           </p>
         )}
+        {action}
       </div>
     </div>
   );

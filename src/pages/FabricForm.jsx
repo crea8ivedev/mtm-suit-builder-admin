@@ -28,7 +28,7 @@ import {
   clearFabricProductsV2Cache,
   GARMENT_TYPES,
 } from "../lib/shopify";
-import { fetchKtFabricDetails } from "../lib/kutetailor";
+import { fetchKtFabricDetails, isKtFabricRegistered } from "../lib/kutetailor";
 
 const EMPTY_FIELDS = {
   fabricHouse: "",
@@ -78,6 +78,8 @@ export default function FabricForm({ mode, productId }) {
   const [fabricImageUploading, setFabricImageUploading] = useState(false);
   const [ktFetching, setKtFetching] = useState(false);
   const [ktFetchError, setKtFetchError] = useState(null);
+  const [ktNotFound, setKtNotFound] = useState(false);
+  const [ktFetched, setKtFetched] = useState(false);
 
   const [garmentOptionName, setGarmentOptionName] = useState("Type");
 
@@ -92,6 +94,8 @@ export default function FabricForm({ mode, productId }) {
   const [createdProduct, setCreatedProduct] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [submitKtNotFound, setSubmitKtNotFound] = useState(false);
+  const [ktVerifying, setKtVerifying] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -123,6 +127,7 @@ export default function FabricForm({ mode, productId }) {
             weight: detail.gcFabric.weight,
           });
           setFabricImageGid(detail.gcFabric.imageGid);
+          setFabricImageUrl(detail.gcFabric.imageUrl);
         }
         setImages(
           detail.images.map((img) => ({
@@ -200,12 +205,14 @@ export default function FabricForm({ mode, productId }) {
     if (!fields.fabricCode.trim()) return;
     setKtFetching(true);
     setKtFetchError(null);
+    setKtNotFound(false);
     try {
       const details = await fetchKtFabricDetails(fields.fabricCode.trim());
       if (!details) {
         setKtFetchError(
           `No fabric found in KuteTailor for code "${fields.fabricCode}".`,
         );
+        setKtNotFound(true);
         return;
       }
       setFields((f) => ({
@@ -213,17 +220,37 @@ export default function FabricForm({ mode, productId }) {
         fabricHouse: details.fabricHouse || f.fabricHouse,
         color: details.color || f.color,
         material: details.material || f.material,
+        weight: details.weight || f.weight,
       }));
       if (details.imageUrl) {
         setFabricImageGid(null);
         setFabricImageUrl(details.imageUrl);
         setFabricImageSourceUrl(details.imageUrl);
       }
+      setKtFetched(true);
     } catch (e) {
       setKtFetchError(e.message);
     } finally {
       setKtFetching(false);
     }
+  }
+
+  function handleCreateInKuteTailor() {
+    navigator.clipboard?.writeText(fields.fabricCode.trim()).catch(() => {});
+    window.open(
+      "https://platform.kutetailor.com/system/materialLibrary",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }
+
+  function handleFieldsChange(next) {
+    if (!isEdit && next.fabricCode !== fields.fabricCode) {
+      setKtFetched(false);
+      setKtNotFound(false);
+      setKtFetchError(null);
+    }
+    setFields(next);
   }
 
   async function handleAddGalleryFiles(files) {
@@ -271,7 +298,7 @@ export default function FabricForm({ mode, productId }) {
   const canSubmit =
     title.trim() &&
     galleryReady &&
-    selectedTypes.length > 0 &&
+    (isEdit || selectedTypes.length > 0) &&
     selectedTypes.every(
       (t) =>
         garmentSelections[t].price !== "" &&
@@ -282,9 +309,31 @@ export default function FabricForm({ mode, productId }) {
       : fields.fabricHouse.trim() && fields.fabricCode.trim());
 
   async function handleSubmit() {
-    setSubmitting(true);
     setSubmitError(null);
+    setSubmitKtNotFound(false);
     setSaved(false);
+
+    if (status === "ACTIVE") {
+      setKtVerifying(true);
+      let registered;
+      try {
+        registered = await isKtFabricRegistered(fields.fabricCode.trim());
+      } catch (e) {
+        setKtVerifying(false);
+        setSubmitError(`Couldn't verify with KuteTailor: ${e.message}`);
+        return;
+      }
+      setKtVerifying(false);
+      if (!registered) {
+        setSubmitError(
+          `Fabric code "${fields.fabricCode}" isn't in KuteTailor yet. Create it there before activating this fabric — it can still be saved as Draft.`,
+        );
+        setSubmitKtNotFound(true);
+        return;
+      }
+    }
+
+    setSubmitting(true);
     try {
       if (isEdit) {
         await submitEdit();
@@ -499,13 +548,16 @@ export default function FabricForm({ mode, productId }) {
               selectedFabricId={selectedFabricId}
               onSelectFabric={handleSelectExistingFabric}
               fields={fields}
-              onFieldsChange={setFields}
+              onFieldsChange={handleFieldsChange}
               imageUrl={fabricImageUrl}
               imageUploading={fabricImageUploading}
               onImageUpload={handleFabricImageUpload}
               onFetchFromKuteTailor={handleFetchFromKuteTailor}
               fetchingFromKuteTailor={ktFetching}
               kuteTailorFetchError={ktFetchError}
+              kuteTailorNotFound={ktNotFound}
+              onCreateInKuteTailor={handleCreateInKuteTailor}
+              fieldsLocked={!isEdit && !useExisting && !ktFetched}
             />
           </div>
         </div>
@@ -584,6 +636,17 @@ export default function FabricForm({ mode, productId }) {
             variant="error"
             title="Failed to save fabric"
             message={submitError}
+            action={
+              submitKtNotFound && (
+                <button
+                  type="button"
+                  onClick={handleCreateInKuteTailor}
+                  className="font-hanken text-[12px] font-medium text-red-700 underline mt-[4px] cursor-pointer"
+                >
+                  Create "{fields.fabricCode}" in KuteTailor
+                </button>
+              )
+            }
           />
         )}
 
@@ -597,15 +660,19 @@ export default function FabricForm({ mode, productId }) {
           </Link>
           <button
             onClick={handleSubmit}
-            disabled={!canSubmit || submitting}
+            disabled={!canSubmit || submitting || ktVerifying}
             className="font-hanken flex items-center gap-[8px] h-[44px] px-[20px] rounded-[8px] text-white text-[14px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer bg-gc-primary"
           >
-            {submitting ? (
+            {submitting || ktVerifying ? (
               <Loader2 size={14} className="animate-spin" />
             ) : (
               <Save size={14} />
             )}
-            {isEdit ? "Save Changes" : "Create Fabric"}
+            {ktVerifying
+              ? "Verifying with KuteTailor…"
+              : isEdit
+                ? "Save Changes"
+                : "Create Fabric"}
           </button>
         </div>
       </div>

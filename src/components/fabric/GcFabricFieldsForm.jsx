@@ -29,6 +29,9 @@ export default function GcFabricFieldsForm({
   onFetchFromKuteTailor,
   fetchingFromKuteTailor,
   kuteTailorFetchError,
+  kuteTailorNotFound,
+  onCreateInKuteTailor,
+  fieldsLocked,
 }) {
   const [search, setSearch] = useState("");
 
@@ -165,16 +168,34 @@ export default function GcFabricFieldsForm({
                   {kuteTailorFetchError}
                 </p>
               )}
+              {kuteTailorNotFound && (
+                <button
+                  type="button"
+                  onClick={onCreateInKuteTailor}
+                  className="font-hanken text-[12px] font-medium text-gc-primary hover:text-gc-primary-dark underline mt-[4px] cursor-pointer"
+                >
+                  Not in KuteTailor yet — create it there
+                </button>
+              )}
+              {fieldsLocked && !kuteTailorNotFound && (
+                <p className="font-hanken text-[12px] text-gc-muted mt-[6px]">
+                  Fetch the fabric code to fill in the details below.
+                </p>
+              )}
             </div>
             <div>
               <label className={INPUT_LABEL_CLASS}>Fabric House</label>
               <input
                 type="text"
                 value={fields.fabricHouse ?? ""}
+                disabled={fieldsLocked}
                 onChange={(e) =>
                   onFieldsChange({ ...fields, fabricHouse: e.target.value })
                 }
-                className={INPUT_CLASS}
+                className={cn(
+                  INPUT_CLASS,
+                  fieldsLocked && "bg-gc-bg-warm text-gc-muted cursor-not-allowed",
+                )}
                 placeholder="e.g. Dormeuil"
               />
             </div>
@@ -184,10 +205,14 @@ export default function GcFabricFieldsForm({
                 <input
                   type="text"
                   value={fields[key] ?? ""}
+                  disabled={fieldsLocked}
                   onChange={(e) =>
                     onFieldsChange({ ...fields, [key]: e.target.value })
                   }
-                  className={INPUT_CLASS}
+                  className={cn(
+                    INPUT_CLASS,
+                    fieldsLocked && "bg-gc-bg-warm text-gc-muted cursor-not-allowed",
+                  )}
                   placeholder={placeholder}
                 />
               </div>
