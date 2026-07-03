@@ -995,10 +995,17 @@ export default function CreateOrder() {
         );
         if (!selectedOpt?.kutetailerCode) continue;
 
+        // Contrast color has no craft code of its own — its label is sent as
+        // the ":content" suffix on the contrast LOCATION's code, not as a
+        // standalone craft. (Its kutetailor_code is an embroidery thread
+        // colorCode for orderEmbs, unrelated to the crafts field.)
+        if (selectedOpt.isContrastOption) continue;
+
         const isButton =
           selectedOpt.isButtonCode || selectedOpt.craftPrefix === "button";
         const isLining =
           selectedOpt.isLiningCode || selectedOpt.craftPrefix === "0714";
+        const isContrastLocation = selectedOpt.isContrastLocation;
 
         // For button/lining codes: apply to all garments listed in the metaobject's garment field
         // (filtered to garments that exist in this order). Empty garments array means all order garments.
@@ -1023,14 +1030,22 @@ export default function CreateOrder() {
         }
 
         for (const garment of targetGarments) {
-          if (!craftsByGarment[garment]) craftsByGarment[garment] = [];
           let craftCode = selectedOpt.kutetailerCode;
           if (isButton) {
             const pid = garment === "Trouser" ? "3454" : "0638";
             craftCode = `${pid}:${craftCode}`;
           } else if (isLining) {
             craftCode = `0714:${craftCode}`;
+          } else if (isContrastLocation) {
+            // Parent code requires ":content" — send the chosen color's
+            // readable label, not its (embroidery-only) kutetailor_code.
+            const colorLabel = (
+              styleSelections[`${garment}__contrast_option`] || ""
+            ).trim();
+            if (!colorLabel) continue;
+            craftCode = `${craftCode}:${colorLabel}`;
           }
+          if (!craftsByGarment[garment]) craftsByGarment[garment] = [];
           if (!craftsByGarment[garment].includes(craftCode)) {
             craftsByGarment[garment].push(craftCode);
           }
