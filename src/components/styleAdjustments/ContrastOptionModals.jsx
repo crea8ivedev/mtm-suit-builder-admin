@@ -69,6 +69,11 @@ export function ViewContrastOptionModal({ option, onClose, onEdit }) {
               hex: option.colorHex,
             },
             { label: "Garment", value: option.garment || "—" },
+            { label: "Is Default", value: option.isDefault ? "Yes" : "No" },
+            {
+              label: "Kutetailor Code",
+              value: option.kutetailerCode || "—",
+            },
           ].map(({ label, value, hex }, i) => (
             <div
               key={label}
@@ -103,6 +108,7 @@ export function EditContrastOptionModal({ option, onClose, onUpdated }) {
     visible: option.visible ? "true" : "false",
     is_default: option.isDefault ? "true" : "false",
     garment: option.garment || "",
+    kutetailor_code: option.kutetailerCode || "",
   });
   const [imageUploading, setImageUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -119,7 +125,8 @@ export function EditContrastOptionModal({ option, onClose, onUpdated }) {
     form.color_image_url !== (option.imageUrlStored || option.imageUrl || "") ||
     form.visible !== (option.visible ? "true" : "false") ||
     form.is_default !== (option.isDefault ? "true" : "false") ||
-    form.garment !== (option.garment || "");
+    form.garment !== (option.garment || "") ||
+    form.kutetailor_code !== (option.kutetailerCode || "");
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -140,6 +147,7 @@ export function EditContrastOptionModal({ option, onClose, onUpdated }) {
               "visible",
               "is_default",
               "garment",
+              "kutetailor_code",
             ].includes(k),
         ),
       );
@@ -151,6 +159,7 @@ export function EditContrastOptionModal({ option, onClose, onUpdated }) {
         visible: form.visible,
         is_default: form.is_default,
         garment: form.garment,
+        kutetailor_code: form.kutetailor_code.trim() || null,
       });
       onUpdated(option.id, {
         label: form.color_name.trim(),
@@ -161,6 +170,7 @@ export function EditContrastOptionModal({ option, onClose, onUpdated }) {
         imageUrlStored: form.color_image_url || null,
         imageUrl: form.color_image_url || null,
         garment: form.garment,
+        kutetailerCode: form.kutetailor_code.trim() || null,
         rawFields: {
           ...option.rawFields,
           color_name: form.color_name.trim(),
@@ -169,6 +179,7 @@ export function EditContrastOptionModal({ option, onClose, onUpdated }) {
           visible: form.visible,
           is_default: form.is_default,
           garment: form.garment,
+          kutetailor_code: form.kutetailor_code.trim() || null,
         },
       });
       clearStyleOptionsCache();
@@ -244,6 +255,16 @@ export function EditContrastOptionModal({ option, onClose, onUpdated }) {
               placeholder="e.g. Jacket"
             />
           </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Kutetailor Code</label>
+          <input
+            className={inputCls}
+            value={form.kutetailor_code}
+            onChange={(e) => set("kutetailor_code", e.target.value)}
+            placeholder="e.g. 0672"
+          />
         </div>
 
         <div className="flex flex-wrap gap-[16px] pt-[4px]">
@@ -563,6 +584,7 @@ export function AddContrastModal({
     color_image_url: "",
     color_visible: "true",
     color_is_default: "false",
+    color_kutetailor_code: "",
     // location fields
     label: "",
     location_visible: "true",
@@ -595,6 +617,7 @@ export function AddContrastModal({
         color_image_url: "",
         color_visible: "true",
         color_is_default: "false",
+        color_kutetailor_code: "",
       }));
     }
     setError(null);
@@ -622,6 +645,7 @@ export function AddContrastModal({
           garment: form.garment,
           visible: form.color_visible,
           is_default: form.color_is_default,
+          kutetailor_code: form.color_kutetailor_code.trim() || null,
         });
         clearStyleOptionsCache();
         onCreatedColor({
@@ -639,6 +663,7 @@ export function AddContrastModal({
           imageGid: form.color_image || null,
           imageUrlStored: form.color_image_url || null,
           imageUrl: form.color_image_url || null,
+          kutetailerCode: form.color_kutetailor_code.trim() || null,
           rawFields: {
             color_name: form.color_name.trim(),
             color_hex: form.color_hex || "",
@@ -646,6 +671,7 @@ export function AddContrastModal({
             garment: form.garment,
             visible: form.color_visible,
             is_default: form.color_is_default,
+            kutetailor_code: form.color_kutetailor_code.trim() || "",
           },
           fieldTypes: {},
           isContrastOption: true,
@@ -765,6 +791,15 @@ export function AddContrastModal({
                   placeholder="#ffffff"
                 />
               </div>
+            </div>
+            <div>
+              <label className={labelCls}>Kutetailor Code</label>
+              <input
+                className={inputCls}
+                value={form.color_kutetailor_code}
+                onChange={(e) => set("color_kutetailor_code", e.target.value)}
+                placeholder="e.g. 0672"
+              />
             </div>
           </>
         )}
