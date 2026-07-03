@@ -95,9 +95,19 @@ function parseRows(rows) {
     });
 }
 
+// Spreadsheet apps auto-format codes like "DKK0114" as a currency amount
+// (DKK is a real ISO code) and drop the leading zero — "DKK 114.00" ends up
+// in the CSV instead of the real code. Catch that shape before it's imported.
+const CURRENCY_MANGLED_CODE = /^[A-Za-z]{3}\s?\d+\.\d{2}$/;
+
 function validateFabric(fabric, collections) {
   const errors = [];
   if (!fabric.fabricHouse) errors.push("missing fabric_house");
+  if (CURRENCY_MANGLED_CODE.test(fabric.fabricCode)) {
+    errors.push(
+      `fabric_code "${fabric.fabricCode}" looks auto-formatted as currency by the spreadsheet (leading zero likely dropped) — set that column to Plain Text and re-enter the code`,
+    );
+  }
   if (!["ACTIVE", "DRAFT"].includes(fabric.status)) {
     errors.push(`status must be ACTIVE or DRAFT (got "${fabric.status}")`);
   }
