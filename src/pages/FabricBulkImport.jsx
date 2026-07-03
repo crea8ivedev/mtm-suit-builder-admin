@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import Papa from "papaparse";
 import { Link } from "react-router-dom";
 import {
@@ -8,6 +8,8 @@ import {
   XCircle,
   Loader2,
   AlertTriangle,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import {
@@ -137,6 +139,16 @@ export default function FabricBulkImport() {
   const [parseError, setParseError] = useState(null);
   const [verifying, setVerifying] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [collapsedErrors, setCollapsedErrors] = useState(() => new Set());
+
+  function toggleErrors(idx) {
+    setCollapsedErrors((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  }
 
   async function ensureCollections() {
     if (collectionsLoaded) return collections;
@@ -387,7 +399,8 @@ export default function FabricBulkImport() {
                 </thead>
                 <tbody>
                   {fabrics.map((f, idx) => (
-                    <tr key={idx} className="border-t border-gc-divider">
+                    <Fragment key={idx}>
+                    <tr className="border-t border-gc-divider">
                       <td className="font-hanken text-[13px] px-[10px] py-[8px]">
                         {f.title || (
                           <span className="text-gc-muted italic">
@@ -437,14 +450,20 @@ export default function FabricBulkImport() {
                       </td>
                       <td className="font-hanken text-[13px] px-[10px] py-[8px]">
                         {f.errors.length > 0 ? (
-                          <span
-                            className="flex items-center gap-[4px] text-red-600"
-                            title={f.errors.join("; ")}
+                          <button
+                            type="button"
+                            onClick={() => toggleErrors(idx)}
+                            className="flex items-center gap-[4px] text-red-600 hover:text-red-700 cursor-pointer"
                           >
                             <XCircle size={14} />
                             {f.errors.length} error
                             {f.errors.length !== 1 ? "s" : ""}
-                          </span>
+                            {collapsedErrors.has(idx) ? (
+                              <ChevronRight size={14} />
+                            ) : (
+                              <ChevronDown size={14} />
+                            )}
+                          </button>
                         ) : f.importStatus === "creating" ? (
                           <Loader2 size={14} className="animate-spin" />
                         ) : f.importStatus === "done" ? (
@@ -465,6 +484,39 @@ export default function FabricBulkImport() {
                         )}
                       </td>
                     </tr>
+                    {((f.errors.length > 0 && !collapsedErrors.has(idx)) ||
+                      f.ktStatus === "not_found") && (
+                      <tr className="bg-red-50/60">
+                        <td
+                          colSpan={9}
+                          className="px-[10px] pb-[10px] pt-0 space-y-[6px]"
+                        >
+                          {f.ktStatus === "not_found" && (
+                            <p className="font-hanken text-[12px] text-amber-700 flex items-start gap-[6px] pl-[6px]">
+                              <AlertTriangle
+                                size={13}
+                                className="mt-[1px] shrink-0"
+                              />
+                              <span>
+                                fabric_code &ldquo;{f.fabricCode}&rdquo; not
+                                found in KuteTailor — it will be imported as
+                                DRAFT (only KuteTailor-registered fabrics can go
+                                ACTIVE).
+                              </span>
+                            </p>
+                          )}
+                          {f.errors.length > 0 &&
+                            !collapsedErrors.has(idx) && (
+                              <ul className="font-hanken text-[12px] text-red-700 list-disc pl-[28px] space-y-[2px]">
+                                {f.errors.map((err, i) => (
+                                  <li key={i}>{err}</li>
+                                ))}
+                              </ul>
+                            )}
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
