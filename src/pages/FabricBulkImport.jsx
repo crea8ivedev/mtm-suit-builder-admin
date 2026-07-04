@@ -79,7 +79,7 @@ function parseRows(rows) {
         type,
         price: (row[`${type} Price`] || "").trim(),
         qty: (row[`${type} Qty`] || "").trim(),
-      })).filter((g) => g.price !== "" || g.qty !== "");
+      })).filter((g) => g.price !== "" && g.qty !== "");
       return {
         title: (row.title || "").trim(),
         fabricCode: (row.fabric_code || "").trim(),
@@ -112,15 +112,6 @@ function validateFabric(fabric, collections) {
   }
   if (!["ACTIVE", "DRAFT"].includes(fabric.status)) {
     errors.push(`status must be ACTIVE or DRAFT (got "${fabric.status}")`);
-  }
-  if (fabric.garments.length === 0) {
-    errors.push("no valid garment_type rows");
-  } else {
-    for (const g of fabric.garments) {
-      if (g.price === "" || g.qty === "") {
-        errors.push(`${g.type}: price/qty required`);
-      }
-    }
   }
   const unmatchedCollections = fabric.collectionNames.filter(
     (name) =>
