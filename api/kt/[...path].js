@@ -6,9 +6,8 @@ export default async function handler(req, res) {
 
   const qs = req.url.includes("?") ? "?" + req.url.split("?").slice(1).join("?") : "";
 
-  const base = (
-    process.env.VITE_KUTETAILOR_API_URL ?? "https://platform.kutetailor.com/api"
-  ).replace(/\/$/, "");
+  const rawBase = process.env.VITE_KUTETAILOR_API_URL || "https://platform.kutetailor.com/api";
+  const base = `${new URL(rawBase).origin}/api`;
 
   const url = `${base}${pathPart}${qs}`;
 
