@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { Plus, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Upload } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
+import { useClickOutside } from "../hooks/useClickOutside";
+import { cn } from "../utils/cn";
 import { fetchFabricProductsV2 } from "../lib/shopify";
 
 function formatPrice(amount, currencyCode) {
@@ -21,14 +23,44 @@ export default function Fabric() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get("search") || "";
+  const currentPage = parseInt(searchParams.get("page") || "1", 10);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [entriesOpen, setEntriesOpen] = useState(false);
+  const entriesRef = useRef(null);
+
+  useClickOutside(entriesRef, () => setEntriesOpen(false));
+
+  function setCurrentPage(page) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("page", String(page));
+      return next;
+    });
+  }
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return products;
     return products.filter((p) => p.title.toLowerCase().includes(q));
   }, [products, search]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredProducts.length / itemsPerPage),
+  );
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage,
+  );
+
+  const visiblePages = useMemo(() => {
+    const range = 2;
+    const start = Math.max(1, currentPage - range);
+    const end = Math.min(totalPages, currentPage + range);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }, [currentPage, totalPages]);
 
   function load() {
     setLoading(true);
@@ -119,7 +151,7 @@ export default function Fabric() {
                   Price
                 </span>
               </div>
-              {filteredProducts.map((product) => (
+              {paginatedProducts.map((product) => (
                 <Link
                   key={product.id}
                   to={`/fabric/${product.id.split("/").pop()}`}
@@ -162,6 +194,115 @@ export default function Fabric() {
                   </div>
                 </Link>
               ))}
+            </div>
+          )}
+
+          {filteredProducts.length > 0 && (
+            <div className="gc-divider flex items-center justify-between px-[14px] sm:px-[24px] py-[14px] sm:py-[16px] flex-wrap gap-[10px] sm:gap-[12px]">
+              {filteredProducts.length > 10 && (
+                <div className="flex items-center gap-[8px]" ref={entriesRef}>
+                  <span className="font-hanken text-[13px] text-gc-text">
+                    Entries
+                  </span>
+                  <div className="relative">
+                    <button
+                      onClick={() => setEntriesOpen((v) => !v)}
+                      className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none border border-gc-border-warm bg-white"
+                    >
+                      {itemsPerPage}
+                      <ChevronRight
+                        size={13}
+                        className={`text-gc-text transition-transform ${entriesOpen ? "-rotate-90" : "rotate-90"}`}
+                      />
+                    </button>
+                    {entriesOpen && (
+                      <div className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md border border-gc-border-warm bg-white min-w-full">
+                        {[10, 20, 50, 100].map((n) => (
+                          <button
+                            key={n}
+                            onClick={() => {
+                              setItemsPerPage(n);
+                              setCurrentPage(1);
+                              setEntriesOpen(false);
+                            }}
+                            className={`w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors ${n === itemsPerPage ? "text-gc-primary bg-gc-primary/[6%] font-semibold" : "text-gc-heading font-normal"}`}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-[3px] sm:gap-[4px] flex-wrap justify-end">
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="gc-pagination-btn"
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+
+                  {visiblePages[0] > 1 && (
+                    <>
+                      <button
+                        onClick={() => setCurrentPage(1)}
+                        className="gc-pagination-btn"
+                      >
+                        1
+                      </button>
+                      {visiblePages[0] > 2 && (
+                        <span className="w-[28px] text-center text-gc-text text-[13px]">
+                          …
+                        </span>
+                      )}
+                    </>
+                  )}
+
+                  {visiblePages.map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={cn(
+                        "gc-pagination-btn",
+                        currentPage === page && "active",
+                      )}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  {visiblePages[visiblePages.length - 1] < totalPages && (
+                    <>
+                      {visiblePages[visiblePages.length - 1] <
+                        totalPages - 1 && (
+                        <span className="w-[28px] text-center text-gc-text text-[13px]">
+                          …
+                        </span>
+                      )}
+                      <button
+                        onClick={() => setCurrentPage(totalPages)}
+                        className="gc-pagination-btn"
+                      >
+                        {totalPages}
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() =>
+                      setCurrentPage(Math.min(totalPages, currentPage + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="gc-pagination-btn"
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
