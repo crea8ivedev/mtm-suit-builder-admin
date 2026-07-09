@@ -1,22 +1,27 @@
 export const config = { api: { bodyParser: false } };
 
 export default async function handler(req, res) {
-  const segments = req.query.path;
-  const pathPart = Array.isArray(segments) ? "/" + segments.join("/") : "/graphql.json";
+  const pathPart = "/" + (req.query.path || "");
 
-  const qs = req.url.includes("?") ? "?" + req.url.split("?").slice(1).join("?") : "";
+  const rest = { ...req.query };
+  delete rest.path;
+  const qs = Object.keys(rest).length ? "?" + new URLSearchParams(rest).toString() : "";
 
-  const url =
-    `${process.env.VITE_SHOPIFY_STORE_DOMAIN}/admin/api/2025-01${pathPart}${qs}`;
+  const rawBase = process.env.VITE_KUTETAILOR_API_URL || "https://platform.kutetailor.com/api";
+  const base = `${new URL(rawBase).origin}/api`;
+
+  const url = `${base}${pathPart}${qs}`;
 
   const body = await readBody(req);
 
+  const headers = {};
+  for (const h of ["content-type", "authorization", "accept", "accept-language"]) {
+    if (req.headers[h]) headers[h] = req.headers[h];
+  }
+
   const r = await fetch(url, {
     method: req.method,
-    headers: {
-      "Content-Type": req.headers["content-type"] || "application/json",
-      "X-Shopify-Access-Token": process.env.VITE_SHOPIFY_ACCESS_TOKEN,
-    },
+    headers,
     body: hasBody(req.method) ? body : undefined,
   });
 
