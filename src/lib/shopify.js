@@ -2850,7 +2850,17 @@ const GET_FABRIC_PRODUCTS_V2_QUERY = `
           status
           featuredImage { url altText }
           priceRangeV2 { minVariantPrice { amount currencyCode } }
-          metafield(namespace: "custom", key: "fabric") { value }
+          metafield(namespace: "custom", key: "fabric") {
+            value
+            reference {
+              ... on Metaobject {
+                fields { key value }
+              }
+            }
+          }
+          collections(first: 10) {
+            edges { node { id title } }
+          }
         }
       }
     }
@@ -2872,6 +2882,9 @@ export async function fetchFabricProductsV2() {
     const { edges, pageInfo } = data.products;
     for (const { node } of edges) {
       if (!node.metafield?.value) continue;
+      const gcFields = Object.fromEntries(
+        (node.metafield.reference?.fields ?? []).map((f) => [f.key, f.value]),
+      );
       all.push({
         id: node.id,
         title: node.title,
@@ -2880,6 +2893,11 @@ export async function fetchFabricProductsV2() {
         currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode ?? "USD",
         imageUrl: node.featuredImage?.url ?? null,
         imageAlt: node.featuredImage?.altText ?? node.title,
+        fabricHouse: gcFields.fabric_house || "",
+        collections: (node.collections?.edges ?? []).map((e) => ({
+          id: e.node.id,
+          title: e.node.title,
+        })),
       });
     }
     hasNextPage = pageInfo.hasNextPage;

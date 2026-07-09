@@ -15,7 +15,7 @@ import StatusPill from "../components/ui/StatusPill";
 import { useOrders } from "../hooks/useOrders";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { cn } from "../utils/cn";
-import { generateCSV } from "../utils/exportUtils";
+import { generateExcel } from "../utils/exportUtils";
 import {
   fetchJacketMeasurementFields,
   fetchTrouserMeasurementFields,
@@ -110,7 +110,7 @@ export default function Orders() {
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
   }, [currentPage, totalPages]);
 
-  const handleExportCSV = () => generateCSV(filtered, labelMap);
+  const handleExport = () => generateExcel(filtered, labelMap);
 
   return (
     <DashboardLayout onRefresh={retry} isRefreshing={loading}>
@@ -181,7 +181,7 @@ export default function Orders() {
           </div>
 
           <button
-            onClick={handleExportCSV}
+            onClick={handleExport}
             disabled={loading || !!error || !filtered.length}
             className="gc-btn"
           >

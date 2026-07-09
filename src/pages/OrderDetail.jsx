@@ -29,7 +29,7 @@ import {
   addUpchargeLineItem,
   setOrderMetafields,
 } from "../lib/shopify";
-import { generateSingleOrderCSV } from "../utils/exportUtils";
+import { generateSingleOrderExcel } from "../utils/exportUtils";
 
 function formatAmount(amount, currencyCode) {
   try {
@@ -662,7 +662,7 @@ export default function OrderDetail() {
 
               <div className="flex items-center gap-[10px] self-start sm:self-auto flex-shrink-0">
                 <button
-                  onClick={() => generateSingleOrderCSV(order, labelMap)}
+                  onClick={() => generateSingleOrderExcel(order, labelMap)}
                   className="font-hanken inline-flex items-center gap-[8px] px-[16px] sm:px-[25px] py-[10px] sm:py-[13px] rounded-[8px] text-[12px] font-bold uppercase text-black border border-black hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   <Download size={13} />

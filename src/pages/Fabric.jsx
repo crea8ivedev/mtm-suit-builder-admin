@@ -1,12 +1,23 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus, Upload } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Upload,
+} from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { cn } from "../utils/cn";
 import { fetchFabricProductsV2 } from "../lib/shopify";
+
+const NO_BRAND = "No Brand";
+const UNCATEGORIZED = "Uncategorized";
 
 function formatPrice(amount, currencyCode) {
   try {
@@ -19,48 +30,268 @@ function formatPrice(amount, currencyCode) {
   }
 }
 
+// Groups products into brand -> collection -> [products]. A product with no
+// collections falls into "Uncategorized"; one with several collections is
+// listed under each (mirrors the multi-select on the fabric form).
+function groupProducts(products) {
+  const brands = new Map();
+  for (const p of products) {
+    const brand = p.fabricHouse || NO_BRAND;
+    const collectionTitles = p.collections.length
+      ? p.collections.map((c) => c.title)
+      : [UNCATEGORIZED];
+    if (!brands.has(brand)) brands.set(brand, new Map());
+    const collections = brands.get(brand);
+    for (const title of collectionTitles) {
+      if (!collections.has(title)) collections.set(title, []);
+      collections.get(title).push(p);
+    }
+  }
+
+  const brandEntries = [...brands.entries()].sort(([a], [b]) => {
+    if (a === NO_BRAND) return 1;
+    if (b === NO_BRAND) return -1;
+    return a.localeCompare(b);
+  });
+
+  return brandEntries.map(([brand, collections]) => {
+    const collectionEntries = [...collections.entries()].sort(([a], [b]) => {
+      if (a === UNCATEGORIZED) return 1;
+      if (b === UNCATEGORIZED) return -1;
+      return a.localeCompare(b);
+    });
+    const fabricCount = new Set(
+      collectionEntries.flatMap(([, items]) => items.map((i) => i.id)),
+    ).size;
+    return {
+      brand,
+      fabricCount,
+      collections: collectionEntries.map(([title, items]) => ({
+        title,
+        items: [...items].sort((a, b) => a.title.localeCompare(b.title)),
+      })),
+    };
+  });
+}
+
+// Dropdown button matching the app's existing filter pattern (see Orders
+// page "Filter" button) instead of a plain native <select>.
+function FilterDropdown({ label, value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useClickOutside(ref, () => setOpen(false));
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "gc-btn",
+          value && "border-gc-primary bg-[rgba(164,93,65,0.08)]",
+        )}
+      >
+        <SlidersHorizontal size={14} />
+        {label}
+        {value && (
+          <span className="text-[11px] font-semibold text-gc-id">
+            · {value}
+          </span>
+        )}
+        <ChevronDown size={13} className="text-gc-text" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+6px)] w-[220px] max-h-[280px] overflow-y-auto bg-white border border-gc-border rounded-[10px] shadow-lg z-[100] py-[6px]">
+          <button
+            onClick={() => {
+              onChange("");
+              setOpen(false);
+            }}
+            className="font-hanken w-full flex items-center justify-between px-[14px] py-[9px] text-[14px] font-medium text-gc-dark hover:bg-gc-bg transition-colors"
+          >
+            All {label}
+            {!value && <Check size={14} className="text-gc-primary" />}
+          </button>
+          {options.map((opt) => (
+            <button
+              key={opt}
+              onClick={() => {
+                onChange(opt);
+                setOpen(false);
+              }}
+              className="font-hanken w-full flex items-center justify-between gap-[8px] px-[14px] py-[9px] text-[14px] font-medium text-gc-dark hover:bg-gc-bg transition-colors text-left"
+            >
+              <span className="truncate">{opt}</span>
+              {value === opt && (
+                <Check size={14} className="text-gc-primary flex-shrink-0" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FabricRow({ product }) {
+  return (
+    <Link
+      to={`/fabric/${product.id.split("/").pop()}`}
+      className="flex items-center gap-[12px] px-[16px] sm:px-[20px] py-[12px] cursor-pointer hover:bg-gc-bg-warm transition-colors"
+    >
+      <div className="w-[52px] h-[52px] rounded-[8px] overflow-hidden border border-gc-divider bg-gc-bg-warm flex-shrink-0">
+        {product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt={product.imageAlt}
+            className="w-full h-full object-contain"
+          />
+        ) : (
+          <div className="w-full h-full bg-gc-bg-warm" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-hanken text-[14px] font-semibold text-gc-near-black2 leading-[1.4] truncate">
+          {product.title}
+        </p>
+      </div>
+      <span
+        className={`font-hanken text-[11px] font-semibold uppercase px-[8px] py-[3px] rounded-full flex-shrink-0 ${
+          product.status === "ACTIVE"
+            ? "text-emerald-700 bg-emerald-50"
+            : "text-gc-muted bg-gc-bg-warm"
+        }`}
+      >
+        {product.status === "ACTIVE" ? "Active" : "Draft"}
+      </span>
+      <p className="font-hanken text-[13px] text-gc-primary font-medium flex-shrink-0 w-[90px] text-right">
+        {formatPrice(product.price, product.currencyCode)}
+      </p>
+    </Link>
+  );
+}
+
+function FabricListHeader() {
+  return (
+    <div className="hidden sm:flex items-center gap-[12px] px-[16px] sm:pl-[64px] sm:pr-[20px] py-[8px] bg-gc-bg-warm/60">
+      <span className="font-hanken text-[10px] font-semibold text-gc-muted uppercase tracking-widest w-[52px] flex-shrink-0">
+        Image
+      </span>
+      <span className="font-hanken text-[10px] font-semibold text-gc-muted uppercase tracking-widest flex-1">
+        Product
+      </span>
+      <span className="font-hanken text-[10px] font-semibold text-gc-muted uppercase tracking-widest flex-shrink-0">
+        Status
+      </span>
+      <span className="font-hanken text-[10px] font-semibold text-gc-muted uppercase tracking-widest flex-shrink-0 w-[90px] text-right">
+        Price
+      </span>
+    </div>
+  );
+}
+
+function CollectionGroup({ title, items, open, onToggle, highlightIds }) {
+  return (
+    <div className="border-t border-gc-divider bg-gc-bg-warm/25">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-[8px] pl-[36px] sm:pl-[48px] pr-[16px] sm:pr-[28px] py-[10px] cursor-pointer hover:bg-gc-bg-warm/60 transition-colors"
+      >
+        {open ? (
+          <ChevronDown size={14} className="text-gc-muted flex-shrink-0" />
+        ) : (
+          <ChevronRight size={14} className="text-gc-muted flex-shrink-0" />
+        )}
+        <span className="font-hanken text-[13px] font-semibold text-gc-near-black2">
+          {title}
+        </span>
+        <span className="font-hanken text-[11px] text-gc-muted">
+          · {items.length} fabric{items.length !== 1 ? "s" : ""}
+        </span>
+      </button>
+      {open && (
+        <div className="bg-white">
+          <FabricListHeader />
+          <div className="divide-y divide-gc-divider">
+            {items.map((p) => (
+              <div
+                key={p.id}
+                className={cn(
+                  "pl-[20px] sm:pl-[44px]",
+                  highlightIds?.has(p.id) && "bg-gc-primary/[4%]",
+                )}
+              >
+                <FabricRow product={p} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BrandGroup({
+  group,
+  open,
+  onToggleBrand,
+  openCollections,
+  onToggleCollection,
+  highlightIds,
+}) {
+  return (
+    <div className="bg-white rounded-[12px] border border-gc-divider overflow-hidden">
+      <button
+        onClick={onToggleBrand}
+        className="w-full flex items-center gap-[10px] px-[16px] sm:px-[20px] py-[14px] cursor-pointer hover:bg-gc-bg-warm transition-colors"
+      >
+        {open ? (
+          <ChevronDown size={16} className="text-gc-text flex-shrink-0" />
+        ) : (
+          <ChevronRight size={16} className="text-gc-text flex-shrink-0" />
+        )}
+        <span className="font-hanken text-[15px] font-bold text-gc-near-black2">
+          {group.brand}
+        </span>
+        <span className="font-hanken text-[12px] text-gc-muted">
+          · {group.fabricCount} fabric{group.fabricCount !== 1 ? "s" : ""}
+        </span>
+      </button>
+      {open &&
+        group.collections.map((c) => (
+          <CollectionGroup
+            key={c.title}
+            title={c.title}
+            items={c.items}
+            open={openCollections.has(`${group.brand} ${c.title}`)}
+            onToggle={() => onToggleCollection(group.brand, c.title)}
+            highlightIds={highlightIds}
+          />
+        ))}
+    </div>
+  );
+}
+
 export default function Fabric() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get("search") || "";
-  const currentPage = parseInt(searchParams.get("page") || "1", 10);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
-  const [entriesOpen, setEntriesOpen] = useState(false);
-  const entriesRef = useRef(null);
 
-  useClickOutside(entriesRef, () => setEntriesOpen(false));
+  const [openBrands, setOpenBrands] = useState(new Set());
+  const [openCollections, setOpenCollections] = useState(new Set());
+  const [brandFilter, setBrandFilter] = useState("");
+  const [collectionFilter, setCollectionFilter] = useState("");
 
-  function setCurrentPage(page) {
+  function setSearch(value) {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      next.set("page", String(page));
+      if (value) next.set("search", value);
+      else next.delete("search");
       return next;
     });
   }
-
-  const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter((p) => p.title.toLowerCase().includes(q));
-  }, [products, search]);
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredProducts.length / itemsPerPage),
-  );
-  const paginatedProducts = filteredProducts.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
-  );
-
-  const visiblePages = useMemo(() => {
-    const range = 2;
-    const start = Math.max(1, currentPage - range);
-    const end = Math.min(totalPages, currentPage + range);
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
-  }, [currentPage, totalPages]);
 
   function load() {
     setLoading(true);
@@ -75,6 +306,86 @@ export default function Fabric() {
     load();
   }, []);
 
+  const groups = useMemo(() => groupProducts(products), [products]);
+
+  const brandOptions = useMemo(() => {
+    const set = new Set(products.map((p) => p.fabricHouse || NO_BRAND));
+    return [...set].sort((a, b) => {
+      if (a === NO_BRAND) return 1;
+      if (b === NO_BRAND) return -1;
+      return a.localeCompare(b);
+    });
+  }, [products]);
+
+  const collectionOptions = useMemo(() => {
+    const set = new Set(
+      products.flatMap((p) =>
+        p.collections.length
+          ? p.collections.map((c) => c.title)
+          : [UNCATEGORIZED],
+      ),
+    );
+    return [...set].sort((a, b) => {
+      if (a === UNCATEGORIZED) return 1;
+      if (b === UNCATEGORIZED) return -1;
+      return a.localeCompare(b);
+    });
+  }, [products]);
+
+  const q = search.trim().toLowerCase();
+  const isFiltering = !!(q || brandFilter || collectionFilter);
+  const matchedIds = useMemo(() => {
+    if (!isFiltering) return null;
+    return new Set(
+      products
+        .filter((p) => !q || p.title.toLowerCase().includes(q))
+        .filter(
+          (p) => !brandFilter || (p.fabricHouse || NO_BRAND) === brandFilter,
+        )
+        .filter((p) => {
+          if (!collectionFilter) return true;
+          if (collectionFilter === UNCATEGORIZED) return !p.collections.length;
+          return p.collections.some((c) => c.title === collectionFilter);
+        })
+        .map((p) => p.id),
+    );
+  }, [products, q, brandFilter, collectionFilter, isFiltering]);
+
+  // While filtering, only show groups containing a match, auto-expanded.
+  const visibleGroups = useMemo(() => {
+    if (!matchedIds) return groups;
+    return groups
+      .map((g) => ({
+        ...g,
+        collections: g.collections
+          .map((c) => ({
+            ...c,
+            items: c.items.filter((i) => matchedIds.has(i.id)),
+          }))
+          .filter((c) => c.items.length > 0),
+      }))
+      .filter((g) => g.collections.length > 0);
+  }, [groups, matchedIds]);
+
+  const isBrandOpen = (brand) => (isFiltering ? true : openBrands.has(brand));
+
+  function toggleBrand(brand) {
+    setOpenBrands((prev) => {
+      const next = new Set(prev);
+      next.has(brand) ? next.delete(brand) : next.add(brand);
+      return next;
+    });
+  }
+
+  function toggleCollection(brand, title) {
+    const key = `${brand} ${title}`;
+    setOpenCollections((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
   return (
     <DashboardLayout>
       <div className="flex flex-wrap items-center justify-between gap-[12px] mb-[24px] sm:mb-[30px]">
@@ -85,9 +396,7 @@ export default function Fabric() {
               ? "Loading products…"
               : error
                 ? "Could not load products"
-                : search
-                  ? `${filteredProducts.length} of ${products.length} fabric product${products.length !== 1 ? "s" : ""}`
-                  : `${products.length} fabric product${products.length !== 1 ? "s" : ""}`}
+                : `${products.length} fabric product${products.length !== 1 ? "s" : ""}`}
           </p>
         </div>
         <div className="flex items-center gap-[10px]">
@@ -108,6 +417,36 @@ export default function Fabric() {
         </div>
       </div>
 
+      {!loading && !error && products.length > 0 && (
+        <div className="flex flex-wrap items-center gap-[10px] mb-[16px]">
+          <div className="relative max-w-[360px] flex-1 min-w-[200px]">
+            <Search
+              size={14}
+              className="absolute left-[12px] top-1/2 -translate-y-1/2 text-gc-muted"
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search fabrics by name…"
+              className="font-hanken w-full bg-white pl-[34px] pr-[12px] h-[40px] rounded-[8px] text-[13px] text-[#1c1c19] outline-none border border-gc-border-input placeholder:text-gc-muted"
+            />
+          </div>
+          <FilterDropdown
+            label="Brand"
+            value={brandFilter}
+            options={brandOptions}
+            onChange={setBrandFilter}
+          />
+          <FilterDropdown
+            label="Collection"
+            value={collectionFilter}
+            options={collectionOptions}
+            onChange={setCollectionFilter}
+          />
+        </div>
+      )}
+
       {loading && (
         <div className="bg-white rounded-[12px] border border-gc-divider">
           <LoadingState message="Loading fabric products…" />
@@ -120,190 +459,44 @@ export default function Fabric() {
         </div>
       )}
 
-      {!loading && !error && (
-        <div className="bg-white rounded-[12px] border border-gc-divider overflow-hidden">
-          {products.length === 0 ? (
-            <div className="text-center py-[48px]">
-              <p className="font-hanken text-[14px] text-gc-text">
-                No fabric products found.
-              </p>
-            </div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-[48px]">
-              <p className="font-hanken text-[14px] text-gc-muted-warm">
-                No products match "{search}".
-              </p>
+      {!loading && !error && products.length === 0 && (
+        <div className="bg-white rounded-[12px] border border-gc-divider">
+          <div className="text-center py-[48px]">
+            <p className="font-hanken text-[14px] text-gc-text">
+              No fabric products found.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && products.length > 0 && (
+        <div className="flex flex-col gap-[12px]">
+          {visibleGroups.length === 0 ? (
+            <div className="bg-white rounded-[12px] border border-gc-divider">
+              <div className="text-center py-[48px]">
+                <p className="font-hanken text-[14px] text-gc-muted-warm">
+                  No products match the current search/filters.
+                </p>
+              </div>
             </div>
           ) : (
-            <div className="divide-y divide-gc-divider">
-              {/* Header row — desktop only */}
-              <div className="hidden sm:grid sm:grid-cols-[100px_1fr_100px_130px] bg-gc-bg-warm px-[20px] py-[10px]">
-                <span className="font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest">
-                  Image
-                </span>
-                <span className="font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest pl-[12px]">
-                  Product
-                </span>
-                <span className="font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest pl-[12px]">
-                  Status
-                </span>
-                <span className="font-hanken text-[11px] font-semibold text-gc-text uppercase tracking-widest pl-[12px]">
-                  Price
-                </span>
-              </div>
-              {paginatedProducts.map((product) => (
-                <Link
-                  key={product.id}
-                  to={`/fabric/${product.id.split("/").pop()}`}
-                  className="flex sm:grid sm:grid-cols-[100px_1fr_100px_130px] items-center gap-[12px] sm:gap-0 px-[16px] sm:px-[20px] py-[12px] cursor-pointer hover:bg-gc-bg-warm transition-colors"
-                >
-                  <div className="w-[64px] h-[64px] sm:w-[78px] sm:h-[78px] rounded-[8px] overflow-hidden border border-gc-divider bg-gc-bg-warm flex-shrink-0">
-                    {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.imageAlt}
-                        className="w-full h-full object-contain"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gc-bg-warm" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0 sm:pl-[12px]">
-                    <p className="font-hanken text-[14px] font-semibold text-gc-near-black2 leading-[1.4]">
-                      {product.title}
-                    </p>
-                    <p className="font-hanken text-[13px] text-gc-primary font-medium mt-[2px] sm:hidden">
-                      {formatPrice(product.price, product.currencyCode)}
-                    </p>
-                  </div>
-                  <div className="hidden sm:block sm:pl-[12px]">
-                    <span
-                      className={`font-hanken text-[11px] font-semibold uppercase px-[8px] py-[3px] rounded-full ${
-                        product.status === "ACTIVE"
-                          ? "text-emerald-700 bg-emerald-50"
-                          : "text-gc-muted bg-gc-bg-warm"
-                      }`}
-                    >
-                      {product.status === "ACTIVE" ? "Active" : "Draft"}
-                    </span>
-                  </div>
-                  <div className="hidden sm:block sm:pl-[12px]">
-                    <p className="font-hanken text-[13px] text-gc-primary font-medium">
-                      {formatPrice(product.price, product.currencyCode)}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-
-          {filteredProducts.length > 0 && (
-            <div className="gc-divider flex items-center justify-between px-[14px] sm:px-[24px] py-[14px] sm:py-[16px] flex-wrap gap-[10px] sm:gap-[12px]">
-              {filteredProducts.length > 10 && (
-                <div className="flex items-center gap-[8px]" ref={entriesRef}>
-                  <span className="font-hanken text-[13px] text-gc-text">
-                    Entries
-                  </span>
-                  <div className="relative">
-                    <button
-                      onClick={() => setEntriesOpen((v) => !v)}
-                      className="font-hanken text-[13px] text-gc-dark flex items-center gap-[6px] px-[10px] py-[5px] rounded-[6px] cursor-pointer focus:outline-none border border-gc-border-warm bg-white"
-                    >
-                      {itemsPerPage}
-                      <ChevronRight
-                        size={13}
-                        className={`text-gc-text transition-transform ${entriesOpen ? "-rotate-90" : "rotate-90"}`}
-                      />
-                    </button>
-                    {entriesOpen && (
-                      <div className="absolute left-0 bottom-full mb-[4px] z-20 rounded-[6px] overflow-hidden shadow-md border border-gc-border-warm bg-white min-w-full">
-                        {[10, 20, 50, 100].map((n) => (
-                          <button
-                            key={n}
-                            onClick={() => {
-                              setItemsPerPage(n);
-                              setCurrentPage(1);
-                              setEntriesOpen(false);
-                            }}
-                            className={`w-full text-left font-hanken text-[13px] px-[12px] py-[7px] cursor-pointer transition-colors ${n === itemsPerPage ? "text-gc-primary bg-gc-primary/[6%] font-semibold" : "text-gc-heading font-normal"}`}
-                          >
-                            {n}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {totalPages > 1 && (
-                <div className="flex items-center gap-[3px] sm:gap-[4px] flex-wrap justify-end">
-                  <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="gc-pagination-btn"
-                  >
-                    <ChevronLeft size={15} />
-                  </button>
-
-                  {visiblePages[0] > 1 && (
-                    <>
-                      <button
-                        onClick={() => setCurrentPage(1)}
-                        className="gc-pagination-btn"
-                      >
-                        1
-                      </button>
-                      {visiblePages[0] > 2 && (
-                        <span className="w-[28px] text-center text-gc-text text-[13px]">
-                          …
-                        </span>
-                      )}
-                    </>
-                  )}
-
-                  {visiblePages.map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={cn(
-                        "gc-pagination-btn",
-                        currentPage === page && "active",
-                      )}
-                    >
-                      {page}
-                    </button>
-                  ))}
-
-                  {visiblePages[visiblePages.length - 1] < totalPages && (
-                    <>
-                      {visiblePages[visiblePages.length - 1] <
-                        totalPages - 1 && (
-                        <span className="w-[28px] text-center text-gc-text text-[13px]">
-                          …
-                        </span>
-                      )}
-                      <button
-                        onClick={() => setCurrentPage(totalPages)}
-                        className="gc-pagination-btn"
-                      >
-                        {totalPages}
-                      </button>
-                    </>
-                  )}
-
-                  <button
-                    onClick={() =>
-                      setCurrentPage(Math.min(totalPages, currentPage + 1))
-                    }
-                    disabled={currentPage === totalPages}
-                    className="gc-pagination-btn"
-                  >
-                    <ChevronRight size={15} />
-                  </button>
-                </div>
-              )}
-            </div>
+            visibleGroups.map((g) => (
+              <BrandGroup
+                key={g.brand}
+                group={g}
+                open={isBrandOpen(g.brand)}
+                onToggleBrand={() => toggleBrand(g.brand)}
+                openCollections={
+                  isFiltering
+                    ? new Set(
+                        g.collections.map((c) => `${g.brand} ${c.title}`),
+                      )
+                    : openCollections
+                }
+                onToggleCollection={toggleCollection}
+                highlightIds={matchedIds}
+              />
+            ))
           )}
         </div>
       )}

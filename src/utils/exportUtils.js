@@ -1,3 +1,5 @@
+import * as XLSX from "xlsx";
+
 class LinkedSet {
   constructor() {
     this._map = new Map();
@@ -10,20 +12,27 @@ class LinkedSet {
   }
 }
 
-const esc = (v) => {
-  const s = String(v ?? "");
-  return s.includes(",") || s.includes('"') || s.includes("\n")
-    ? `"${s.replace(/"/g, '""')}"`
-    : s;
-};
-
 const EXCLUDED_ATTR_KEYS = /date|time|gift/i;
 
-function formatDateForCSV(order) {
-  const iso = order.orderDateRaw
+function orderDateIso(order) {
+  return order.orderDateRaw
     ? order.orderDateRaw.split("T")[0]
     : (order.orderDate ?? "");
-  return `="${iso}"`;
+}
+
+// Downloads an array-of-arrays as a real .xlsx workbook (one sheet, "Orders").
+function downloadAsXlsx(rows, filename) {
+  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  const colCount = rows[0]?.length ?? 0;
+  sheet["!cols"] = Array.from({ length: colCount }, (_, ci) => ({
+    wch: Math.min(
+      40,
+      Math.max(10, ...rows.map((r) => String(r[ci] ?? "").length)),
+    ),
+  }));
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, "Orders");
+  XLSX.writeFile(workbook, filename);
 }
 
 function formatMoneyRaw(amount, currencyCode) {
@@ -72,7 +81,7 @@ function attrDisplayLabel(key, labelMap = {}) {
   return labelMap[normalized] ?? normalized;
 }
 
-export function generateSingleOrderCSV(order, labelMap = {}) {
+export function generateSingleOrderExcel(order, labelMap = {}) {
   if (!order) return;
 
   const lineItems = order.lineItems?.edges?.map((e) => e.node) ?? [];
@@ -129,7 +138,7 @@ export function generateSingleOrderCSV(order, labelMap = {}) {
   const supplierName = metaMap.supplier_name ?? "";
   const orderBase = [
     order.name ?? "",
-    `="${dateIso}"`,
+    dateIso,
     customerName,
     order.customer?.email ?? "",
     supplierName,
@@ -160,18 +169,11 @@ export function generateSingleOrderCSV(order, labelMap = {}) {
     });
   }
 
-  const csv = rows.map((r) => r.map(esc).join(",")).join("\n");
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
   const orderSlug = (order.name ?? "order").replace(/[^a-zA-Z0-9-]/g, "");
-  a.download = `${orderSlug}-${dateIso}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadAsXlsx(rows, `${orderSlug}-${dateIso}.xlsx`);
 }
 
-export function generateCSV(orders, labelMap = {}) {
+export function generateExcel(orders, labelMap = {}) {
   if (!orders.length) return;
 
   const attrKeySet = new LinkedSet();
@@ -224,7 +226,7 @@ export function generateCSV(orders, labelMap = {}) {
     const productsTotal = subtotal - upchargeAmt;
     const orderBase = [
       order.id,
-      formatDateForCSV(order),
+      orderDateIso(order),
       order.customer.name,
       order.customer.email,
       order.supplierName ?? "",
@@ -271,12 +273,8 @@ export function generateCSV(orders, labelMap = {}) {
   });
   const filteredRows = rows.map((r) => r.filter((_, ci) => keepCol[ci]));
 
-  const csv = filteredRows.map((r) => r.map(esc).join(",")).join("\n");
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `orders-${new Date().toISOString().split("T")[0]}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadAsXlsx(
+    filteredRows,
+    `orders-${new Date().toISOString().split("T")[0]}.xlsx`,
+  );
 }
