@@ -1686,6 +1686,12 @@ const GET_FILE_URLS_QUERY = `
   }
 `;
 
+export function kuteTailorCraftImageUrl(code) {
+  return code
+    ? `https://aws-static-webp.kutetailor.com/comm/process/craft/${code}.jpeg`
+    : null;
+}
+
 async function resolveFileGidUrls(gids) {
   const map = {};
   if (!gids.length) return map;
@@ -1911,6 +1917,11 @@ export async function fetchContrastLocations() {
         visible: fm.visible !== "false",
         isDefault: fm.is_default === "true",
         kutetailerCode: fm.kutetailor_code || null,
+        imageGid: fm.image || null,
+        imageUrlStored: null,
+        imageUrl: fm.kutetailor_code
+          ? kuteTailorCraftImageUrl(fm.kutetailor_code)
+          : null,
         rawFields: fm,
         fieldTypes,
         isContrastLocation: true,
@@ -1919,6 +1930,21 @@ export async function fetchContrastLocations() {
     hasNextPage = pageInfo.hasNextPage;
     cursor = pageInfo.endCursor;
   }
+
+  // Resolve image GIDs → CDN URLs (an explicitly uploaded image wins over the KT fallback)
+  const gids = [
+    ...new Set(results.filter((r) => r.imageGid).map((r) => r.imageGid)),
+  ];
+  if (gids.length) {
+    const urlMap = await resolveFileGidUrls(gids);
+    for (const r of results) {
+      if (r.imageGid && urlMap[r.imageGid]) {
+        r.imageUrl = urlMap[r.imageGid];
+        r.imageUrlStored = urlMap[r.imageGid];
+      }
+    }
+  }
+
   _contrastLocationsCache = results;
   _contrastLocationsCacheAt = Date.now();
   return results;

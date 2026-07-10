@@ -9,8 +9,24 @@ import {
   updateContrastLocation,
   deleteContrastLocation,
   clearContrastLocationsCache,
+  createImageFromUrl,
+  kuteTailorCraftImageUrl,
 } from "../../lib/shopify";
 import { ImagePicker } from "./StyleOptionModals.jsx";
+
+// Uploads the KuteTailor craft image into Shopify Files when no image was
+// manually picked, so the metaobject ends up with a real file_reference
+// instead of just hotlinking KT's CDN.
+async function resolveKtLocationImageGid(existingGid, kutetailorCode) {
+  if (existingGid) return existingGid;
+  const url = kuteTailorCraftImageUrl(kutetailorCode);
+  if (!url) return null;
+  try {
+    return await createImageFromUrl(url);
+  } catch {
+    return null;
+  }
+}
 
 export function ViewContrastOptionModal({ option, onClose, onEdit }) {
   return (
@@ -329,7 +345,9 @@ function isBooleanField(key, fieldTypes) {
 export function ViewContrastLocationModal({ option, onClose, onEdit }) {
   const rawFields = option.rawFields ?? {};
   const fieldTypes = option.fieldTypes ?? {};
-  const rows = Object.entries(rawFields).filter(([k]) => k !== "visible");
+  const rows = Object.entries(rawFields).filter(
+    ([k]) => k !== "visible" && k !== "image",
+  );
 
   return (
     <ModalBase onClose={onClose} maxWidth="max-w-[480px]">
@@ -359,6 +377,15 @@ export function ViewContrastLocationModal({ option, onClose, onEdit }) {
         </div>
       </ModalHeader>
       <div className="px-[20px] py-[16px] flex flex-col gap-[12px]">
+        {option.imageUrl && (
+          <div className="flex justify-center pb-[4px]">
+            <img
+              src={option.imageUrl}
+              alt={option.label}
+              className="rounded-[8px] object-cover w-[80px] h-[80px] border border-gc-border-warm"
+            />
+          </div>
+        )}
         <div className="flex flex-wrap gap-[8px]">
           <span
             className={`font-hanken font-semibold text-[11px] px-[10px] py-[4px] rounded-full ${option.visible ? "bg-green-100 text-green-800" : "bg-gc-bg-warm text-gc-primary-deep"}`}
@@ -397,9 +424,11 @@ export function EditContrastLocationModal({ option, onClose, onUpdated }) {
   const rawFields = option.rawFields ?? {};
   const fieldTypes = option.fieldTypes ?? {};
 
-  const [form, setForm] = useState(() =>
-    Object.fromEntries(Object.entries(rawFields).map(([k, v]) => [k, v ?? ""])),
-  );
+  const [form, setForm] = useState(() => ({
+    ...Object.fromEntries(Object.entries(rawFields).map(([k, v]) => [k, v ?? ""])),
+    image_url: option.imageUrlStored || option.imageUrl || "",
+  }));
+  const [imageUploading, setImageUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -407,9 +436,9 @@ export function EditContrastLocationModal({ option, onClose, onUpdated }) {
     setForm((prev) => ({ ...prev, [key]: val }));
   }
 
-  const isDirty = Object.keys(rawFields).some(
-    (k) => form[k] !== (rawFields[k] ?? ""),
-  );
+  const isDirty =
+    Object.keys(rawFields).some((k) => form[k] !== (rawFields[k] ?? "")) ||
+    form.image_url !== (option.imageUrlStored || option.imageUrl || "");
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -420,8 +449,16 @@ export function EditContrastLocationModal({ option, onClose, onUpdated }) {
     setSaving(true);
     setError(null);
     try {
+      let { image_url, ...rest } = form;
+      rest.image = await resolveKtLocationImageGid(
+        rest.image || null,
+        rest.kutetailor_code,
+      );
+      if (rest.image && !image_url) {
+        image_url = kuteTailorCraftImageUrl(rest.kutetailor_code);
+      }
       const payload = Object.fromEntries(
-        Object.entries(form).map(([k, v]) => [k, v === "" ? null : v]),
+        Object.entries(rest).map(([k, v]) => [k, v === "" ? null : v]),
       );
       payload.label = form.label.trim();
       await updateContrastLocation(option.id, payload);
@@ -431,6 +468,9 @@ export function EditContrastLocationModal({ option, onClose, onUpdated }) {
         garment: payload.garment || "",
         visible: payload.visible === "true",
         isDefault: payload.is_default === "true",
+        imageGid: payload.image || null,
+        imageUrlStored: image_url || null,
+        imageUrl: image_url || null,
         rawFields: { ...rawFields, ...payload },
       });
       clearContrastLocationsCache();
@@ -451,7 +491,7 @@ export function EditContrastLocationModal({ option, onClose, onUpdated }) {
     isBooleanField(k, fieldTypes),
   );
   const textKeys = Object.keys(rawFields).filter(
-    (k) => !isBooleanField(k, fieldTypes),
+    (k) => !isBooleanField(k, fieldTypes) && k !== "image",
   );
 
   return (
@@ -461,6 +501,20 @@ export function EditContrastLocationModal({ option, onClose, onUpdated }) {
         onSubmit={handleSubmit}
         className="px-[20px] py-[16px] flex flex-col gap-[12px]"
       >
+        <div>
+          <label className={labelCls}>Location Image</label>
+          <ImagePicker
+            currentUrl={
+              form.image_url || kuteTailorCraftImageUrl(form.kutetailor_code)
+            }
+            gid={form.image}
+            onUploaded={(gid, cdnUrl) => {
+              set("image", gid);
+              set("image_url", cdnUrl);
+            }}
+            onUploadChange={setImageUploading}
+          />
+        </div>
         {textKeys.map((key) => (
           <div key={key}>
             <label className={labelCls}>
@@ -505,9 +559,9 @@ export function EditContrastLocationModal({ option, onClose, onUpdated }) {
         <ModalFooter
           onClose={onClose}
           submitLabel="Save Changes"
-          disabled={saving || !isDirty}
+          disabled={saving || imageUploading || !isDirty}
           loading={saving}
-          loadingLabel="Saving…"
+          loadingLabel={imageUploading ? "Uploading image…" : "Saving…"}
         />
       </form>
     </ModalBase>
@@ -587,6 +641,9 @@ export function AddContrastModal({
     color_kutetailor_code: "",
     // location fields
     label: "",
+    location_image: "",
+    location_image_url: "",
+    location_kutetailor_code: "",
     location_visible: "true",
     location_is_default: "false",
     // shared
@@ -605,6 +662,9 @@ export function AddContrastModal({
       setForm((prev) => ({
         ...prev,
         label: "",
+        location_image: "",
+        location_image_url: "",
+        location_kutetailor_code: "",
         location_visible: "true",
         location_is_default: "false",
       }));
@@ -677,8 +737,18 @@ export function AddContrastModal({
           isContrastOption: true,
         });
       } else {
+        const kutetailorCode = form.location_kutetailor_code.trim();
+        const imageGid = await resolveKtLocationImageGid(
+          form.location_image || null,
+          kutetailorCode,
+        );
+        const imageUrl =
+          form.location_image_url ||
+          (imageGid ? kuteTailorCraftImageUrl(kutetailorCode) : null);
         const locationNode = await createContrastLocation({
           label: form.label.trim(),
+          image: imageGid,
+          kutetailor_code: kutetailorCode || null,
           garment: form.garment,
           visible: form.location_visible,
           is_default: form.location_is_default,
@@ -691,8 +761,14 @@ export function AddContrastModal({
           garment: form.garment,
           visible: form.location_visible === "true",
           isDefault: form.location_is_default === "true",
+          kutetailerCode: kutetailorCode || null,
+          imageGid: imageGid || null,
+          imageUrlStored: imageUrl,
+          imageUrl,
           rawFields: {
             label: form.label.trim(),
+            image: imageGid || "",
+            kutetailor_code: kutetailorCode || "",
             garment: form.garment,
             visible: form.location_visible,
             is_default: form.location_is_default,
@@ -806,17 +882,53 @@ export function AddContrastModal({
 
         {/* ── Location fields ── */}
         {tab === "location" && (
-          <div>
-            <label className={labelCls}>
-              Label <span className="text-failed">*</span>
-            </label>
-            <input
-              className={inputCls}
-              value={form.label}
-              onChange={(e) => set("label", e.target.value)}
-              placeholder="e.g. Lapel"
-            />
-          </div>
+          <>
+            <div>
+              <label className={labelCls}>Location Image</label>
+              <ImagePicker
+                currentUrl={
+                  form.location_image_url ||
+                  kuteTailorCraftImageUrl(
+                    form.location_kutetailor_code.trim(),
+                  )
+                }
+                gid={form.location_image}
+                onUploaded={(gid, cdnUrl) => {
+                  set("location_image", gid);
+                  set("location_image_url", cdnUrl);
+                }}
+                onUploadChange={setImageUploading}
+                onCleared={
+                  form.location_image
+                    ? () => {
+                        set("location_image", "");
+                        set("location_image_url", "");
+                      }
+                    : undefined
+                }
+              />
+            </div>
+            <div>
+              <label className={labelCls}>
+                Label <span className="text-failed">*</span>
+              </label>
+              <input
+                className={inputCls}
+                value={form.label}
+                onChange={(e) => set("label", e.target.value)}
+                placeholder="e.g. Lapel"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Kutetailor Code</label>
+              <input
+                className={inputCls}
+                value={form.location_kutetailor_code}
+                onChange={(e) => set("location_kutetailor_code", e.target.value)}
+                placeholder="e.g. 05A3"
+              />
+            </div>
+          </>
         )}
 
         {/* ── Garment (shared) ── */}
