@@ -302,6 +302,7 @@ export default function FabricBulkImport() {
           media: [],
           selectedTypes,
           garmentSelections,
+          sku: fabric.fabricCode,
         });
 
         setFabrics((prev) =>

@@ -402,6 +402,7 @@ export default function FabricForm({ mode, productId }) {
         media,
         selectedTypes,
         garmentSelections,
+        sku: fields.fabricCode,
       });
     setGcFabricId(usedFabricId);
 
@@ -457,13 +458,18 @@ export default function FabricForm({ mode, productId }) {
       addedVariants = await createGarmentVariants(
         gid,
         garmentOptionName,
-        toAdd.map((t) => ({ name: t, price: garmentSelections[t].price })),
+        toAdd.map((t) => ({
+          name: t,
+          price: garmentSelections[t].price,
+          sku: fields.fabricCode,
+        })),
       );
     }
 
     const priceUpdates = toUpdate.map((t) => ({
       id: originalVariants[t].variantId,
       price: garmentSelections[t].price,
+      sku: fields.fabricCode,
     }));
     if (priceUpdates.length) {
       await updateVariantPrices(gid, priceUpdates);

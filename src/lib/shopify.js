@@ -3045,12 +3045,16 @@ export async function createFabricProductComplete({
   media,
   selectedTypes,
   garmentSelections,
+  sku,
 }) {
   let fid = fabricId;
   if (!fid) {
     const created = await createGcFabric(fabricFields);
     fid = created.id;
   }
+
+  // Every variant's SKU mirrors the fabric_code.
+  const skuValue = sku || fabricFields?.fabricCode || "";
 
   const product = await createFabricProduct({
     title,
@@ -3070,12 +3074,20 @@ export async function createFabricProductComplete({
     createdVariants = await createGarmentVariants(
       product.id,
       "Type",
-      remaining.map((t) => ({ name: t, price: garmentSelections[t].price })),
+      remaining.map((t) => ({
+        name: t,
+        price: garmentSelections[t].price,
+        sku: skuValue,
+      })),
     );
   }
 
   await updateVariantPrices(product.id, [
-    { id: seedVariant.id, price: garmentSelections[selectedTypes[0]].price },
+    {
+      id: seedVariant.id,
+      price: garmentSelections[selectedTypes[0]].price,
+      sku: skuValue,
+    },
   ]);
 
   const allVariants = [
@@ -3157,9 +3169,11 @@ export async function addProductImages(productId, uploaded) {
 export async function createGarmentVariants(productId, optionName, types) {
   const data = await shopifyGraphQL(ADD_PRODUCT_VARIANT_MUTATION, {
     productId,
-    variants: types.map(({ name, price }) => ({
+    variants: types.map(({ name, price, sku }) => ({
       optionValues: [{ optionName, name }],
       price: price.toString(),
+      // SKU lives on the inventory item in the 2025-01 API.
+      ...(sku ? { inventoryItem: { sku } } : {}),
     })),
   });
   const { productVariants, userErrors } = data.productVariantsBulkCreate;
@@ -3179,7 +3193,11 @@ const UPDATE_VARIANT_PRICES_MUTATION = `
 export async function updateVariantPrices(productId, updates) {
   const data = await shopifyGraphQL(UPDATE_VARIANT_PRICES_MUTATION, {
     productId,
-    variants: updates.map(({ id, price }) => ({ id, price: price.toString() })),
+    variants: updates.map(({ id, price, sku }) => ({
+      id,
+      price: price.toString(),
+      ...(sku ? { inventoryItem: { sku } } : {}),
+    })),
   });
   const { userErrors } = data.productVariantsBulkUpdate;
   if (userErrors?.length) throw new Error(userErrors[0].message);
