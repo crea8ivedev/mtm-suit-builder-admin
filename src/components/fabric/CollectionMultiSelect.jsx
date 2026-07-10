@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, Plus, X } from "lucide-react";
 import { useClickOutside } from "../../hooks/useClickOutside";
 
 export default function CollectionMultiSelect({
@@ -7,8 +7,12 @@ export default function CollectionMultiSelect({
   selectedIds,
   onChange,
   loading,
+  onCreateCollection,
 }) {
   const [open, setOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState(null);
   const ref = useRef(null);
   useClickOutside(ref, () => setOpen(false));
 
@@ -20,6 +24,31 @@ export default function CollectionMultiSelect({
         ? selectedIds.filter((i) => i !== id)
         : [...selectedIds, id],
     );
+  }
+
+  async function handleCreate() {
+    const name = newName.trim();
+    if (!name || creating) return;
+    // Reuse an existing collection if the typed name already matches one.
+    const existing = collections.find(
+      (c) => c.title.toLowerCase() === name.toLowerCase(),
+    );
+    if (existing) {
+      if (!selectedIds.includes(existing.id)) toggle(existing.id);
+      setNewName("");
+      return;
+    }
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const col = await onCreateCollection(name);
+      onChange([...selectedIds, col.id]);
+      setNewName("");
+    } catch (e) {
+      setCreateError(e.message || "Failed to create collection");
+    } finally {
+      setCreating(false);
+    }
   }
 
   return (
@@ -54,7 +83,9 @@ export default function CollectionMultiSelect({
           {loading
             ? "Loading collections…"
             : collections.length === 0
-              ? "No collections found"
+              ? onCreateCollection
+                ? "Select or create a collection…"
+                : "No collections found"
               : "Select collections…"}
         </span>
         <ChevronDown
@@ -63,8 +94,45 @@ export default function CollectionMultiSelect({
         />
       </button>
 
-      {open && collections.length > 0 && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-[4px] max-h-[260px] overflow-y-auto bg-white rounded-[8px] border border-gc-border-warm shadow-md">
+      {open && (collections.length > 0 || onCreateCollection) && (
+        <div className="absolute top-full left-0 right-0 z-50 mt-[4px] max-h-[300px] overflow-y-auto bg-white rounded-[8px] border border-gc-border-warm shadow-md">
+          {onCreateCollection && (
+            <div className="sticky top-0 z-10 flex flex-col gap-[4px] bg-white border-b border-gc-divider p-[8px]">
+              <div className="flex items-center gap-[6px]">
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleCreate();
+                    }
+                  }}
+                  placeholder="New collection name…"
+                  className="font-hanken flex-1 h-[36px] px-[10px] rounded-[6px] text-[13px] text-gc-near-black outline-none border border-gc-scrollbar-thumb/60 placeholder:text-gc-muted"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={!newName.trim() || creating}
+                  className="font-hanken flex items-center gap-[4px] h-[36px] px-[10px] rounded-[6px] text-[12px] font-semibold text-white bg-gc-primary hover:bg-gc-primary-dark disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {creating ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Plus size={14} />
+                  )}
+                  Create
+                </button>
+              </div>
+              {createError && (
+                <p className="font-hanken text-[12px] text-red-600 px-[2px]">
+                  {createError}
+                </p>
+              )}
+            </div>
+          )}
           {collections.map((c) => {
             const active = selectedIds.includes(c.id);
             return (

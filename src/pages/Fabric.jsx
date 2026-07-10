@@ -388,64 +388,69 @@ export default function Fabric() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-wrap items-center justify-between gap-[12px] mb-[24px] sm:mb-[30px]">
-        <div>
-          <h2 className="gc-page-title">Fabric</h2>
-          <p className="gc-page-subtitle">
-            {loading
-              ? "Loading products…"
-              : error
-                ? "Could not load products"
-                : `${products.length} fabric product${products.length !== 1 ? "s" : ""}`}
-          </p>
+      {/* Header + search/filters stay pinned below the fixed TopBar (h-64) so
+          the fabric list scrolls underneath. Negative margins break out of the
+          .page-content padding so the sticky background spans edge-to-edge. */}
+      <div className="sticky top-[64px] z-20 bg-gc-bg -mx-[20px] px-[20px] md:-mx-[28px] md:px-[28px] -mt-[20px] md:-mt-[28px] pt-[20px] md:pt-[28px] pb-[16px] mb-[16px]">
+        <div className="flex flex-wrap items-center justify-between gap-[12px]">
+          <div>
+            <h2 className="gc-page-title">Fabric</h2>
+            <p className="gc-page-subtitle">
+              {loading
+                ? "Loading products…"
+                : error
+                  ? "Could not load products"
+                  : `${products.length} fabric product${products.length !== 1 ? "s" : ""}`}
+            </p>
+          </div>
+          <div className="flex items-center gap-[10px]">
+            <Link
+              to="/fabric/bulk-import"
+              className="font-hanken flex items-center gap-[6px] text-gc-primary border border-gc-border-input text-[13px] font-semibold px-[14px] py-[9px] rounded-lg hover:bg-gc-primary/[4%] transition-colors cursor-pointer"
+            >
+              <Upload size={14} />
+              Bulk Import
+            </Link>
+            <Link
+              to="/fabric/new"
+              className="font-hanken flex items-center gap-[6px] bg-gc-primary text-white text-[13px] font-semibold px-[14px] py-[9px] rounded-lg hover:bg-gc-primary-dark transition-colors cursor-pointer"
+            >
+              <Plus size={14} />
+              Create Fabric
+            </Link>
+          </div>
         </div>
-        <div className="flex items-center gap-[10px]">
-          <Link
-            to="/fabric/bulk-import"
-            className="font-hanken flex items-center gap-[6px] text-gc-primary border border-gc-border-input text-[13px] font-semibold px-[14px] py-[9px] rounded-lg hover:bg-gc-primary/[4%] transition-colors cursor-pointer"
-          >
-            <Upload size={14} />
-            Bulk Import
-          </Link>
-          <Link
-            to="/fabric/new"
-            className="font-hanken flex items-center gap-[6px] bg-gc-primary text-white text-[13px] font-semibold px-[14px] py-[9px] rounded-lg hover:bg-gc-primary-dark transition-colors cursor-pointer"
-          >
-            <Plus size={14} />
-            Create Fabric
-          </Link>
-        </div>
-      </div>
 
-      {!loading && !error && products.length > 0 && (
-        <div className="flex flex-wrap items-center gap-[10px] mb-[16px]">
-          <div className="relative max-w-[360px] flex-1 min-w-[200px]">
-            <Search
-              size={14}
-              className="absolute left-[12px] top-1/2 -translate-y-1/2 text-gc-muted"
+        {!loading && !error && products.length > 0 && (
+          <div className="flex flex-wrap items-center gap-[10px] mt-[16px]">
+            <div className="relative max-w-[360px] flex-1 min-w-[200px]">
+              <Search
+                size={14}
+                className="absolute left-[12px] top-1/2 -translate-y-1/2 text-gc-muted"
+              />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search fabrics by name…"
+                className="font-hanken w-full bg-white pl-[34px] pr-[12px] h-[40px] rounded-[8px] text-[13px] text-[#1c1c19] outline-none border border-gc-border-input placeholder:text-gc-muted"
+              />
+            </div>
+            <FilterDropdown
+              label="Brand"
+              value={brandFilter}
+              options={brandOptions}
+              onChange={setBrandFilter}
             />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search fabrics by name…"
-              className="font-hanken w-full bg-white pl-[34px] pr-[12px] h-[40px] rounded-[8px] text-[13px] text-[#1c1c19] outline-none border border-gc-border-input placeholder:text-gc-muted"
+            <FilterDropdown
+              label="Collection"
+              value={collectionFilter}
+              options={collectionOptions}
+              onChange={setCollectionFilter}
             />
           </div>
-          <FilterDropdown
-            label="Brand"
-            value={brandFilter}
-            options={brandOptions}
-            onChange={setBrandFilter}
-          />
-          <FilterDropdown
-            label="Collection"
-            value={collectionFilter}
-            options={collectionOptions}
-            onChange={setCollectionFilter}
-          />
-        </div>
-      )}
+        )}
+      </div>
 
       {loading && (
         <div className="bg-white rounded-[12px] border border-gc-divider">

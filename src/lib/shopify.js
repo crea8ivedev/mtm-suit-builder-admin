@@ -2856,6 +2856,48 @@ export function clearCollectionsCache() {
   _collectionsCache = null;
 }
 
+const COLLECTION_CREATE_MUTATION = `
+  mutation collectionCreate($input: CollectionInput!) {
+    collectionCreate(input: $input) {
+      collection { id title }
+      userErrors { field message }
+    }
+  }
+`;
+
+// Creates a manual (custom) collection with the given title and keeps the
+// collections cache in sync so freshly-created collections show up without a
+// refetch.
+export async function createCollection(title) {
+  const data = await shopifyGraphQL(COLLECTION_CREATE_MUTATION, {
+    input: { title },
+  });
+  const { collection, userErrors } = data.collectionCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  if (_collectionsCache) _collectionsCache = [..._collectionsCache, collection];
+  return collection;
+}
+
+// Maps collection names to Shopify collection IDs, creating any that don't yet
+// exist (case-insensitive match against existing collections). Deduplicates
+// within the batch so a name referenced by several rows is created once.
+export async function resolveCollectionIdsByName(names) {
+  if (!names?.length) return [];
+  const existing = await fetchCollections();
+  const byTitle = new Map(existing.map((c) => [c.title.toLowerCase(), c]));
+  const ids = [];
+  for (const name of names) {
+    const key = name.toLowerCase();
+    let col = byTitle.get(key);
+    if (!col) {
+      col = await createCollection(name);
+      byTitle.set(key, col);
+    }
+    ids.push(col.id);
+  }
+  return ids;
+}
+
 // ─── Fabric products (custom.fabric metafield — product-based model) ──────
 export const GARMENT_TYPES = [
   "Two Piece Suit",

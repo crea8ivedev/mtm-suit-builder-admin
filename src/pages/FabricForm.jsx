@@ -26,6 +26,7 @@ import {
   setVariantInventoryQuantity,
   clearFabricProductsV2Cache,
   fetchCollections,
+  createCollection,
   GARMENT_TYPES,
 } from "../lib/shopify";
 import { fetchKtFabricDetails, isKtFabricRegistered } from "../lib/kutetailor";
@@ -362,6 +363,12 @@ export default function FabricForm({ mode, productId }) {
     }
   }
 
+  async function handleCreateCollection(name) {
+    const col = await createCollection(name);
+    setCollections((prev) => [...prev, col]);
+    return col;
+  }
+
   async function resolveFabricImageGid() {
     if (fabricImageGid) return fabricImageGid;
     if (fabricImageSourceUrl) {
@@ -590,6 +597,7 @@ export default function FabricForm({ mode, productId }) {
                 selectedIds={collectionIds}
                 onChange={setCollectionIds}
                 loading={collectionsLoading}
+                onCreateCollection={handleCreateCollection}
               />
             </div>
           </div>

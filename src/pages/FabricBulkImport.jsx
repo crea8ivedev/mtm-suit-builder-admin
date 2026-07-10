@@ -14,6 +14,7 @@ import {
 import DashboardLayout from "../components/layout/DashboardLayout";
 import {
   fetchCollections,
+  resolveCollectionIdsByName,
   createFabricProductComplete,
   clearFabricProductsV2Cache,
   clearGcFabricsCache,
@@ -102,7 +103,7 @@ function parseRows(rows) {
 // in the CSV instead of the real code. Catch that shape before it's imported.
 const CURRENCY_MANGLED_CODE = /^[A-Za-z]{3}\s?\d+\.\d{2}$/;
 
-function validateFabric(fabric, collections) {
+function validateFabric(fabric, duplicateCodes) {
   const errors = [];
   if (!fabric.fabricHouse) errors.push("missing fabric_house");
   if (CURRENCY_MANGLED_CODE.test(fabric.fabricCode)) {
@@ -110,17 +111,50 @@ function validateFabric(fabric, collections) {
       `fabric_code "${fabric.fabricCode}" looks auto-formatted as currency by the spreadsheet (leading zero likely dropped) — set that column to Plain Text and re-enter the code`,
     );
   }
+  // Each fabric_code must be unique — every row creates its own gc_fabrics
+  // metaobject, so a repeated code makes the second row fail at import time.
+  if (duplicateCodes?.has(fabric.fabricCode.toLowerCase())) {
+    errors.push(
+      `duplicate fabric_code "${fabric.fabricCode}" — it appears on more than one row; each fabric needs a unique code`,
+    );
+  }
   if (!["ACTIVE", "DRAFT"].includes(fabric.status)) {
     errors.push(`status must be ACTIVE or DRAFT (got "${fabric.status}")`);
   }
-  const unmatchedCollections = fabric.collectionNames.filter(
+  // Price can be decimal, but inventory quantity must be a whole number —
+  // Shopify's InventorySetQuantitiesInput rejects non-integer quantities.
+  for (const g of fabric.garments) {
+    const priceNum = Number(g.price);
+    if (Number.isNaN(priceNum) || priceNum < 0) {
+      errors.push(`${g.type}: price "${g.price}" must be a valid amount`);
+    }
+    const qtyNum = Number(g.qty);
+    if (!Number.isInteger(qtyNum) || qtyNum < 0) {
+      errors.push(
+        `${g.type}: quantity "${g.qty}" must be a whole number (no decimals)`,
+      );
+    }
+  }
+  return errors;
+}
+
+// fabric_codes (lowercased) that appear on more than one row in the CSV.
+function findDuplicateCodes(fabrics) {
+  const counts = new Map();
+  for (const f of fabrics) {
+    const key = f.fabricCode.toLowerCase();
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return new Set([...counts].filter(([, n]) => n > 1).map(([k]) => k));
+}
+
+// Collection names in the CSV that don't yet exist in Shopify — these are
+// created automatically at import time, so they're surfaced as info, not errors.
+function newCollectionNames(fabric, collections) {
+  return fabric.collectionNames.filter(
     (name) =>
       !collections.some((c) => c.title.toLowerCase() === name.toLowerCase()),
   );
-  if (unmatchedCollections.length) {
-    errors.push(`unknown collection(s): ${unmatchedCollections.join(", ")}`);
-  }
-  return errors;
 }
 
 export default function FabricBulkImport() {
@@ -167,9 +201,11 @@ export default function FabricBulkImport() {
           return;
         }
         const parsed = parseRows(results.data);
+        const duplicateCodes = findDuplicateCodes(parsed);
         const withValidation = parsed.map((f) => ({
           ...f,
-          errors: validateFabric(f, cols),
+          errors: validateFabric(f, duplicateCodes),
+          newCollections: newCollectionNames(f, cols),
           ktStatus: "unverified", // unverified | checking | registered | not_found
           importStatus: "pending", // pending | creating | done | failed
           importError: null,
@@ -232,14 +268,11 @@ export default function FabricBulkImport() {
       );
 
       try {
-        const collectionIds = fabric.collectionNames
-          .map(
-            (name) =>
-              collections.find(
-                (c) => c.title.toLowerCase() === name.toLowerCase(),
-              )?.id,
-          )
-          .filter(Boolean);
+        // Resolves names to IDs, creating any collection that doesn't yet
+        // exist in Shopify (deduped across rows via the collections cache).
+        const collectionIds = await resolveCollectionIdsByName(
+          fabric.collectionNames,
+        );
 
         const garmentSelections = {};
         for (const g of fabric.garments) {
@@ -412,7 +445,31 @@ export default function FabricBulkImport() {
                         {f.garments.map((g) => g.type).join(", ")}
                       </td>
                       <td className="font-hanken text-[13px] px-[10px] py-[8px]">
-                        {f.collectionNames.join(", ") || "—"}
+                        {f.collectionNames.length === 0
+                          ? "—"
+                          : f.collectionNames.map((name, i) => {
+                              const isNew = f.newCollections?.some(
+                                (n) => n.toLowerCase() === name.toLowerCase(),
+                              );
+                              return (
+                                <Fragment key={name}>
+                                  {i > 0 && ", "}
+                                  <span
+                                    className={
+                                      isNew ? "text-gc-primary" : undefined
+                                    }
+                                    title={
+                                      isNew
+                                        ? "Will be created in Shopify on import"
+                                        : undefined
+                                    }
+                                  >
+                                    {name}
+                                    {isNew && " (new)"}
+                                  </span>
+                                </Fragment>
+                              );
+                            })}
                       </td>
                       <td className="font-hanken text-[13px] px-[10px] py-[8px]">
                         {f.ktStatus === "not_found"
@@ -476,12 +533,19 @@ export default function FabricBulkImport() {
                       </td>
                     </tr>
                     {((f.errors.length > 0 && !collapsedErrors.has(idx)) ||
-                      f.ktStatus === "not_found") && (
+                      f.ktStatus === "not_found" ||
+                      f.importStatus === "failed") && (
                       <tr className="bg-red-50/60">
                         <td
                           colSpan={9}
                           className="px-[10px] pb-[10px] pt-0 space-y-[6px]"
                         >
+                          {f.importStatus === "failed" && f.importError && (
+                            <p className="font-hanken text-[12px] text-red-700 flex items-start gap-[6px] pl-[6px]">
+                              <XCircle size={13} className="mt-[1px] shrink-0" />
+                              <span>Import failed: {f.importError}</span>
+                            </p>
+                          )}
                           {f.ktStatus === "not_found" && (
                             <p className="font-hanken text-[12px] text-amber-700 flex items-start gap-[6px] pl-[6px]">
                               <AlertTriangle
