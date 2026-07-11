@@ -3012,12 +3012,14 @@ export async function createFabricProduct({
           value: gcFabricMetaobjectId,
         },
       ],
-      productOptions: [
-        {
-          name: "Type",
-          values: garmentTypes.map((name) => ({ name })),
-        },
-      ],
+      productOptions: garmentTypes.length
+        ? [
+            {
+              name: "Type",
+              values: garmentTypes.map((name) => ({ name })),
+            },
+          ]
+        : undefined,
       collectionsToJoin: collectionIds?.length ? collectionIds : undefined,
     },
     media: media?.length
@@ -3064,6 +3066,12 @@ export async function createFabricProductComplete({
     media,
     collectionIds,
   });
+
+  // No garment type has price/quantity set — leave the product's default
+  // variant as-is; there's nothing to price or stock yet.
+  if (!selectedTypes.length) {
+    return { product, fabricId: fid };
+  }
 
   const detail = await fetchProductVariantsDetail(product.id);
   const seedVariant = detail.variants[0];

@@ -1,6 +1,6 @@
 import { useState, Fragment } from "react";
 import Papa from "papaparse";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Upload,
   Download,
@@ -158,6 +158,7 @@ function newCollectionNames(fabric, collections) {
 }
 
 export default function FabricBulkImport() {
+  const navigate = useNavigate();
   const [collections, setCollections] = useState([]);
   const [collectionsLoaded, setCollectionsLoaded] = useState(false);
   const [fabrics, setFabrics] = useState([]);
@@ -252,6 +253,7 @@ export default function FabricBulkImport() {
 
   async function importAll() {
     setImporting(true);
+    let failedCount = 0;
     for (let i = 0; i < fabrics.length; i++) {
       const fabric = fabrics[i];
       if (fabric.errors.length || fabric.importStatus === "done") continue;
