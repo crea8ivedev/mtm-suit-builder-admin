@@ -2923,6 +2923,13 @@ const GET_FABRIC_PRODUCTS_V2_QUERY = `
             reference {
               ... on Metaobject {
                 fields { key value }
+                fabricImage: field(key: "image") {
+                  reference {
+                    ... on MediaImage {
+                      image { url }
+                    }
+                  }
+                }
               }
             }
           }
@@ -2953,13 +2960,17 @@ export async function fetchFabricProductsV2() {
       const gcFields = Object.fromEntries(
         (node.metafield.reference?.fields ?? []).map((f) => [f.key, f.value]),
       );
+      const fabricImageUrl =
+        node.metafield.reference?.fabricImage?.reference?.image?.url ?? null;
       all.push({
         id: node.id,
         title: node.title,
         status: node.status,
         price: node.priceRangeV2?.minVariantPrice?.amount ?? "0",
         currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode ?? "USD",
-        imageUrl: node.featuredImage?.url ?? null,
+        // Falls back to the gc_fabrics swatch image when the product has no
+        // featured image of its own (e.g. KT-synced fabrics never got one).
+        imageUrl: node.featuredImage?.url ?? fabricImageUrl,
         imageAlt: node.featuredImage?.altText ?? node.title,
         fabricHouse: gcFields.fabric_house || "",
         collections: (node.collections?.edges ?? []).map((e) => ({
