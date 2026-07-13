@@ -125,7 +125,7 @@ function parseRows(rows) {
 // in the CSV instead of the real code. Catch that shape before it's imported.
 const CURRENCY_MANGLED_CODE = /^[A-Za-z]{3}\s?\d+\.\d{2}$/;
 
-function validateFabric(fabric, duplicateCodes, existingCodes) {
+function validateFabric(fabric, index, firstOccurrence, existingCodes) {
   const errors = [];
   if (!fabric.fabricHouse) errors.push("missing fabric_house");
   if (CURRENCY_MANGLED_CODE.test(fabric.fabricCode)) {
@@ -135,9 +135,11 @@ function validateFabric(fabric, duplicateCodes, existingCodes) {
   }
   // Each fabric_code must be unique — every row creates its own gc_fabrics
   // metaobject, so a repeated code makes the second row fail at import time.
-  if (duplicateCodes?.has(fabric.fabricCode.toLowerCase())) {
+  // Only rows AFTER the first occurrence are flagged, so the first copy of
+  // an accidentally-repeated row can still import.
+  if (firstOccurrence?.get(fabric.fabricCode.toLowerCase()) !== index) {
     errors.push(
-      `duplicate fabric_code "${fabric.fabricCode}" — it appears on more than one row; each fabric needs a unique code`,
+      `duplicate fabric_code "${fabric.fabricCode}" — already appears earlier in this file; only the first occurrence will be imported`,
     );
   }
   // Also block re-importing a fabric that already exists in Shopify —
@@ -167,14 +169,14 @@ function validateFabric(fabric, duplicateCodes, existingCodes) {
   return errors;
 }
 
-// fabric_codes (lowercased) that appear on more than one row in the CSV.
-function findDuplicateCodes(fabrics) {
-  const counts = new Map();
-  for (const f of fabrics) {
+// fabric_code (lowercased) -> index of its first occurrence in the CSV.
+function firstOccurrenceIndex(fabrics) {
+  const map = new Map();
+  fabrics.forEach((f, idx) => {
     const key = f.fabricCode.toLowerCase();
-    counts.set(key, (counts.get(key) || 0) + 1);
-  }
-  return new Set([...counts].filter(([, n]) => n > 1).map(([k]) => k));
+    if (!map.has(key)) map.set(key, idx);
+  });
+  return map;
 }
 
 // Collection names in the CSV that don't yet exist in Shopify — these are
@@ -237,10 +239,10 @@ export default function FabricBulkImport() {
           return;
         }
         const parsed = parseRows(results.data);
-        const duplicateCodes = findDuplicateCodes(parsed);
-        const withValidation = parsed.map((f) => ({
+        const firstOccurrence = firstOccurrenceIndex(parsed);
+        const withValidation = parsed.map((f, idx) => ({
           ...f,
-          errors: validateFabric(f, duplicateCodes, existingCodes),
+          errors: validateFabric(f, idx, firstOccurrence, existingCodes),
           newCollections: newCollectionNames(f, cols),
           ktStatus: "unverified", // unverified | checking | registered | not_found
           importStatus: "pending", // pending | creating | done | failed
