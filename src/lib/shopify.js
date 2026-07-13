@@ -2874,6 +2874,7 @@ export async function createCollection(title) {
   });
   const { collection, userErrors } = data.collectionCreate;
   if (userErrors?.length) throw new Error(userErrors[0].message);
+  await publishToOnlineStore(collection.id);
   if (_collectionsCache) _collectionsCache = [..._collectionsCache, collection];
   return collection;
 }

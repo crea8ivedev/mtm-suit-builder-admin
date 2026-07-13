@@ -350,6 +350,21 @@ export default function FabricForm({ mode, productId }) {
     setSubmitKtNotFound(false);
     setSaved(false);
 
+    // Creating brand-new (not reusing an existing fabric) must not silently
+    // duplicate a fabric_code that's already been added as a product.
+    if (!isEdit && !useExisting) {
+      const codeLower = fields.fabricCode.trim().toLowerCase();
+      const exists = gcFabrics.some(
+        (f) => f.fabricCode.toLowerCase() === codeLower,
+      );
+      if (exists) {
+        setSubmitError(
+          `Fabric code "${fields.fabricCode}" already exists — use "Reuse existing fabric" instead, or pick a different code.`,
+        );
+        return;
+      }
+    }
+
     if (status === "ACTIVE") {
       setKtVerifying(true);
       let registered;

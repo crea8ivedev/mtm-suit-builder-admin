@@ -19,6 +19,7 @@ import {
   clearFabricProductsV2Cache,
   clearGcFabricsCache,
   createImageFromUrl,
+  fetchGcFabrics,
   GARMENT_TYPES,
 } from "../lib/shopify";
 import { fetchKtFabricDetails } from "../lib/kutetailor";
@@ -124,7 +125,7 @@ function parseRows(rows) {
 // in the CSV instead of the real code. Catch that shape before it's imported.
 const CURRENCY_MANGLED_CODE = /^[A-Za-z]{3}\s?\d+\.\d{2}$/;
 
-function validateFabric(fabric, duplicateCodes) {
+function validateFabric(fabric, duplicateCodes, existingCodes) {
   const errors = [];
   if (!fabric.fabricHouse) errors.push("missing fabric_house");
   if (CURRENCY_MANGLED_CODE.test(fabric.fabricCode)) {
@@ -137,6 +138,13 @@ function validateFabric(fabric, duplicateCodes) {
   if (duplicateCodes?.has(fabric.fabricCode.toLowerCase())) {
     errors.push(
       `duplicate fabric_code "${fabric.fabricCode}" — it appears on more than one row; each fabric needs a unique code`,
+    );
+  }
+  // Also block re-importing a fabric that already exists in Shopify —
+  // otherwise the same fabric_code silently creates a second product.
+  if (existingCodes?.has(fabric.fabricCode.toLowerCase())) {
+    errors.push(
+      `fabric_code "${fabric.fabricCode}" already exists — this fabric was already added`,
     );
   }
   if (!["ACTIVE", "DRAFT"].includes(fabric.status)) {
@@ -212,7 +220,13 @@ export default function FabricBulkImport() {
     setParseError(null);
     setFabrics([]);
 
-    const cols = await ensureCollections();
+    const [cols, existingFabrics] = await Promise.all([
+      ensureCollections(),
+      fetchGcFabrics(),
+    ]);
+    const existingCodes = new Set(
+      existingFabrics.map((f) => f.fabricCode.toLowerCase()),
+    );
 
     Papa.parse(file, {
       header: true,
@@ -226,7 +240,7 @@ export default function FabricBulkImport() {
         const duplicateCodes = findDuplicateCodes(parsed);
         const withValidation = parsed.map((f) => ({
           ...f,
-          errors: validateFabric(f, duplicateCodes),
+          errors: validateFabric(f, duplicateCodes, existingCodes),
           newCollections: newCollectionNames(f, cols),
           ktStatus: "unverified", // unverified | checking | registered | not_found
           importStatus: "pending", // pending | creating | done | failed
