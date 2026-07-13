@@ -2988,6 +2988,47 @@ const PRODUCT_CREATE_MUTATION = `
   }
 `;
 
+const ONLINE_STORE_PUBLICATION_QUERY = `
+  query onlineStorePublication {
+    publications(first: 10) {
+      edges { node { id name } }
+    }
+  }
+`;
+
+const PUBLISHABLE_PUBLISH_MUTATION = `
+  mutation publishablePublish($id: ID!, $input: [PublicationInput!]!) {
+    publishablePublish(id: $id, input: $input) {
+      userErrors { field message }
+    }
+  }
+`;
+
+let _onlineStorePublicationIdCache = null;
+
+async function getOnlineStorePublicationId() {
+  if (_onlineStorePublicationIdCache) return _onlineStorePublicationIdCache;
+  const data = await shopifyGraphQL(ONLINE_STORE_PUBLICATION_QUERY);
+  const match = data.publications.edges.find(
+    ({ node }) => node.name === "Online Store",
+  );
+  if (!match) throw new Error("Online Store publication not found");
+  _onlineStorePublicationIdCache = match.node.id;
+  return _onlineStorePublicationIdCache;
+}
+
+// productCreate does not add the product to any sales channel — without
+// this, new fabric products stay unpublished and 404 on the storefront.
+async function publishToOnlineStore(productId) {
+  const publicationId = await getOnlineStorePublicationId();
+  const data = await shopifyGraphQL(PUBLISHABLE_PUBLISH_MUTATION, {
+    id: productId,
+    input: [{ publicationId }],
+  });
+  const { userErrors } = data.publishablePublish;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+}
+
 // productCreate only creates ONE variant regardless of how many option
 // values are declared — it's linked to the first value of each option.
 // The rest of garmentTypes are turned into variants right after, via
@@ -3032,6 +3073,7 @@ export async function createFabricProduct({
   });
   const { product, userErrors } = data.productCreate;
   if (userErrors?.length) throw new Error(userErrors[0].message);
+  await publishToOnlineStore(product.id);
   return product;
 }
 
@@ -3156,6 +3198,37 @@ export async function updateFabricProduct(
   return data.productUpdate.product;
 }
 
+const PRODUCT_DELETE_MUTATION = `
+  mutation productDelete($input: ProductDeleteInput!) {
+    productDelete(input: $input) {
+      deletedProductId
+      userErrors { field message }
+    }
+  }
+`;
+
+// Deletes the product first, then its linked gc_fabrics metaobject — the
+// metaobject is never cascade-deleted by Shopify when the referencing
+// product goes away, so it has to be cleaned up explicitly here.
+export async function deleteFabricProduct(productId, gcFabricId) {
+  const data = await shopifyGraphQL(PRODUCT_DELETE_MUTATION, {
+    input: { id: productId },
+  });
+  const { userErrors } = data.productDelete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+
+  if (gcFabricId) {
+    const metaobjectData = await shopifyGraphQL(DELETE_METAOBJECT_MUTATION, {
+      id: gcFabricId,
+    });
+    if (metaobjectData.metaobjectDelete.userErrors?.length) {
+      throw new Error(
+        `Product deleted, but failed to delete linked fabric metaobject: ${metaobjectData.metaobjectDelete.userErrors[0].message}`,
+      );
+    }
+  }
+}
+
 export async function addProductImages(productId, uploaded) {
   const data = await shopifyGraphQL(PRODUCT_UPDATE_MUTATION, {
     product: { id: productId },
@@ -3180,6 +3253,8 @@ export async function createGarmentVariants(productId, optionName, types) {
     variants: types.map(({ name, price, sku }) => ({
       optionValues: [{ optionName, name }],
       price: price.toString(),
+      // Every fabric variant should stay orderable while out of stock.
+      inventoryPolicy: "CONTINUE",
       // SKU lives on the inventory item in the 2025-01 API.
       ...(sku ? { inventoryItem: { sku } } : {}),
     })),
@@ -3204,6 +3279,7 @@ export async function updateVariantPrices(productId, updates) {
     variants: updates.map(({ id, price, sku }) => ({
       id,
       price: price.toString(),
+      inventoryPolicy: "CONTINUE",
       ...(sku ? { inventoryItem: { sku } } : {}),
     })),
   });

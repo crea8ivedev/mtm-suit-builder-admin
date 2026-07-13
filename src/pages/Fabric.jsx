@@ -4,7 +4,9 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Loader2,
   Plus,
+  RefreshCw,
   Search,
   SlidersHorizontal,
   Upload,
@@ -12,9 +14,17 @@ import {
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
+import AlertBanner from "../components/ui/AlertBanner";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { cn } from "../utils/cn";
-import { fetchFabricProductsV2 } from "../lib/shopify";
+import {
+  fetchFabricProductsV2,
+  fetchGcFabrics,
+  updateGcFabric,
+  createImageFromUrl,
+  clearGcFabricsCache,
+} from "../lib/shopify";
+import { fetchKtFabricDetails } from "../lib/kutetailor";
 
 const NO_BRAND = "No Brand";
 const UNCATEGORIZED = "Uncategorized";
@@ -284,6 +294,59 @@ export default function Fabric() {
   const [brandFilter, setBrandFilter] = useState("");
   const [collectionFilter, setCollectionFilter] = useState("");
 
+  const [syncingImages, setSyncingImages] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+
+  // One-off (and re-runnable) backfill: fills in the gc_fabrics swatch image
+  // for existing fabrics that predate the KT-image bulk-import fix.
+  async function handleSyncKtImages() {
+    setSyncingImages(true);
+    setSyncResult(null);
+    try {
+      const fabrics = await fetchGcFabrics();
+      const missing = fabrics.filter((f) => !f.imageUrl);
+      let updated = 0;
+      const skippedCodes = [];
+      const failures = [];
+      for (const f of missing) {
+        try {
+          const details = await fetchKtFabricDetails(f.fabricCode);
+          if (!details?.imageUrl) {
+            skippedCodes.push(f.fabricCode);
+            continue;
+          }
+          const imageGid = await createImageFromUrl(details.imageUrl);
+          // updateGcFabric overwrites all fields on the metaobject, so the
+          // existing values must be sent back alongside the new image.
+          await updateGcFabric(f.id, {
+            fabricCode: f.fabricCode,
+            fabricHouse: f.fabricHouse,
+            color: f.color,
+            material: f.material,
+            weight: f.weight,
+            imageGid,
+          });
+          updated++;
+        } catch (err) {
+          failures.push({ fabricCode: f.fabricCode, message: err.message });
+        }
+      }
+      clearGcFabricsCache();
+      setSyncResult({
+        total: missing.length,
+        updated,
+        skipped: skippedCodes.length,
+        failed: failures.length,
+        skippedCodes,
+        failures,
+      });
+    } catch (err) {
+      setSyncResult({ error: err.message });
+    } finally {
+      setSyncingImages(false);
+    }
+  }
+
   function setSearch(value) {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -404,6 +467,19 @@ export default function Fabric() {
             </p>
           </div>
           <div className="flex items-center gap-[10px]">
+            <button
+              type="button"
+              onClick={handleSyncKtImages}
+              disabled={syncingImages}
+              className="font-hanken flex items-center gap-[6px] text-gc-primary border border-gc-border-input text-[13px] font-semibold px-[14px] py-[9px] rounded-lg hover:bg-gc-primary/[4%] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {syncingImages ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <RefreshCw size={14} />
+              )}
+              Sync KT Images
+            </button>
             <Link
               to="/fabric/bulk-import"
               className="font-hanken flex items-center gap-[6px] text-gc-primary border border-gc-border-input text-[13px] font-semibold px-[14px] py-[9px] rounded-lg hover:bg-gc-primary/[4%] transition-colors cursor-pointer"
@@ -420,6 +496,41 @@ export default function Fabric() {
             </Link>
           </div>
         </div>
+
+        {syncResult && (
+          <div className="mt-[16px] flex flex-col gap-[8px]">
+            {syncResult.error ? (
+              <AlertBanner variant="error" message={syncResult.error} />
+            ) : (
+              <>
+                <AlertBanner
+                  variant="success"
+                  message={
+                    syncResult.total === 0
+                      ? "All fabrics already have an image — nothing to sync."
+                      : `Checked ${syncResult.total} fabric${syncResult.total !== 1 ? "s" : ""} missing an image: ${syncResult.updated} updated from KuteTailor, ${syncResult.skipped} had no KT match/image, ${syncResult.failed} failed.`
+                  }
+                />
+                {syncResult.failures?.length > 0 && (
+                  <AlertBanner
+                    variant="error"
+                    title="Failed to sync"
+                    message={syncResult.failures
+                      .map((f) => `${f.fabricCode}: ${f.message}`)
+                      .join(" | ")}
+                  />
+                )}
+                {syncResult.skippedCodes?.length > 0 && (
+                  <AlertBanner
+                    variant="warning"
+                    title="No KT image match"
+                    message={syncResult.skippedCodes.join(", ")}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {!loading && !error && products.length > 0 && (
           <div className="flex flex-wrap items-center gap-[10px] mt-[16px]">

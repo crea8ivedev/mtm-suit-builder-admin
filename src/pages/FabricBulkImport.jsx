@@ -18,9 +18,15 @@ import {
   createFabricProductComplete,
   clearFabricProductsV2Cache,
   clearGcFabricsCache,
+  createImageFromUrl,
   GARMENT_TYPES,
 } from "../lib/shopify";
 import { fetchKtFabricDetails } from "../lib/kutetailor";
+
+// These three are core garment types every fabric is assumed to offer —
+// they always get a variant even when left blank in the CSV. The rest
+// (Vest Only, Shirt Only) are optional add-ons, only created when filled in.
+const ALWAYS_INCLUDED_GARMENT_TYPES = ["Two Piece Suit", "Jacket Only", "Pants Only"];
 
 const FIXED_COLUMNS = [
   "title",
@@ -76,11 +82,26 @@ function parseRows(rows) {
   return rows
     .filter((row) => (row.fabric_code || "").trim())
     .map((row) => {
+      // Two Piece Suit / Jacket Only / Pants Only are always offered per
+      // fabric — they get a variant even if left blank in the CSV (blank
+      // price/qty defaults to "0"). Vest Only / Shirt Only are optional
+      // add-ons: only included when at least one of price/qty is filled in.
       const garments = GARMENT_TYPES.map((type) => ({
         type,
         price: (row[`${type} Price`] || "").trim(),
         qty: (row[`${type} Qty`] || "").trim(),
-      })).filter((g) => g.price !== "" && g.qty !== "");
+      }))
+        .filter(
+          (g) =>
+            ALWAYS_INCLUDED_GARMENT_TYPES.includes(g.type) ||
+            g.price !== "" ||
+            g.qty !== "",
+        )
+        .map((g) => ({
+          ...g,
+          price: g.price || "0",
+          qty: g.qty || "0",
+        }));
       return {
         title: (row.title || "").trim(),
         fabricCode: (row.fabric_code || "").trim(),
@@ -238,6 +259,7 @@ export default function FabricBulkImport() {
                 color: f.color || details.color || "",
                 material: f.material || details.material || "",
                 weight: f.weight || details.weight || "",
+                ktImageUrl: f.ktImageUrl || details.imageUrl || null,
               }
             : {};
           return {
@@ -288,6 +310,12 @@ export default function FabricBulkImport() {
             .filter(Boolean)
             .join(" - ");
 
+        // KT catalog matches carry a swatch image — same as the
+        // single-fabric form, this becomes the gc_fabrics image field.
+        const imageGid = fabric.ktImageUrl
+          ? await createImageFromUrl(fabric.ktImageUrl)
+          : null;
+
         await createFabricProductComplete({
           fabricId: null,
           fabricFields: {
@@ -296,7 +324,7 @@ export default function FabricBulkImport() {
             color: fabric.color,
             material: fabric.material,
             weight: fabric.weight,
-            imageGid: null,
+            imageGid,
           },
           title,
           status,

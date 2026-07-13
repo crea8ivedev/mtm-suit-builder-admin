@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Loader2, Save, X } from "lucide-react";
+import { Loader2, Save, Trash2, X } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
 import AlertBanner from "../components/ui/AlertBanner";
+import ModalBase from "../components/ui/ModalBase";
 import GcFabricFieldsForm from "../components/fabric/GcFabricFieldsForm";
 import ProductMediaUploader from "../components/fabric/ProductMediaUploader";
 import GarmentTypeVariantManager from "../components/fabric/GarmentTypeVariantManager";
@@ -27,6 +28,7 @@ import {
   clearFabricProductsV2Cache,
   fetchCollections,
   createCollection,
+  deleteFabricProduct,
   GARMENT_TYPES,
 } from "../lib/shopify";
 import { fetchKtFabricDetails, isKtFabricRegistered } from "../lib/kutetailor";
@@ -102,6 +104,27 @@ export default function FabricForm({ mode, productId }) {
   const [submitKtNotFound, setSubmitKtNotFound] = useState(false);
   const [ktVerifying, setKtVerifying] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+
+  async function handleDeleteFabric() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteFabricProduct(
+        `gid://shopify/Product/${productId}`,
+        gcFabricId,
+      );
+      clearFabricProductsV2Cache();
+      clearGcFabricsCache();
+      navigate("/fabric");
+    } catch (err) {
+      setDeleteError(err.message);
+      setDeleting(false);
+    }
+  }
 
   useEffect(() => {
     fetchGcFabrics()
@@ -520,15 +543,27 @@ export default function FabricForm({ mode, productId }) {
   return (
     <DashboardLayout bgColor="#f4f1ed">
       <div className="flex flex-col gap-[40px] pb-[80px]">
-        <div className="flex flex-col gap-[4px]">
-          <h1 className="font-garamond text-[28px] sm:text-[40px] font-bold text-[#3c3c3c] leading-tight">
-            {isEdit ? "Edit Fabric" : "Create Fabric"}
-          </h1>
-          <p className="font-hanken text-[14px] text-black">
-            {isEdit
-              ? "Update fabric details, images, and garment variants"
-              : "Create a fabric product with garment-type variants"}
-          </p>
+        <div className="flex items-start justify-between gap-[16px]">
+          <div className="flex flex-col gap-[4px]">
+            <h1 className="font-garamond text-[28px] sm:text-[40px] font-bold text-[#3c3c3c] leading-tight">
+              {isEdit ? "Edit Fabric" : "Create Fabric"}
+            </h1>
+            <p className="font-hanken text-[14px] text-black">
+              {isEdit
+                ? "Update fabric details, images, and garment variants"
+                : "Create a fabric product with garment-type variants"}
+            </p>
+          </div>
+          {isEdit && (
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              className="flex-shrink-0 flex items-center gap-[8px] font-hanken font-semibold text-[13px] text-red-700 h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80 border border-red-700"
+            >
+              <Trash2 size={14} />
+              Delete Fabric
+            </button>
+          )}
         </div>
 
         <div className={SECTION_CLASS}>
@@ -684,6 +719,60 @@ export default function FabricForm({ mode, productId }) {
           </button>
         </div>
       </div>
+
+      {showDeleteModal && (
+        <ModalBase
+          onClose={() => !deleting && setShowDeleteModal(false)}
+          maxWidth="max-w-[420px]"
+        >
+          <div className="p-[24px] flex flex-col gap-[16px]">
+            <div className="flex items-start justify-between gap-[12px]">
+              <div>
+                <h2 className="font-garamond font-bold text-[20px] leading-tight text-gc-heading">
+                  Delete Fabric
+                </h2>
+                <p className="font-hanken text-[13px] mt-[6px] leading-[1.5] text-gc-primary-deep">
+                  Are you sure you want to delete <strong>"{title}"</strong>?
+                  This permanently removes the product and its fabric details
+                  from Shopify and cannot be undone.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !deleting && setShowDeleteModal(false)}
+                className="flex-shrink-0 flex items-center justify-center rounded-[6px] cursor-pointer hover:opacity-80 w-[30px] h-[30px] bg-gc-bg-warm"
+              >
+                <X size={14} className="text-gc-primary-deep" />
+              </button>
+            </div>
+
+            {deleteError && (
+              <p className="font-hanken text-[12px] text-failed">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="flex items-center justify-end gap-[8px] border-t border-gc-border-warm pt-[12px]">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="font-hanken font-semibold text-[13px] h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80 disabled:opacity-50 border border-gc-border-warm text-gc-primary-deep"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteFabric}
+                disabled={deleting}
+                className="font-hanken font-semibold text-[13px] text-white h-[38px] px-[20px] rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed bg-red-700"
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </ModalBase>
+      )}
     </DashboardLayout>
   );
 }
