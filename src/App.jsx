@@ -14,6 +14,7 @@ const Fabric = lazy(() => import("./pages/Fabric"));
 const FabricCreate = lazy(() => import("./pages/FabricCreate"));
 const FabricEdit = lazy(() => import("./pages/FabricEdit"));
 const FabricBulkImport = lazy(() => import("./pages/FabricBulkImport"));
+const Measurements = lazy(() => import("./pages/Measurements"));
 
 function PrivateRoute({ children }) {
   const isAuth = localStorage.getItem("suit_admin_auth") === "true";
@@ -111,6 +112,14 @@ export default function App() {
             element={
               <PrivateRoute>
                 <FabricEdit />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/measurements"
+            element={
+              <PrivateRoute>
+                <Measurements />
               </PrivateRoute>
             }
           />

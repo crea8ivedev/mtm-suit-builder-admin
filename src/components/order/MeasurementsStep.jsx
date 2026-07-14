@@ -91,6 +91,10 @@ export function AttributeEditor({
   fitSizeOptions = [],
   fitSizeSelections = {},
   onFitSizeChange,
+  standardSizeOptions = {},
+  standardSizeSelections = {},
+  onStandardSizeSelect,
+  showStandardSizePicker = false,
 }) {
   const [touchedFields, setTouchedFields] = useState(new Set());
 
@@ -274,6 +278,27 @@ export function AttributeEditor({
                 </div>
               );
             })()}
+
+            {showStandardSizePicker &&
+              (standardSizeOptions[sec.label]?.length ?? 0) > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-x-[8px] sm:gap-x-[32px] gap-y-[16px] sm:gap-y-[24px] pt-[16px] border-t border-gc-primary-dark/10">
+                  <FitSizeDropdown
+                    label="Standard Size"
+                    opts={standardSizeOptions[sec.label]}
+                    selected={
+                      standardSizeOptions[sec.label].find(
+                        (o) => o.id === standardSizeSelections[sec.label],
+                      )?.label ?? ""
+                    }
+                    onSelect={(label) => {
+                      const opt = standardSizeOptions[sec.label].find(
+                        (o) => o.label === label,
+                      );
+                      onStandardSizeSelect?.(sec.label, opt ?? null);
+                    }}
+                  />
+                </div>
+              )}
           </div>
         );
       })}

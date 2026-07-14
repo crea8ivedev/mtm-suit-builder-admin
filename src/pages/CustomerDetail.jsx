@@ -1170,18 +1170,6 @@ export default function CustomerDetail() {
           productGarmentsMap,
         )
       : activeProfiles;
-    // Ensure first profile always has isBodyMeasurement = true if none is set
-    const hasBodyToggle = Object.values(profilesToSave).some((list) =>
-      list.some((p) => p.isBodyMeasurement),
-    );
-    if (!hasBodyToggle) {
-      const firstProduct = Object.keys(profilesToSave)[0];
-      if (firstProduct && profilesToSave[firstProduct]?.length) {
-        const list = profilesToSave[firstProduct];
-        const lastIdx = list.length - 1; // oldest order (array is newest-first)
-        list[lastIdx] = { ...list[lastIdx], isBodyMeasurement: true };
-      }
-    }
     setCustomerProductsMetafield(shopifyGid, profilesToSave).catch(() => {});
     setCommittedProfiles(profilesToSave);
     setGcMeasurements(profilesToSave);
@@ -1301,48 +1289,6 @@ export default function CustomerDetail() {
       setProfileErrors((prev) => ({ ...prev, [entry.id]: err.message }));
     } finally {
       setSavingProfileId(null);
-    }
-  };
-
-  const bodyMeasurementProfileId = useMemo(() => {
-    for (const list of Object.values(activeProfiles)) {
-      for (const p of list) {
-        if (p.isBodyMeasurement) return p.id;
-      }
-    }
-    return null;
-  }, [activeProfiles]);
-
-  const [togglingBodyId, setTogglingBodyId] = useState(null);
-
-  const handleBodyToggle = async (entry) => {
-    if (togglingBodyId) return;
-    const isCurrentlyOn = bodyMeasurementProfileId === entry.id;
-    setTogglingBodyId(entry.id);
-    const updatedProfiles = JSON.parse(JSON.stringify(activeProfiles));
-    for (const list of Object.values(updatedProfiles)) {
-      for (const p of list) {
-        p.isBodyMeasurement = !isCurrentlyOn && p.id === entry.id;
-      }
-    }
-    const profilesToSave = Object.keys(styleOptionsMap).length
-      ? injectStyleOptionsIntoProfiles(
-          updatedProfiles,
-          styleOptionsMap,
-          productGarmentsMap,
-        )
-      : updatedProfiles;
-    try {
-      await setCustomerProductsMetafield(
-        `gid://shopify/Customer/${customerId}`,
-        profilesToSave,
-      );
-      setCommittedProfiles(profilesToSave);
-      setGcMeasurements(profilesToSave);
-    } catch {
-      // ignore — toggle will revert on next load
-    } finally {
-      setTogglingBodyId(null);
     }
   };
 
@@ -1717,30 +1663,6 @@ export default function CustomerDetail() {
                           <span className="font-hanken text-[12px] sm:text-[14px] font-semibold text-[#6d6d6d]">
                             Last updated: {entry.created}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => handleBodyToggle(entry)}
-                            disabled={!!editingProfileId || !!togglingBodyId}
-                            className="flex items-center gap-[8px] mt-[6px] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed w-fit"
-                          >
-                            <div
-                              className={`relative w-[36px] h-[20px] rounded-full transition-colors duration-200 ${bodyMeasurementProfileId === entry.id ? "bg-green-500" : "bg-gray-300"}`}
-                            >
-                              <div
-                                className={`absolute top-[2px] w-[16px] h-[16px] rounded-full bg-white shadow-sm transition-transform duration-200 ${bodyMeasurementProfileId === entry.id ? "translate-x-[18px]" : "translate-x-[2px]"}`}
-                              />
-                            </div>
-                            <span
-                              className={`font-hanken text-[11px] font-semibold uppercase tracking-[0.6px] ${bodyMeasurementProfileId === entry.id ? "text-green-600" : "text-[#9ca3af]"}`}
-                            >
-                              Body Measurements
-                            </span>
-                            {togglingBodyId === entry.id && (
-                              <span className="font-hanken text-[10px] text-[#9ca3af]">
-                                Saving…
-                              </span>
-                            )}
-                          </button>
                         </div>
                         <div className="flex flex-wrap items-center gap-[8px]">
                           {profileError && (

@@ -493,7 +493,7 @@ function buildOrderPayload(order, { submit, ktPositionMap = {} }) {
   );
 
   const measuresTypeRaw = parseInt(
-    kuteAttr(attrs, "measuresType") ?? "10001",
+    kuteAttr(attrs, "measuresType") ?? "10002",
     10,
   );
   const isFinished = measuresTypeRaw === 10002;

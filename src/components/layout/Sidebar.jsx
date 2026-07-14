@@ -5,6 +5,7 @@ import {
   Users,
   Shirt,
   Layers,
+  Ruler,
   LogOut,
   X,
 } from "lucide-react";
@@ -30,6 +31,12 @@ const NAV_ITEMS = [
     label: "Fabric",
     path: "/fabric",
     icon: Layers,
+  },
+  {
+    id: "measurements",
+    label: "Measurements",
+    path: "/measurements",
+    icon: Ruler,
   },
 ];
 

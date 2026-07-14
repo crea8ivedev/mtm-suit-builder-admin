@@ -1002,12 +1002,12 @@ const SET_METAFIELDS = `
 export async function setOrderMetafields(shopifyGid, fields) {
   const metafields = fields
     .filter(({ value }) => String(value) !== "")
-    .map(({ key, value }) => ({
+    .map(({ key, value, type }) => ({
       ownerId: shopifyGid,
       namespace: "suit_admin",
       key,
       value: String(value),
-      type: "single_line_text_field",
+      type: type || "single_line_text_field",
     }));
   if (!metafields.length) return [];
   const data = await shopifyGraphQL(SET_METAFIELDS, { metafields });
@@ -1262,6 +1262,7 @@ const GET_VEST_RANGES = `
     metaobjects(type: "vest_custom_measurement", first: 250) {
       edges {
         node {
+          id
           handle
           capabilities { publishable { status } }
           fields { key value }
@@ -1306,7 +1307,7 @@ async function _loadVestData() {
       map[canonicalKey] = entry;
       map[label] = entry;
       map[`Vest ${label}`] = entry;
-      fieldsList.push({ key: canonicalKey, label, min, max });
+      fieldsList.push({ id: node.id, key: canonicalKey, label, min, max });
     }
     _vestRangesCache = map;
     _vestFieldsListCache = fieldsList;
@@ -1334,6 +1335,7 @@ const GET_SHIRT_RANGES = `
     metaobjects(type: "shirt_custom_measurement", first: 250) {
       edges {
         node {
+          id
           handle
           capabilities { publishable { status } }
           fields { key value }
@@ -1378,7 +1380,7 @@ async function _loadShirtData() {
       map[canonicalKey] = entry;
       map[label] = entry;
       map[`Shirt ${label}`] = entry;
-      fieldsList.push({ key: canonicalKey, label, min, max });
+      fieldsList.push({ id: node.id, key: canonicalKey, label, min, max });
     }
     _shirtRangesCache = map;
     _shirtFieldsListCache = fieldsList;
@@ -1406,6 +1408,7 @@ const GET_TROUSER_RANGES = `
     metaobjects(type: "trouser_custom_measurement", first: 250) {
       edges {
         node {
+          id
           handle
           capabilities { publishable { status } }
           fields { key value }
@@ -1450,7 +1453,7 @@ async function _loadTrouserData() {
       map[canonicalKey] = entry;
       map[label] = entry;
       map[`Trouser ${label}`] = entry;
-      fieldsList.push({ key: canonicalKey, label, min, max });
+      fieldsList.push({ id: node.id, key: canonicalKey, label, min, max });
     }
     _trouserRangesCache = map;
     _trouserFieldsListCache = fieldsList;
@@ -1481,6 +1484,7 @@ const GET_JACKET_RANGES = `
     metaobjects(type: "jacket_custom_measurement", first: 250) {
       edges {
         node {
+          id
           handle
           capabilities { publishable { status } }
           fields { key value }
@@ -1526,7 +1530,7 @@ async function _loadJacketData() {
       map[canonicalKey] = entry;
       map[label] = entry;
       map[`Jacket ${label}`] = entry;
-      fieldsList.push({ key: canonicalKey, label, min, max });
+      fieldsList.push({ id: node.id, key: canonicalKey, label, min, max });
     }
     _jacketRangesCache = map;
     _jacketFieldsListCache = fieldsList;
@@ -1550,6 +1554,192 @@ export async function fetchJacketMeasurementFields() {
   if (_jacketFieldsListCache) return _jacketFieldsListCache;
   await _loadJacketData();
   return _jacketFieldsListCache;
+}
+
+const MEASUREMENT_FIELD_CACHE_RESETTERS = {
+  Jacket: () => {
+    _jacketRangesCache = null;
+    _jacketFieldsListCache = null;
+    _jacketRangesCacheAt = 0;
+  },
+  Trouser: () => {
+    _trouserRangesCache = null;
+    _trouserFieldsListCache = null;
+    _trouserRangesCacheAt = 0;
+  },
+  Vest: () => {
+    _vestRangesCache = null;
+    _vestFieldsListCache = null;
+    _vestRangesCacheAt = 0;
+  },
+  Shirt: () => {
+    _shirtRangesCache = null;
+    _shirtFieldsListCache = null;
+    _shirtRangesCacheAt = 0;
+  },
+};
+
+export function clearMeasurementFieldsCache(garment) {
+  MEASUREMENT_FIELD_CACHE_RESETTERS[garment]?.();
+}
+
+export async function createMeasurementField(garmentType, fields) {
+  const fieldInputs = Object.entries(fields)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([key, value]) => ({ key, value: String(value) }));
+  const data = await shopifyGraphQL(CREATE_METAOBJECT_MUTATION, {
+    metaobject: {
+      type: garmentType,
+      fields: fieldInputs,
+      capabilities: { publishable: { status: "ACTIVE" } },
+    },
+  });
+  const { userErrors } = data.metaobjectCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectCreate.metaobject;
+}
+
+export async function updateMeasurementField(id, fields) {
+  const fieldInputs = Object.entries(fields).map(([key, value]) => ({
+    key,
+    value: String(value),
+  }));
+  const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
+    id,
+    metaobject: { fields: fieldInputs },
+  });
+  const { userErrors } = data.metaobjectUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectUpdate.metaobject;
+}
+
+export async function deleteMeasurementField(id) {
+  const data = await shopifyGraphQL(DELETE_METAOBJECT_MUTATION, { id });
+  const { userErrors } = data.metaobjectDelete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectDelete.deletedId;
+}
+
+// --- Standard size chart (jacket_size_template / trouser_size_template /
+// vest_size_template / shirt_size_template) — pre-existing metaobjects,
+// populated by hand in Shopify Admin. Field keys differ per garment (not a
+// shared schema), so each has its own fetcher; create/update/delete are
+// generic since they're just {key,value} pairs regardless of garment. ---
+
+function _buildSizeTemplateEntry(node) {
+  const fm = Object.fromEntries(node.fields.map((f) => [f.key, f.value]));
+  const { size, size_label, ...values } = fm;
+  return {
+    id: node.id,
+    label: [size_label, size].filter(Boolean).join(" / ") || node.handle,
+    values,
+  };
+}
+
+function _makeSizeTemplateLoader(garmentType) {
+  const query = `
+    {
+      metaobjects(type: "${garmentType}", first: 250) {
+        edges { node { id handle fields { key value } } }
+      }
+    }
+  `;
+  let cache = null;
+  let cacheAt = 0;
+  let loadPromise = null;
+  const TTL = 30 * 60 * 1000;
+
+  async function load() {
+    if (loadPromise) return loadPromise;
+    loadPromise = (async () => {
+      const data = await shopifyGraphQL(query);
+      const entries = data?.metaobjects?.edges ?? [];
+      cache = entries.map(({ node }) => _buildSizeTemplateEntry(node));
+      cacheAt = Date.now();
+      loadPromise = null;
+    })();
+    return loadPromise;
+  }
+
+  return {
+    fetch: async () => {
+      if (cache && Date.now() - cacheAt < TTL) return cache;
+      await load();
+      return cache;
+    },
+    clear: () => {
+      cache = null;
+      cacheAt = 0;
+    },
+  };
+}
+
+const _jacketSizeTemplateLoader = _makeSizeTemplateLoader("jacket_size_template");
+const _trouserSizeTemplateLoader = _makeSizeTemplateLoader(
+  "trouser_size_template",
+);
+const _vestSizeTemplateLoader = _makeSizeTemplateLoader("vest_size_template");
+const _shirtSizeTemplateLoader = _makeSizeTemplateLoader("shirt_size_template");
+
+export const fetchJacketSizeTemplate = () => _jacketSizeTemplateLoader.fetch();
+export const fetchTrouserSizeTemplate = () =>
+  _trouserSizeTemplateLoader.fetch();
+export const fetchVestSizeTemplate = () => _vestSizeTemplateLoader.fetch();
+export const fetchShirtSizeTemplate = () => _shirtSizeTemplateLoader.fetch();
+
+const SIZE_TEMPLATE_LOADERS = {
+  Jacket: _jacketSizeTemplateLoader,
+  Trouser: _trouserSizeTemplateLoader,
+  Vest: _vestSizeTemplateLoader,
+  Shirt: _shirtSizeTemplateLoader,
+};
+
+export const SIZE_TEMPLATE_TYPES = {
+  Jacket: "jacket_size_template",
+  Trouser: "trouser_size_template",
+  Vest: "vest_size_template",
+  Shirt: "shirt_size_template",
+};
+
+export function clearSizeTemplateCache(garment) {
+  SIZE_TEMPLATE_LOADERS[garment]?.clear();
+}
+
+export async function createSizeTemplateEntry(garmentType, fields) {
+  const fieldInputs = Object.entries(fields)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([key, value]) => ({ key, value: String(value) }));
+  const data = await shopifyGraphQL(CREATE_METAOBJECT_MUTATION, {
+    metaobject: {
+      type: garmentType,
+      fields: fieldInputs,
+      capabilities: { publishable: { status: "ACTIVE" } },
+    },
+  });
+  const { userErrors } = data.metaobjectCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectCreate.metaobject;
+}
+
+export async function updateSizeTemplateEntry(id, fields) {
+  const fieldInputs = Object.entries(fields).map(([key, value]) => ({
+    key,
+    value: String(value),
+  }));
+  const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
+    id,
+    metaobject: { fields: fieldInputs },
+  });
+  const { userErrors } = data.metaobjectUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectUpdate.metaobject;
+}
+
+export async function deleteSizeTemplateEntry(id) {
+  const data = await shopifyGraphQL(DELETE_METAOBJECT_MUTATION, { id });
+  const { userErrors } = data.metaobjectDelete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectDelete.deletedId;
 }
 
 export async function shopifyGqlQuery(query, variables = {}) {
@@ -1642,6 +1832,7 @@ async function fetchStyleOptionsForType(type) {
         sortOrder: parseInt(fm.sort_order || "0", 10),
         categorySort: parseInt(fm.style_sort || "0", 10),
         kutetailerCode: fm.kutetailer_code || null,
+        shopifyVariantId: fm.shopify_variant_id || null,
         craftPrefix: (() => {
           const cat = (fm.category || "").toLowerCase();
           const code = fm.kutetailer_code || "";
@@ -3298,6 +3489,115 @@ export async function updateVariantPrices(productId, updates) {
   const { userErrors } = data.productVariantsBulkUpdate;
   if (userErrors?.length) throw new Error(userErrors[0].message);
   return data.productVariantsBulkUpdate.productVariants;
+}
+
+// --- Style option → Shopify variant sync -----------------------------
+// Every style option (across all garments/categories) gets a variant on one
+// shared, never-published "registry" product, priced at its upcharge. This
+// gives admins real Shopify commerce objects (price, inventory policy) for
+// upcharges instead of just a metaobject number. A single option axis is
+// used (not one axis per category) since a product caps out at 3 options
+// and garments have far more categories than that.
+const STYLE_OPTIONS_PRODUCT_HANDLE = "internal-style-option-upcharges";
+const STYLE_OPTIONS_PRODUCT_OPTION_NAME = "Style Option";
+
+const GET_PRODUCT_BY_HANDLE_QUERY = `
+  query GetStyleOptionsProduct($handle: String!) {
+    productByHandle(handle: $handle) {
+      id
+    }
+  }
+`;
+
+let _styleOptionsProductIdPromise = null;
+
+async function getOrCreateStyleOptionsProduct() {
+  if (_styleOptionsProductIdPromise) return _styleOptionsProductIdPromise;
+  _styleOptionsProductIdPromise = (async () => {
+    const existing = await shopifyGraphQL(GET_PRODUCT_BY_HANDLE_QUERY, {
+      handle: STYLE_OPTIONS_PRODUCT_HANDLE,
+    });
+    if (existing.productByHandle?.id) return existing.productByHandle.id;
+
+    const data = await shopifyGraphQL(PRODUCT_CREATE_MUTATION, {
+      product: {
+        title: "Style Options (Internal Pricing)",
+        handle: STYLE_OPTIONS_PRODUCT_HANDLE,
+        status: "DRAFT",
+        productOptions: [
+          {
+            name: STYLE_OPTIONS_PRODUCT_OPTION_NAME,
+            values: [{ name: "Default" }],
+          },
+        ],
+      },
+    });
+    const { product, userErrors } = data.productCreate;
+    if (userErrors?.length) throw new Error(userErrors[0].message);
+    // Never published to any sales channel — this product only exists to
+    // back style-option upcharges with real variants, not to be sold.
+    return product.id;
+  })();
+  try {
+    return await _styleOptionsProductIdPromise;
+  } catch (e) {
+    _styleOptionsProductIdPromise = null;
+    throw e;
+  }
+}
+
+// `handle` disambiguates the option value so two style options that happen
+// to share a label (across different garments/categories) never collide
+// into the same Shopify option value.
+export function buildStyleOptionValueLabel({ garment, category, label, handle }) {
+  const suffix = handle ? handle.slice(-6) : "";
+  return `${garment} - ${category}: ${label}${suffix ? ` [${suffix}]` : ""}`;
+}
+
+export async function createStyleOptionVariant(optionValueLabel, upcharge) {
+  const productId = await getOrCreateStyleOptionsProduct();
+  const [variant] = await createGarmentVariants(
+    productId,
+    STYLE_OPTIONS_PRODUCT_OPTION_NAME,
+    [{ name: optionValueLabel, price: upcharge }],
+  );
+  return variant;
+}
+
+export async function updateStyleOptionVariantPrice(variantId, upcharge) {
+  const productId = await getOrCreateStyleOptionsProduct();
+  await updateVariantPrices(productId, [{ id: variantId, price: upcharge }]);
+}
+
+export async function removeStyleOptionVariant(variantId) {
+  const productId = await getOrCreateStyleOptionsProduct();
+  await removeVariantsFromProduct(productId, [variantId]);
+}
+
+// Reconciles a style option's linked variant against its current upcharge.
+// Returns the variant id that should be persisted on the metaobject (or null
+// once removed/never created). Treats blank/0/negative upcharge as "no variant".
+export async function syncStyleOptionVariant({
+  shopifyVariantId,
+  optionValueLabel,
+  upcharge,
+}) {
+  const amount = parseFloat(upcharge || 0);
+  const hasUpcharge = amount > 0;
+
+  if (!shopifyVariantId && hasUpcharge) {
+    const variant = await createStyleOptionVariant(optionValueLabel, amount);
+    return variant.id;
+  }
+  if (shopifyVariantId && hasUpcharge) {
+    await updateStyleOptionVariantPrice(shopifyVariantId, amount);
+    return shopifyVariantId;
+  }
+  if (shopifyVariantId && !hasUpcharge) {
+    await removeStyleOptionVariant(shopifyVariantId);
+    return null;
+  }
+  return null;
 }
 
 const GET_FABRIC_PRODUCT_DETAIL_QUERY = `

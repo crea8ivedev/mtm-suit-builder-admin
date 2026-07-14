@@ -22,6 +22,11 @@ async function handleSendToSupplier(orderId, supplierId) {
   await setOrderMetafields(shopifyGid, [
     { key: "supplier_name", value: supplier.id },
     { key: "supplier_status", value: "processing" },
+    {
+      key: "supplier_notes",
+      value: `${supplier.name}: Processing`,
+      type: "multi_line_text_field",
+    },
   ]).catch(() => {});
 
   const order = await getOrderForSupplier(shopifyGid);
@@ -44,6 +49,11 @@ async function handleSendToSupplier(orderId, supplierId) {
     { key: "supplier_status", value: "submitted" },
     { key: "supplier_submitted_at", value: new Date().toISOString() },
     { key: "supplier_error", value: "" },
+    {
+      key: "supplier_notes",
+      value: `${supplier.name}: Submitted`,
+      type: "multi_line_text_field",
+    },
     ...(supplierRef ? [{ key: "supplier_reference", value: supplierRef }] : []),
   ]);
 
@@ -72,10 +82,17 @@ export function useSupplierSubmit(orderId, onSettled) {
           // Update Shopify status to "failed" — retry once if the first attempt fails
           const shopifyGid = `gid://shopify/Order/${orderId}`;
           const safeErr = errMsg.slice(0, 500);
+          const supplierName =
+            SUPPLIERS.find((s) => s.id === supplierId)?.name ?? supplierId;
           const updateFailed = () =>
             setOrderMetafields(shopifyGid, [
               { key: "supplier_status", value: "failed" },
               { key: "supplier_error", value: safeErr },
+              {
+                key: "supplier_notes",
+                value: `${supplierName}: Failed`,
+                type: "multi_line_text_field",
+              },
             ]);
           await updateFailed()
             .catch(() => updateFailed())

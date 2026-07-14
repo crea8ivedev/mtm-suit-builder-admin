@@ -10,6 +10,9 @@ import {
   GARMENT_TO_STYLE_TYPE,
   fetchStyleOptionFieldDefs,
   clearStyleOptionsCache,
+  buildStyleOptionValueLabel,
+  syncStyleOptionVariant,
+  removeStyleOptionVariant,
 } from "../../lib/shopify";
 
 const KNOWN_KEYS = new Set([
@@ -29,6 +32,7 @@ const KNOWN_KEYS = new Set([
   "color_hex",
   "color_image",
   "code",
+  "shopify_variant_id",
 ]);
 
 function normalizeCategory(val) {
@@ -317,9 +321,33 @@ export function AddStyleOptionModal({
         sort_order: String(form.sort_order || computedSortOrder),
       };
       const node = await createStyleOption(garmentType, payload);
+
+      let shopifyVariantId = null;
+      try {
+        const optionValueLabel = buildStyleOptionValueLabel({
+          garment,
+          category: cat,
+          label: form.label.trim(),
+          handle: node.handle,
+        });
+        shopifyVariantId = await syncStyleOptionVariant({
+          shopifyVariantId: null,
+          optionValueLabel,
+          upcharge: form.upcharge,
+        });
+        if (shopifyVariantId) {
+          await updateStyleOption(node.id, {
+            shopify_variant_id: shopifyVariantId,
+          });
+        }
+      } catch (variantErr) {
+        console.error("Style option variant sync failed:", variantErr);
+      }
+
       onCreated(node, garment, {
         ...form,
         sort_order: String(form.sort_order || computedSortOrder),
+        shopify_variant_id: shopifyVariantId || "",
       });
       onClose();
     } catch (err) {
@@ -835,11 +863,30 @@ export function EditStyleOptionModal({
           onUpdated(prevDefault.id, { isDefault: false });
         }
       }
+      let shopifyVariantId = option.shopifyVariantId || null;
+      try {
+        const optionValueLabel = buildStyleOptionValueLabel({
+          garment,
+          category: normalizeCategory(form.category),
+          label: form.label.trim(),
+          handle: option.handle,
+        });
+        shopifyVariantId = await syncStyleOptionVariant({
+          shopifyVariantId: option.shopifyVariantId || null,
+          optionValueLabel,
+          upcharge: form.upcharge,
+        });
+      } catch (variantErr) {
+        console.error("Style option variant sync failed:", variantErr);
+        shopifyVariantId = option.shopifyVariantId || null;
+      }
+
       const hideWhenJson = JSON.stringify([...hideWhenGids]);
       const { conditional_hide: _removed, ...formToSave } = form;
       await updateStyleOption(option.id, {
         ...formToSave,
         hide_when: hideWhenJson,
+        shopify_variant_id: shopifyVariantId || "",
       });
       const resolvedImageUrl =
         form.image_url ||
@@ -859,6 +906,7 @@ export function EditStyleOptionModal({
         imageUrlStored: form.image_url || null,
         imageUrl: resolvedImageUrl,
         hideWhenGids: [...hideWhenGids],
+        shopifyVariantId: shopifyVariantId || null,
       });
       clearStyleOptionsCache();
       onClose();
@@ -1221,6 +1269,13 @@ export function DeleteConfirmModal({ option, onClose, onDeleted }) {
     setDeleting(true);
     setError(null);
     try {
+      if (option.shopifyVariantId) {
+        try {
+          await removeStyleOptionVariant(option.shopifyVariantId);
+        } catch (variantErr) {
+          console.error("Style option variant removal failed:", variantErr);
+        }
+      }
       await deleteStyleOption(option.id);
       onDeleted(option.id);
       onClose();

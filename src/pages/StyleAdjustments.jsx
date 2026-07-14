@@ -605,6 +605,7 @@ export default function StyleAdjustments() {
       isDefault: formFields.is_default === "true",
       sortOrder,
       kutetailerCode: kuteCode,
+      shopifyVariantId: formFields.shopify_variant_id || null,
       conditionalHide: formFields.conditional_hide || "",
       imageGid: formFields.image || null,
       imageUrlStored: uploadedImageUrl,

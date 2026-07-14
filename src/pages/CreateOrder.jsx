@@ -36,8 +36,11 @@ import {
   fetchLiningCodes,
   fetchButtonCodes,
   fetchFitSizeOptions,
+  fetchJacketSizeTemplate,
+  fetchTrouserSizeTemplate,
+  fetchVestSizeTemplate,
+  fetchShirtSizeTemplate,
   setOrderMetafields,
-  fetchCustomerGcMeasurements,
 } from "../lib/shopify";
 import { cn } from "../utils/cn";
 
@@ -109,6 +112,18 @@ function isCustomSizeLineItem(node) {
     .find((a) => a.key.toLowerCase() === "size type")
     ?.value?.toLowerCase();
   return sizeType !== "standard";
+}
+
+// Matches a measurement field's label (e.g. "Sleeve (R)") against a standard
+// size template's value key (e.g. "sleeve_r") regardless of casing,
+// separators, or word order — lowercase, strip non-alphanumeric, sort chars.
+function normalizeMeasureKey(str) {
+  return (str || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .split("")
+    .sort()
+    .join("");
 }
 
 function findPastLineItem(customerOrders, selectedProductId, productTitle) {
@@ -311,8 +326,45 @@ export default function CreateOrder() {
   const [fitSizeSelections, setFitSizeSelections] = useState({});
   const [fitSizeLoading, setFitSizeLoading] = useState(false);
 
-  const [measurementType, setMeasurementType] = useState(null); // "body" | "finished" | null
-  const [gcMeasurementsData, setGcMeasurementsData] = useState({});
+  const [measurementType, setMeasurementType] = useState("finished");
+
+  const [sizeType, setSizeType] = useState("custom");
+  const [standardSizesByGarment, setStandardSizesByGarment] = useState({});
+  const [standardSizeSelections, setStandardSizeSelections] = useState({});
+
+  useEffect(() => {
+    Promise.all([
+      fetchJacketSizeTemplate(),
+      fetchTrouserSizeTemplate(),
+      fetchVestSizeTemplate(),
+      fetchShirtSizeTemplate(),
+    ])
+      .then(([jacket, trouser, vest, shirt]) => {
+        setStandardSizesByGarment({
+          Jacket: jacket,
+          Trouser: trouser,
+          Vest: vest,
+          Shirt: shirt,
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  function handleStandardSizeSelect(garment, opt) {
+    setStandardSizeSelections((prev) => ({ ...prev, [garment]: opt?.id ?? "" }));
+    if (!opt) return;
+    setAttributes((prev) =>
+      prev.map((a) => {
+        if (!a.key.startsWith(`${garment} `)) return a;
+        const label = a.key.slice(garment.length + 1);
+        const normLabel = normalizeMeasureKey(label);
+        const match = Object.entries(opt.values).find(
+          ([k]) => normalizeMeasureKey(k) === normLabel,
+        );
+        return match && match[1] ? { ...a, value: match[1] } : a;
+      }),
+    );
+  }
 
   useEffect(() => {
     fetchVestRanges()
@@ -458,8 +510,7 @@ export default function CreateOrder() {
     if (!selectedCustomer) {
       setCustomerOrders([]);
       setSelectedProduct(null);
-      setGcMeasurementsData({});
-      setMeasurementType(null);
+      setMeasurementType("finished");
       return;
     }
     setOrdersLoading(true);
@@ -470,11 +521,6 @@ export default function CreateOrder() {
         setOrdersLoading(false);
       })
       .catch(() => setOrdersLoading(false));
-    fetchCustomerGcMeasurements(selectedCustomer.id)
-      .then((data) => {
-        if (data) setGcMeasurementsData(data);
-      })
-      .catch(() => {});
   }, [selectedCustomer]);
 
   function applyDefaultSizeType(attrs) {
@@ -555,6 +601,7 @@ export default function CreateOrder() {
   async function handleNewOrder() {
     setSelectedTemplate(null);
     setFitSizeSelections({});
+    setStandardSizeSelections({});
     const defaults = {};
     [...styleOptions, ...contrastOptions]
       .filter((o) => o.isDefault && o.visible)
@@ -649,7 +696,7 @@ export default function CreateOrder() {
   useEffect(() => {
     if (!selectedProduct) {
       setSelectedTemplate(null);
-      setMeasurementType(null);
+      setMeasurementType("finished");
       setFabricCode("");
       return;
     }
@@ -723,11 +770,13 @@ export default function CreateOrder() {
     setStyleSelections({});
     if (!selectedVariant) {
       setFitSizeSelections({});
+      setStandardSizeSelections({});
       return;
     }
     const garments = garmentsFromGcBuilderValue(selectedVariant.title);
     if (!garments.length) {
       setFitSizeSelections({});
+      setStandardSizeSelections({});
       return;
     }
     setStyleOptionsLoading(true);
@@ -780,6 +829,7 @@ export default function CreateOrder() {
       .finally(() => setStyleOptionsLoading(false));
 
     setFitSizeSelections({});
+    setStandardSizeSelections({});
   }, [selectedVariant, fitSizeOptions]);
 
   useEffect(() => {
@@ -1103,10 +1153,7 @@ export default function CreateOrder() {
           ...(garments.length
             ? [{ key: "_kute_garments", value: garments.join(",") }]
             : []),
-          {
-            key: "_kute_measuresType",
-            value: measurementType === "body" ? "10001" : "10002",
-          },
+          { key: "_kute_measuresType", value: "10002" },
         ],
         lineItems: [
           {
@@ -1116,7 +1163,7 @@ export default function CreateOrder() {
             requiresShipping: true,
             customAttributes: [
               ...attributes
-                .filter((a) => a.key)
+                .filter((a) => a.key && a.key.toLowerCase() !== "size type")
                 .map(({ key, value }) => ({ key, value: String(value) })),
               ...styleAttrs,
               ...upchargeAttrs,
@@ -1124,9 +1171,10 @@ export default function CreateOrder() {
               ...(fabricCode.trim()
                 ? [{ key: "Fabric", value: fabricCode.trim() }]
                 : []),
+              { key: "measuresType", value: "10002" },
               {
-                key: "measuresType",
-                value: measurementType === "body" ? "10001" : "10002",
+                key: "Size Type",
+                value: sizeType === "standard" ? "Standard" : "Custom",
               },
             ],
           },
@@ -1265,52 +1313,6 @@ export default function CreateOrder() {
     return false;
   }, [styleSelections, expandedLiningCodes, expandedButtonCodes]);
 
-  const bodyMeasurementProfile = useMemo(() => {
-    let oldest = null;
-    for (const list of Object.values(gcMeasurementsData)) {
-      for (const p of list) {
-        if (p.isBodyMeasurement) return p;
-      }
-      // last element = oldest order (array is newest-first)
-      if (list.length) oldest = list[list.length - 1];
-    }
-    return oldest; // default: oldest profile if none has toggle on
-  }, [gcMeasurementsData]);
-
-  async function applyBodyMeasurement() {
-    if (!bodyMeasurementProfile || !selectedProduct || !selectedVariant) return;
-    setMeasurementType("body");
-    setSelectedTemplate(null);
-    const garments = garmentsFromGcBuilderValue(selectedVariant.title);
-    const combinedRanges = {
-      ...vestRanges,
-      ...trouserRanges,
-      ...jacketRanges,
-      ...shirtRanges,
-    };
-    const bodyAttrs = Object.entries(
-      bodyMeasurementProfile.measurements ?? {},
-    ).map(([key, value]) => ({ key, value: String(value ?? "") }));
-    if (garments.length) {
-      setFieldsLoading(true);
-      try {
-        const canonical = await getCanonicalFieldsForGarments(garments);
-        setAttributes(
-          applyDefaultSizeType(
-            prefillFromPastOrder(canonical, bodyAttrs, combinedRanges),
-          ),
-        );
-      } catch {
-        setAttributes(deduplicateByRange(bodyAttrs, combinedRanges));
-      } finally {
-        setFieldsLoading(false);
-      }
-    } else {
-      setAttributes(deduplicateByRange(bodyAttrs, combinedRanges));
-    }
-    setFitSizeSelections({});
-  }
-
   const canSubmit =
     !!selectedCustomer &&
     !!selectedProduct &&
@@ -1413,19 +1415,6 @@ export default function CreateOrder() {
               </span>
             </div>
             <div className="flex flex-wrap gap-[10px]">
-              {bodyMeasurementProfile && (
-                <button
-                  onClick={applyBodyMeasurement}
-                  className={cn(
-                    "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
-                    measurementType === "body"
-                      ? "text-white border border-gc-primary bg-gc-primary"
-                      : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
-                  )}
-                >
-                  Body Measurements
-                </button>
-              )}
               <button
                 onClick={() => {
                   setMeasurementType("finished");
@@ -1439,6 +1428,42 @@ export default function CreateOrder() {
                 )}
               >
                 Finished Measurements
+              </button>
+            </div>
+          </div>
+        )}
+
+        {selectedCustomer && selectedProduct && selectedVariant && (
+          <div className="flex flex-col gap-[16px]">
+            <div className="flex flex-wrap items-center gap-[8px] pb-[17px] border-b border-gc-section-divider/30">
+              <span className="font-garamond text-[14px] font-medium uppercase text-[#A45D41]">
+                Size Type
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-[10px]">
+              <button
+                type="button"
+                onClick={() => setSizeType("custom")}
+                className={cn(
+                  "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
+                  sizeType === "custom"
+                    ? "text-white border border-gc-primary bg-gc-primary"
+                    : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
+                )}
+              >
+                Custom
+              </button>
+              <button
+                type="button"
+                onClick={() => setSizeType("standard")}
+                className={cn(
+                  "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
+                  sizeType === "standard"
+                    ? "text-white border border-gc-primary bg-gc-primary"
+                    : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
+                )}
+              >
+                Standard
               </button>
             </div>
           </div>
@@ -1696,6 +1721,10 @@ export default function CreateOrder() {
                 fitSizeOptions={fitSizeOptions}
                 fitSizeSelections={fitSizeSelections}
                 onFitSizeChange={setFitSizeSelections}
+                standardSizeOptions={standardSizesByGarment}
+                standardSizeSelections={standardSizeSelections}
+                onStandardSizeSelect={handleStandardSizeSelect}
+                showStandardSizePicker={sizeType === "standard"}
               />
             )}
 
