@@ -330,26 +330,18 @@ export function AddStyleOptionModal({
           label: form.label.trim(),
           handle: node.handle,
         });
-        console.log("[styleOption] create: syncing variant", {
-          optionValueLabel,
-          upcharge: form.upcharge,
-        });
         shopifyVariantId = await syncStyleOptionVariant({
           shopifyVariantId: null,
           optionValueLabel,
           upcharge: form.upcharge,
         });
-        console.log("[styleOption] create: sync result", shopifyVariantId);
         if (shopifyVariantId) {
           await updateStyleOption(node.id, {
             shopify_variant_id: shopifyVariantId,
           });
         }
       } catch (variantErr) {
-        console.error("Style option variant sync failed:", variantErr, {
-          message: variantErr?.message,
-          stack: variantErr?.stack,
-        });
+        console.error("Style option variant sync failed:", variantErr);
       }
 
       onCreated(node, garment, {
@@ -879,22 +871,13 @@ export function EditStyleOptionModal({
           label: form.label.trim(),
           handle: option.handle,
         });
-        console.log("[styleOption] edit: syncing variant", {
-          existingVariantId: option.shopifyVariantId || null,
-          optionValueLabel,
-          upcharge: form.upcharge,
-        });
         shopifyVariantId = await syncStyleOptionVariant({
           shopifyVariantId: option.shopifyVariantId || null,
           optionValueLabel,
           upcharge: form.upcharge,
         });
-        console.log("[styleOption] edit: sync result", shopifyVariantId);
       } catch (variantErr) {
-        console.error("Style option variant sync failed:", variantErr, {
-          message: variantErr?.message,
-          stack: variantErr?.stack,
-        });
+        console.error("Style option variant sync failed:", variantErr);
         shopifyVariantId = option.shopifyVariantId || null;
       }
 

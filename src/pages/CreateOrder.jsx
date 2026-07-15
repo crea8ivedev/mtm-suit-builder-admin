@@ -1407,68 +1407,6 @@ export default function CreateOrder() {
             </div>
           )}
 
-        {selectedCustomer && selectedProduct && selectedVariant && (
-          <div className="flex flex-col gap-[16px]">
-            <div className="flex flex-wrap items-center gap-[8px] pb-[17px] border-b border-gc-section-divider/30">
-              <span className="font-garamond text-[14px] font-medium uppercase text-[#A45D41]">
-                Measurement Type
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-[10px]">
-              <button
-                onClick={() => {
-                  setMeasurementType("finished");
-                  setSelectedTemplate(null);
-                }}
-                className={cn(
-                  "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
-                  measurementType === "finished"
-                    ? "text-white border border-gc-primary bg-gc-primary"
-                    : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
-                )}
-              >
-                Finished Measurements
-              </button>
-            </div>
-          </div>
-        )}
-
-        {selectedCustomer && selectedProduct && selectedVariant && (
-          <div className="flex flex-col gap-[16px]">
-            <div className="flex flex-wrap items-center gap-[8px] pb-[17px] border-b border-gc-section-divider/30">
-              <span className="font-garamond text-[14px] font-medium uppercase text-[#A45D41]">
-                Size Type
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-[10px]">
-              <button
-                type="button"
-                onClick={() => setSizeType("custom")}
-                className={cn(
-                  "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
-                  sizeType === "custom"
-                    ? "text-white border border-gc-primary bg-gc-primary"
-                    : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
-                )}
-              >
-                Custom
-              </button>
-              <button
-                type="button"
-                onClick={() => setSizeType("standard")}
-                className={cn(
-                  "font-hanken flex items-center gap-[7px] px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer",
-                  sizeType === "standard"
-                    ? "text-white border border-gc-primary bg-gc-primary"
-                    : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
-                )}
-              >
-                Standard
-              </button>
-            </div>
-          </div>
-        )}
-
         {selectedCustomer &&
           selectedProduct &&
           measurementType === "finished" &&

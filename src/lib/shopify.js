@@ -3535,11 +3535,6 @@ async function findStyleOptionVariantByLabel(optionValueLabel) {
       id: productId,
       cursor,
     });
-    console.log("[styleOption] lookup page", {
-      productId,
-      cursor,
-      variantCount: data.product?.variants?.nodes?.length,
-    });
     const { nodes, pageInfo } = data.product.variants;
     const match = nodes.find((v) =>
       v.selectedOptions.some(
@@ -3548,68 +3543,34 @@ async function findStyleOptionVariantByLabel(optionValueLabel) {
           o.value === optionValueLabel,
       ),
     );
-    if (match) {
-      console.log("[styleOption] found existing variant", {
-        optionValueLabel,
-        matchId: match.id,
-      });
-      return match.id;
-    }
-    if (!pageInfo.hasNextPage) {
-      console.log("[styleOption] no existing variant found", {
-        optionValueLabel,
-      });
-      return null;
-    }
+    if (match) return match.id;
+    if (!pageInfo.hasNextPage) return null;
     cursor = pageInfo.endCursor;
   }
 }
 
 export async function createStyleOptionVariant(optionValueLabel, upcharge) {
-  console.log("[styleOption] createStyleOptionVariant called", {
-    optionValueLabel,
-    upcharge,
-  });
   const existingId = await findStyleOptionVariantByLabel(optionValueLabel);
   if (existingId) {
-    console.log("[styleOption] reusing variant, updating price", {
-      existingId,
-      upcharge,
-    });
     await updateStyleOptionVariantPrice(existingId, upcharge);
     return { id: existingId };
   }
   const productId = await getOrCreateStyleOptionsProduct();
-  console.log("[styleOption] creating new variant", {
-    productId,
-    optionValueLabel,
-    upcharge,
-  });
   const [variant] = await createGarmentVariants(
     productId,
     STYLE_OPTIONS_PRODUCT_OPTION_NAME,
     [{ name: optionValueLabel, price: upcharge }],
   );
-  console.log("[styleOption] created variant result", variant);
   return variant;
 }
 
 export async function updateStyleOptionVariantPrice(variantId, upcharge) {
   const productId = await getOrCreateStyleOptionsProduct();
-  console.log("[styleOption] updateStyleOptionVariantPrice called", {
-    productId,
-    variantId,
-    upcharge,
-  });
   await updateVariantPrices(productId, [{ id: variantId, price: upcharge }]);
 }
 
 export async function removeStyleOptionVariant(variantId) {
   const productId = await getOrCreateStyleOptionsProduct();
-  console.log("[styleOption] removeStyleOptionVariant called", {
-    productId,
-    variantId,
-  });
   await removeVariantsFromProduct(productId, [variantId]);
 }
 
@@ -3636,10 +3597,6 @@ export async function syncStyleOptionVariant({
       if (!/does not exist/i.test(err.message || "")) throw err;
       // Stale pointer (e.g. registry product was swapped) — self-heal by
       // creating/reusing a variant on the current registry product.
-      console.warn(
-        "[styleOption] stored variant id is stale, recreating",
-        shopifyVariantId,
-      );
       const variant = await createStyleOptionVariant(optionValueLabel, amount);
       return variant.id;
     }
