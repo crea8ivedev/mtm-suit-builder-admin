@@ -3493,84 +3493,123 @@ export async function updateVariantPrices(productId, updates) {
 
 // --- Style option → Shopify variant sync -----------------------------
 // Every style option (across all garments/categories) gets a variant on one
-// shared, never-published "registry" product, priced at its upcharge. This
-// gives admins real Shopify commerce objects (price, inventory policy) for
-// upcharges instead of just a metaobject number. A single option axis is
-// used (not one axis per category) since a product caps out at 3 options
-// and garments have far more categories than that.
-const STYLE_OPTIONS_PRODUCT_HANDLE = "internal-style-option-upcharges";
-const STYLE_OPTIONS_PRODUCT_OPTION_NAME = "Style Option";
+// shared registry product, priced at its upcharge. This gives admins real
+// Shopify commerce objects (price, inventory policy) for upcharges instead
+// of just a metaobject number. A single option axis is used (not one axis
+// per category) since a product caps out at 3 options and garments have
+// far more categories than that.
+const STYLE_OPTIONS_PRODUCT_ID = "gid://shopify/Product/8436660699323";
+const STYLE_OPTIONS_PRODUCT_OPTION_NAME = "Style";
 
-const GET_PRODUCT_BY_HANDLE_QUERY = `
-  query GetStyleOptionsProduct($handle: String!) {
-    productByHandle(handle: $handle) {
-      id
+async function getOrCreateStyleOptionsProduct() {
+  return STYLE_OPTIONS_PRODUCT_ID;
+}
+
+export function buildStyleOptionValueLabel({ label }) {
+  return label;
+}
+
+const GET_STYLE_OPTIONS_VARIANTS_QUERY = `
+  query GetStyleOptionsVariants($id: ID!, $cursor: String) {
+    product(id: $id) {
+      variants(first: 250, after: $cursor) {
+        nodes {
+          id
+          selectedOptions { name value }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
     }
   }
 `;
 
-let _styleOptionsProductIdPromise = null;
-
-async function getOrCreateStyleOptionsProduct() {
-  if (_styleOptionsProductIdPromise) return _styleOptionsProductIdPromise;
-  _styleOptionsProductIdPromise = (async () => {
-    const existing = await shopifyGraphQL(GET_PRODUCT_BY_HANDLE_QUERY, {
-      handle: STYLE_OPTIONS_PRODUCT_HANDLE,
+// Looks up an existing variant on the registry product whose "Style Option"
+// value already matches this label, so two style options that share a label
+// (e.g. same name across garments) reuse one variant instead of colliding
+// on productVariantsBulkCreate (which errors on a duplicate option value).
+async function findStyleOptionVariantByLabel(optionValueLabel) {
+  const productId = await getOrCreateStyleOptionsProduct();
+  let cursor = null;
+  for (;;) {
+    const data = await shopifyGraphQL(GET_STYLE_OPTIONS_VARIANTS_QUERY, {
+      id: productId,
+      cursor,
     });
-    if (existing.productByHandle?.id) return existing.productByHandle.id;
-
-    const data = await shopifyGraphQL(PRODUCT_CREATE_MUTATION, {
-      product: {
-        title: "Style Options (Internal Pricing)",
-        handle: STYLE_OPTIONS_PRODUCT_HANDLE,
-        status: "DRAFT",
-        productOptions: [
-          {
-            name: STYLE_OPTIONS_PRODUCT_OPTION_NAME,
-            values: [{ name: "Default" }],
-          },
-        ],
-      },
+    console.log("[styleOption] lookup page", {
+      productId,
+      cursor,
+      variantCount: data.product?.variants?.nodes?.length,
     });
-    const { product, userErrors } = data.productCreate;
-    if (userErrors?.length) throw new Error(userErrors[0].message);
-    // Never published to any sales channel — this product only exists to
-    // back style-option upcharges with real variants, not to be sold.
-    return product.id;
-  })();
-  try {
-    return await _styleOptionsProductIdPromise;
-  } catch (e) {
-    _styleOptionsProductIdPromise = null;
-    throw e;
+    const { nodes, pageInfo } = data.product.variants;
+    const match = nodes.find((v) =>
+      v.selectedOptions.some(
+        (o) =>
+          o.name === STYLE_OPTIONS_PRODUCT_OPTION_NAME &&
+          o.value === optionValueLabel,
+      ),
+    );
+    if (match) {
+      console.log("[styleOption] found existing variant", {
+        optionValueLabel,
+        matchId: match.id,
+      });
+      return match.id;
+    }
+    if (!pageInfo.hasNextPage) {
+      console.log("[styleOption] no existing variant found", {
+        optionValueLabel,
+      });
+      return null;
+    }
+    cursor = pageInfo.endCursor;
   }
 }
 
-// `handle` disambiguates the option value so two style options that happen
-// to share a label (across different garments/categories) never collide
-// into the same Shopify option value.
-export function buildStyleOptionValueLabel({ garment, category, label, handle }) {
-  const suffix = handle ? handle.slice(-6) : "";
-  return `${garment} - ${category}: ${label}${suffix ? ` [${suffix}]` : ""}`;
-}
-
 export async function createStyleOptionVariant(optionValueLabel, upcharge) {
+  console.log("[styleOption] createStyleOptionVariant called", {
+    optionValueLabel,
+    upcharge,
+  });
+  const existingId = await findStyleOptionVariantByLabel(optionValueLabel);
+  if (existingId) {
+    console.log("[styleOption] reusing variant, updating price", {
+      existingId,
+      upcharge,
+    });
+    await updateStyleOptionVariantPrice(existingId, upcharge);
+    return { id: existingId };
+  }
   const productId = await getOrCreateStyleOptionsProduct();
+  console.log("[styleOption] creating new variant", {
+    productId,
+    optionValueLabel,
+    upcharge,
+  });
   const [variant] = await createGarmentVariants(
     productId,
     STYLE_OPTIONS_PRODUCT_OPTION_NAME,
     [{ name: optionValueLabel, price: upcharge }],
   );
+  console.log("[styleOption] created variant result", variant);
   return variant;
 }
 
 export async function updateStyleOptionVariantPrice(variantId, upcharge) {
   const productId = await getOrCreateStyleOptionsProduct();
+  console.log("[styleOption] updateStyleOptionVariantPrice called", {
+    productId,
+    variantId,
+    upcharge,
+  });
   await updateVariantPrices(productId, [{ id: variantId, price: upcharge }]);
 }
 
 export async function removeStyleOptionVariant(variantId) {
   const productId = await getOrCreateStyleOptionsProduct();
+  console.log("[styleOption] removeStyleOptionVariant called", {
+    productId,
+    variantId,
+  });
   await removeVariantsFromProduct(productId, [variantId]);
 }
 
@@ -3590,11 +3629,27 @@ export async function syncStyleOptionVariant({
     return variant.id;
   }
   if (shopifyVariantId && hasUpcharge) {
-    await updateStyleOptionVariantPrice(shopifyVariantId, amount);
-    return shopifyVariantId;
+    try {
+      await updateStyleOptionVariantPrice(shopifyVariantId, amount);
+      return shopifyVariantId;
+    } catch (err) {
+      if (!/does not exist/i.test(err.message || "")) throw err;
+      // Stale pointer (e.g. registry product was swapped) — self-heal by
+      // creating/reusing a variant on the current registry product.
+      console.warn(
+        "[styleOption] stored variant id is stale, recreating",
+        shopifyVariantId,
+      );
+      const variant = await createStyleOptionVariant(optionValueLabel, amount);
+      return variant.id;
+    }
   }
   if (shopifyVariantId && !hasUpcharge) {
-    await removeStyleOptionVariant(shopifyVariantId);
+    try {
+      await removeStyleOptionVariant(shopifyVariantId);
+    } catch (err) {
+      if (!/does not exist/i.test(err.message || "")) throw err;
+    }
     return null;
   }
   return null;
