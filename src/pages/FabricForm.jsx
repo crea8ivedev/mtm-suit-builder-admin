@@ -10,6 +10,9 @@ import GcFabricFieldsForm from "../components/fabric/GcFabricFieldsForm";
 import ProductMediaUploader from "../components/fabric/ProductMediaUploader";
 import GarmentTypeVariantManager from "../components/fabric/GarmentTypeVariantManager";
 import CollectionMultiSelect from "../components/fabric/CollectionMultiSelect";
+import DescriptionEditor from "../components/fabric/DescriptionEditor";
+import DesignOptionsPicker from "../components/fabric/DesignOptionsPicker";
+import ProductsMultiSelect from "../components/fabric/ProductsMultiSelect";
 import { cn } from "../utils/cn";
 import {
   fetchGcFabrics,
@@ -29,6 +32,11 @@ import {
   fetchCollections,
   createCollection,
   deleteFabricProduct,
+  fetchDesignOptions,
+  createDesignOption,
+  clearDesignOptionsCache,
+  fetchDesignOptionTitleChoices,
+  fetchActiveProductsForSeparates,
   GARMENT_TYPES,
 } from "../lib/shopify";
 import { fetchKtFabricDetails, isKtFabricRegistered } from "../lib/kutetailor";
@@ -95,6 +103,19 @@ export default function FabricForm({ mode, productId }) {
   const [collectionIds, setCollectionIds] = useState([]);
   const [originalCollectionIds, setOriginalCollectionIds] = useState([]);
 
+  const [description, setDescription] = useState("");
+  const [designOptions, setDesignOptions] = useState([]);
+  const [designOptionsLoading, setDesignOptionsLoading] = useState(true);
+  const [designOptionTitleChoices, setDesignOptionTitleChoices] = useState(null);
+  const [designOptionIds, setDesignOptionIds] = useState([]);
+  const [fabricCareIds, setFabricCareIds] = useState([]);
+
+  const [shippingReturns, setShippingReturns] = useState("");
+
+  const [activeProducts, setActiveProducts] = useState([]);
+  const [activeProductsLoading, setActiveProductsLoading] = useState(true);
+  const [separatesIds, setSeparatesIds] = useState([]);
+
   const [images, setImages] = useState([]);
   const [garmentSelections, setGarmentSelections] = useState({});
   const [originalVariants, setOriginalVariants] = useState({});
@@ -141,6 +162,56 @@ export default function FabricForm({ mode, productId }) {
   }, []);
 
   useEffect(() => {
+    fetchDesignOptions()
+      .then(setDesignOptions)
+      .catch(() => {})
+      .finally(() => setDesignOptionsLoading(false));
+    fetchDesignOptionTitleChoices()
+      .then(setDesignOptionTitleChoices)
+      .catch((e) => console.error("fetchDesignOptionTitleChoices failed", e));
+  }, []);
+
+  async function handleCreateDesignOption({ title, label, value }) {
+    const created = await createDesignOption({ title, label, value });
+    clearDesignOptionsCache();
+    setDesignOptions((prev) => [
+      ...prev,
+      { id: created.id, title, label, value },
+    ]);
+    return created;
+  }
+
+  // Union two product lists by id, and union each product's variants by id —
+  // used so the fetched fabric-product list and the pseudo-products built
+  // from an edited product's saved separates merge regardless of which
+  // async call resolves first.
+  function mergeProductLists(base, extra) {
+    const byId = new Map(base.map((p) => [p.id, p]));
+    for (const p of extra) {
+      const existing = byId.get(p.id);
+      if (!existing) {
+        byId.set(p.id, p);
+        continue;
+      }
+      const variantIds = new Set((existing.variants ?? []).map((v) => v.id));
+      const merged = [...(existing.variants ?? [])];
+      for (const v of p.variants ?? []) {
+        if (!variantIds.has(v.id)) merged.push(v);
+      }
+      byId.set(p.id, { ...existing, variants: merged });
+    }
+    return [...byId.values()];
+  }
+
+  useEffect(() => {
+    fetchActiveProductsForSeparates()
+      .then((list) => setActiveProducts((prev) => mergeProductLists(list, prev)))
+      .catch(() => {})
+      .finally(() => setActiveProductsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (!isEdit) return;
     const gid = `gid://shopify/Product/${productId}`;
     fetchFabricProductDetail(gid)
@@ -154,6 +225,45 @@ export default function FabricForm({ mode, productId }) {
         setStatus(detail.status);
         setCollectionIds(detail.collectionIds);
         setOriginalCollectionIds(detail.collectionIds);
+        setDescription(detail.description || "");
+        setShippingReturns(detail.shippingReturns || "");
+        setDesignOptionIds(detail.designOptionIds || []);
+        if (detail.designOptions?.length) {
+          setDesignOptions((prev) => {
+            const byId = new Map(prev.map((o) => [o.id, o]));
+            for (const o of detail.designOptions) byId.set(o.id, o);
+            return [...byId.values()];
+          });
+        }
+        setFabricCareIds(detail.fabricCareIds || []);
+        if (detail.fabricCare?.length) {
+          setDesignOptions((prev) => {
+            const byId = new Map(prev.map((o) => [o.id, o]));
+            for (const o of detail.fabricCare) byId.set(o.id, o);
+            return [...byId.values()];
+          });
+        }
+        setSeparatesIds(detail.separatesIds || []);
+        if (detail.separates?.length) {
+          // Saved separates are variants — group them into pseudo-products
+          // so their chips render even if the parent product is missing
+          // from the fetched fabric-product list (e.g. now in draft).
+          const byProduct = new Map();
+          for (const v of detail.separates) {
+            const pid = v.productId || v.id;
+            if (!byProduct.has(pid)) {
+              byProduct.set(pid, {
+                id: pid,
+                title: v.productTitle || v.title,
+                variants: [],
+              });
+            }
+            byProduct.get(pid).variants.push({ id: v.id, title: v.title });
+          }
+          setActiveProducts((prev) =>
+            mergeProductLists(prev, [...byProduct.values()]),
+          );
+        }
         setGcFabricId(detail.gcFabricId);
         if (detail.gcFabric) {
           setFields({
@@ -441,6 +551,11 @@ export default function FabricForm({ mode, productId }) {
         selectedTypes,
         garmentSelections,
         sku: fields.fabricCode,
+        description,
+        designOptionIds,
+        fabricCareIds,
+        separatesIds,
+        shippingReturns,
       });
     setGcFabricId(usedFabricId);
 
@@ -477,6 +592,11 @@ export default function FabricForm({ mode, productId }) {
       media: newMedia,
       collectionsToJoin,
       collectionsToLeave,
+      description,
+      designOptionIds,
+      fabricCareIds,
+      separatesIds,
+      shippingReturns,
     });
 
     const origTypes = Object.keys(originalVariants);
@@ -654,6 +774,48 @@ export default function FabricForm({ mode, productId }) {
                 onChange={setCollectionIds}
                 loading={collectionsLoading}
                 onCreateCollection={handleCreateCollection}
+              />
+            </div>
+            <div>
+              <label className={INPUT_LABEL_CLASS}>Description</label>
+              <DescriptionEditor value={description} onChange={setDescription} />
+            </div>
+            <div>
+              <label className={INPUT_LABEL_CLASS}>Design Options</label>
+              <DesignOptionsPicker
+                options={designOptions}
+                selectedIds={designOptionIds}
+                onChange={setDesignOptionIds}
+                loading={designOptionsLoading}
+                onCreateOption={handleCreateDesignOption}
+                titleChoices={designOptionTitleChoices}
+              />
+            </div>
+            <div>
+              <label className={INPUT_LABEL_CLASS}>Fabric &amp; Care</label>
+              <DesignOptionsPicker
+                options={designOptions}
+                selectedIds={fabricCareIds}
+                onChange={setFabricCareIds}
+                loading={designOptionsLoading}
+                onCreateOption={handleCreateDesignOption}
+                titleChoices={designOptionTitleChoices}
+              />
+            </div>
+            <div>
+              <label className={INPUT_LABEL_CLASS}>Separates</label>
+              <ProductsMultiSelect
+                products={activeProducts}
+                selectedIds={separatesIds}
+                onChange={setSeparatesIds}
+                loading={activeProductsLoading}
+              />
+            </div>
+            <div>
+              <label className={INPUT_LABEL_CLASS}>Shipping &amp; Returns</label>
+              <DescriptionEditor
+                value={shippingReturns}
+                onChange={setShippingReturns}
               />
             </div>
           </div>

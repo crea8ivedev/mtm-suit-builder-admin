@@ -11,6 +11,10 @@
     "format": "prettier --write \"src/**/*.{js,jsx}\""
   },
   "dependencies": {
+    "@tiptap/extension-link": "^3.28.0",
+    "@tiptap/pm": "^3.28.0",
+    "@tiptap/react": "^3.28.0",
+    "@tiptap/starter-kit": "^3.28.0",
     "clsx": "^2.1.1",
     "country-state-city": "^3.2.1",
     "jspdf": "^4.2.1",

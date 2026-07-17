@@ -2485,6 +2485,7 @@ const GET_METAOBJECT_FIELD_DEFS = `
         name
         required
         type { name }
+        validations { name value }
       }
     }
   }
@@ -3013,6 +3014,140 @@ export async function deleteGcFabric(id) {
   return data.metaobjectDelete.deletedId;
 }
 
+// ─── Design Options (custom.design_options product metafield) ────────────
+// Metaobject entries have fields: title, label, value.
+export const DESIGN_OPTIONS_TYPE = "design_options";
+
+const DESIGN_OPTIONS_QUERY = `
+  query GetDesignOptions($first: Int!, $after: String) {
+    metaobjects(type: "${DESIGN_OPTIONS_TYPE}", first: $first, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          handle
+          fields { key value }
+          capabilities { publishable { status } }
+        }
+      }
+    }
+  }
+`;
+
+let _designOptionsCache = null;
+let _designOptionsCacheAt = 0;
+const DESIGN_OPTIONS_CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+export async function fetchDesignOptions() {
+  if (
+    _designOptionsCache &&
+    Date.now() - _designOptionsCacheAt < DESIGN_OPTIONS_CACHE_TTL
+  ) {
+    return _designOptionsCache;
+  }
+  const all = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(DESIGN_OPTIONS_QUERY, {
+      first: 250,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.metaobjects;
+    for (const { node } of edges) {
+      const pubStatus = node.capabilities?.publishable?.status;
+      if (pubStatus && pubStatus !== "ACTIVE") continue;
+      const fm = Object.fromEntries(
+        node.fields.map((f) => [f.key, f.value ?? ""]),
+      );
+      all.push({
+        id: node.id,
+        handle: node.handle,
+        title: fm.title || node.handle,
+        label: fm.label || "",
+        value: fm.value || "",
+      });
+    }
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+  _designOptionsCache = all;
+  _designOptionsCacheAt = Date.now();
+  return all;
+}
+
+export function clearDesignOptionsCache() {
+  _designOptionsCache = null;
+  _designOptionsCacheAt = 0;
+}
+
+export async function createDesignOption({ title, label, value }) {
+  const fieldInputs = [
+    { key: "title", value: title || "" },
+    { key: "label", value: label || "" },
+    { key: "value", value: value || "" },
+  ].filter((f) => f.value !== "");
+  const data = await shopifyGraphQL(CREATE_METAOBJECT_MUTATION, {
+    metaobject: {
+      type: DESIGN_OPTIONS_TYPE,
+      fields: fieldInputs,
+      capabilities: { publishable: { status: "ACTIVE" } },
+    },
+  });
+  const { metaobject, userErrors } = data.metaobjectCreate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return metaobject;
+}
+
+function parseChoicesValue(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// The "title" field on the design_options metaobject definition is a
+// single_line_text_field with a "choices" validation in Shopify admin —
+// i.e. it renders as a dropdown there, not a free-text input. Read that
+// same choice list so the app's "create design option" form matches.
+//
+// Reading the choice list requires the read_metaobject_definitions scope.
+// If the app's token lacks it, fall back to the distinct titles already in
+// use across existing design_options entries (read_metaobjects suffices) —
+// an incomplete but functional dropdown until the scope is granted.
+export async function fetchDesignOptionTitleChoices() {
+  try {
+    const defs = await fetchStyleOptionFieldDefs(DESIGN_OPTIONS_TYPE);
+    const titleDef = defs.find((d) => d.key === "title");
+    const validations = titleDef?.validations ?? [];
+    // Look for the documented "choices" validation first; fall back to
+    // scanning any validation whose value is a JSON array (in case the API
+    // ever names it differently for metaobject vs metafield definitions).
+    const named = validations.find((v) => v.name === "choices");
+    const fromNamed = parseChoicesValue(named?.value);
+    if (fromNamed) return fromNamed;
+    for (const v of validations) {
+      const arr = parseChoicesValue(v.value);
+      if (arr) return arr;
+    }
+    console.warn(
+      `[design_options] "title" field has no choice-list validation — raw validations:`,
+      validations,
+    );
+  } catch (e) {
+    console.warn(
+      "[design_options] cannot read metaobject definition (missing read_metaobject_definitions scope?) — falling back to titles from existing entries:",
+      e.message,
+    );
+  }
+  const entries = await fetchDesignOptions();
+  const titles = [...new Set(entries.map((o) => o.title).filter(Boolean))];
+  return titles.length ? titles : null;
+}
+
 const COLLECTIONS_QUERY = `
   query GetCollections($first: Int!, $after: String) {
     collections(first: $first, after: $after) {
@@ -3182,6 +3317,64 @@ export function clearFabricProductsV2Cache() {
   _fabricProductsV2Cache = null;
 }
 
+// ─── Fabric-products picker (custom.separates — list.variant_reference) ──
+// Lists active products that have the custom.fabric metafield set (i.e.
+// fabric products), with their variants — specific variants get selected.
+const ACTIVE_PRODUCTS_QUERY = `
+  query GetActiveProductsForSeparates($first: Int!, $after: String) {
+    products(first: $first, after: $after, query: "status:active") {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id
+          title
+          status
+          metafield(namespace: "custom", key: "fabric") { value }
+          variants(first: 25) {
+            edges { node { id title sku } }
+          }
+        }
+      }
+    }
+  }
+`;
+
+let _activeProductsCache = null;
+
+export async function fetchActiveProductsForSeparates() {
+  if (_activeProductsCache) return _activeProductsCache;
+  const all = [];
+  let hasNextPage = true;
+  let cursor = null;
+  while (hasNextPage) {
+    const data = await shopifyGraphQL(ACTIVE_PRODUCTS_QUERY, {
+      first: 100,
+      after: cursor,
+    });
+    const { edges, pageInfo } = data.products;
+    for (const { node } of edges) {
+      if (!node.metafield?.value) continue;
+      all.push({
+        id: node.id,
+        title: node.title,
+        variants: (node.variants?.edges ?? []).map((e) => ({
+          id: e.node.id,
+          title: e.node.title,
+          sku: e.node.sku,
+        })),
+      });
+    }
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+  _activeProductsCache = all;
+  return all;
+}
+
+export function clearActiveProductsForSeparatesCache() {
+  _activeProductsCache = null;
+}
+
 const PRODUCT_CREATE_MUTATION = `
   mutation productCreate($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
     productCreate(product: $product, media: $media) {
@@ -3232,6 +3425,64 @@ async function publishToOnlineStore(productId) {
   if (userErrors?.length) throw new Error(userErrors[0].message);
 }
 
+// Shared by create and update — appends the optional custom.* metafields
+// (rich text / metaobject-list / product-list) to a metafields array.
+// `partial` (update mode) writes list fields even when empty, so removing
+// the last selection actually clears the metafield instead of no-op'ing.
+function appendCustomMetafields(
+  metafields,
+  {
+    description,
+    designOptionIds,
+    fabricCareIds,
+    separatesIds,
+    shippingReturns,
+  },
+  { partial = false } = {},
+) {
+  if (description || partial) {
+    metafields.push({
+      namespace: "custom",
+      key: "description",
+      type: "rich_text_field",
+      value: description || "",
+    });
+  }
+  if (shippingReturns || partial) {
+    metafields.push({
+      namespace: "custom",
+      key: "shipping_returns",
+      type: "rich_text_field",
+      value: shippingReturns || "",
+    });
+  }
+  if (designOptionIds?.length || partial) {
+    metafields.push({
+      namespace: "custom",
+      key: "design_options",
+      type: "list.metaobject_reference",
+      value: JSON.stringify(designOptionIds ?? []),
+    });
+  }
+  if (fabricCareIds?.length || partial) {
+    metafields.push({
+      namespace: "custom",
+      key: "fabric_care",
+      type: "list.metaobject_reference",
+      value: JSON.stringify(fabricCareIds ?? []),
+    });
+  }
+  if (separatesIds?.length || partial) {
+    metafields.push({
+      namespace: "custom",
+      key: "separates",
+      type: "list.variant_reference",
+      value: JSON.stringify(separatesIds ?? []),
+    });
+  }
+  return metafields;
+}
+
 // productCreate only creates ONE variant regardless of how many option
 // values are declared — it's linked to the first value of each option.
 // The rest of garmentTypes are turned into variants right after, via
@@ -3243,19 +3494,28 @@ export async function createFabricProduct({
   garmentTypes,
   media,
   collectionIds,
+  description,
+  designOptionIds,
+  fabricCareIds,
+  separatesIds,
+  shippingReturns,
 }) {
+  const metafields = appendCustomMetafields(
+    [
+      {
+        namespace: "custom",
+        key: "fabric",
+        type: "metaobject_reference",
+        value: gcFabricMetaobjectId,
+      },
+    ],
+    { description, designOptionIds, fabricCareIds, separatesIds, shippingReturns },
+  );
   const data = await shopifyGraphQL(PRODUCT_CREATE_MUTATION, {
     product: {
       title,
       status,
-      metafields: [
-        {
-          namespace: "custom",
-          key: "fabric",
-          type: "metaobject_reference",
-          value: gcFabricMetaobjectId,
-        },
-      ],
+      metafields,
       productOptions: garmentTypes.length
         ? [
             {
@@ -3293,6 +3553,11 @@ export async function createFabricProductComplete({
   selectedTypes,
   garmentSelections,
   sku,
+  description,
+  designOptionIds,
+  fabricCareIds,
+  separatesIds,
+  shippingReturns,
 }) {
   let fid = fabricId;
   if (!fid) {
@@ -3310,6 +3575,11 @@ export async function createFabricProductComplete({
     garmentTypes: selectedTypes,
     media,
     collectionIds,
+    description,
+    designOptionIds,
+    fabricCareIds,
+    separatesIds,
+    shippingReturns,
   });
 
   // No garment type has price/quantity set — leave the product's default
@@ -3374,8 +3644,24 @@ const PRODUCT_UPDATE_MUTATION = `
 
 export async function updateFabricProduct(
   productId,
-  { title, status, media, collectionsToJoin, collectionsToLeave },
+  {
+    title,
+    status,
+    media,
+    collectionsToJoin,
+    collectionsToLeave,
+    description,
+    designOptionIds,
+    fabricCareIds,
+    separatesIds,
+    shippingReturns,
+  },
 ) {
+  const metafields = appendCustomMetafields(
+    [],
+    { description, designOptionIds, fabricCareIds, separatesIds, shippingReturns },
+    { partial: true },
+  );
   const data = await shopifyGraphQL(PRODUCT_UPDATE_MUTATION, {
     product: {
       id: productId,
@@ -3387,6 +3673,7 @@ export async function updateFabricProduct(
       collectionsToLeave: collectionsToLeave?.length
         ? collectionsToLeave
         : undefined,
+      metafields: metafields.length ? metafields : undefined,
     },
     media: media?.length
       ? media.map(({ cdnUrl, alt }) => ({
@@ -3636,6 +3923,51 @@ const GET_FABRIC_PRODUCT_DETAIL_QUERY = `
           }
         }
       }
+      metafieldDescription: metafield(namespace: "custom", key: "description") {
+        value
+      }
+      metafieldDesignOptions: metafield(namespace: "custom", key: "design_options") {
+        references(first: 50) {
+          edges {
+            node {
+              ... on Metaobject {
+                id
+                handle
+                fields { key value }
+              }
+            }
+          }
+        }
+      }
+      metafieldFabricCare: metafield(namespace: "custom", key: "fabric_care") {
+        references(first: 50) {
+          edges {
+            node {
+              ... on Metaobject {
+                id
+                handle
+                fields { key value }
+              }
+            }
+          }
+        }
+      }
+      metafieldSeparates: metafield(namespace: "custom", key: "separates") {
+        references(first: 50) {
+          edges {
+            node {
+              ... on ProductVariant {
+                id
+                title
+                product { id title }
+              }
+            }
+          }
+        }
+      }
+      metafieldShippingReturns: metafield(namespace: "custom", key: "shipping_returns") {
+        value
+      }
       media(first: 50) {
         edges {
           node {
@@ -3700,11 +4032,41 @@ export async function fetchFabricProductDetail(productId) {
       ? gcFabric.image
       : null;
   const options = product.options ?? [];
+  const parseDesignOptionRefs = (metafield) =>
+    (metafield?.references?.edges ?? []).map(({ node }) => {
+      const fm = Object.fromEntries(
+        (node.fields ?? []).map((f) => [f.key, f.value ?? ""]),
+      );
+      return {
+        id: node.id,
+        title: fm.title || node.handle,
+        label: fm.label || "",
+        value: fm.value || "",
+      };
+    });
+  const designOptions = parseDesignOptionRefs(product.metafieldDesignOptions);
+  const fabricCare = parseDesignOptionRefs(product.metafieldFabricCare);
+  const separates = (product.metafieldSeparates?.references?.edges ?? []).map(
+    ({ node }) => ({
+      id: node.id,
+      title: node.title,
+      productId: node.product?.id ?? null,
+      productTitle: node.product?.title ?? "",
+    }),
+  );
   return {
     id: product.id,
     title: product.title,
     status: product.status,
     collectionIds: (product.collections?.edges ?? []).map((e) => e.node.id),
+    description: product.metafieldDescription?.value ?? "",
+    shippingReturns: product.metafieldShippingReturns?.value ?? "",
+    designOptions,
+    designOptionIds: designOptions.map((d) => d.id),
+    fabricCare,
+    fabricCareIds: fabricCare.map((d) => d.id),
+    separates,
+    separatesIds: separates.map((p) => p.id),
     gcFabricId: metaobject?.id ?? null,
     gcFabric: gcFabric
       ? {
