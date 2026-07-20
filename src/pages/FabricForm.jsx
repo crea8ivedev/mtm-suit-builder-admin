@@ -737,7 +737,7 @@ export default function FabricForm({ mode, productId }) {
                   className="flex items-center gap-[8px] font-hanken font-semibold text-[13px] text-gc-dark h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80 border border-gray-300"
                 >
                   <ExternalLink size={14} />
-                  View on Shopify
+                  View Product
                 </a>
               ) : (
                 <span
@@ -791,95 +791,99 @@ export default function FabricForm({ mode, productId }) {
 
         <div className={SECTION_CLASS}>
           <h2 className={SECTION_TITLE_CLASS}>Product</h2>
-          <div className="border-t border-gc-section-divider/30 pt-[20px] flex flex-col gap-[16px]">
-            <div className="max-w-[480px]">
-              <label className={INPUT_LABEL_CLASS}>Title</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  setTitleTouched(true);
-                }}
-                className={INPUT_CLASS}
-                placeholder="Product title"
-              />
-            </div>
-            <div>
-              <label className={INPUT_LABEL_CLASS}>Status</label>
-              <div className="flex gap-[10px]">
-                {["ACTIVE", "DRAFT"].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setStatus(s)}
-                    className={cn(
-                      "font-hanken px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer capitalize",
-                      status === s
-                        ? "text-white border border-gc-primary bg-gc-primary"
-                        : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
-                    )}
-                  >
-                    {s.toLowerCase()}
-                  </button>
-                ))}
+          <div className="border-t border-gc-section-divider/30 pt-[20px] grid grid-cols-1 lg:grid-cols-2 gap-[32px]">
+            <div className="flex flex-col gap-[16px]">
+              <div className="max-w-[480px]">
+                <label className={INPUT_LABEL_CLASS}>Title</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    setTitleTouched(true);
+                  }}
+                  className={INPUT_CLASS}
+                  placeholder="Product title"
+                />
+              </div>
+              <div>
+                <label className={INPUT_LABEL_CLASS}>Status</label>
+                <div className="flex gap-[10px]">
+                  {["ACTIVE", "DRAFT"].map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setStatus(s)}
+                      className={cn(
+                        "font-hanken px-[14px] py-[8px] rounded-[8px] text-[13px] font-medium transition-all cursor-pointer capitalize",
+                        status === s
+                          ? "text-white border border-gc-primary bg-gc-primary"
+                          : "text-[#6b7280] bg-white hover:bg-gc-primary/[4%] border border-gc-border-input",
+                      )}
+                    >
+                      {s.toLowerCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className={INPUT_LABEL_CLASS}>Collections</label>
+                <CollectionMultiSelect
+                  collections={collections}
+                  selectedIds={collectionIds}
+                  onChange={setCollectionIds}
+                  loading={collectionsLoading}
+                  onCreateCollection={handleCreateCollection}
+                />
+              </div>
+              <div>
+                <label className={INPUT_LABEL_CLASS}>Description</label>
+                <DescriptionEditor value={description} onChange={setDescription} />
               </div>
             </div>
-            <div>
-              <label className={INPUT_LABEL_CLASS}>Collections</label>
-              <CollectionMultiSelect
-                collections={collections}
-                selectedIds={collectionIds}
-                onChange={setCollectionIds}
-                loading={collectionsLoading}
-                onCreateCollection={handleCreateCollection}
-              />
-            </div>
-            <div>
-              <label className={INPUT_LABEL_CLASS}>Description</label>
-              <DescriptionEditor value={description} onChange={setDescription} />
-            </div>
-            <div>
-              <label className={INPUT_LABEL_CLASS}>Design Options</label>
-              <DesignOptionsPicker
-                options={nonFabricCareOptions}
-                selectedIds={designOptionIds}
-                onChange={setDesignOptionIds}
-                loading={designOptionsLoading}
-                onCreateOption={handleCreateDesignOption}
-                onUpdateOption={handleUpdateDesignOption}
-                onDeleteOption={handleDeleteDesignOption}
-                titleChoices={nonFabricCareTitleChoices}
-              />
-            </div>
-            <div>
-              <label className={INPUT_LABEL_CLASS}>Fabric &amp; Care</label>
-              <DesignOptionsPicker
-                options={fabricCareOptions}
-                selectedIds={fabricCareIds}
-                onChange={setFabricCareIds}
-                loading={designOptionsLoading}
-                onCreateOption={handleCreateDesignOption}
-                onUpdateOption={handleUpdateDesignOption}
-                onDeleteOption={handleDeleteDesignOption}
-                fixedTitle="None"
-              />
-            </div>
-            <div>
-              <label className={INPUT_LABEL_CLASS}>Separates</label>
-              <ProductsMultiSelect
-                products={activeProducts}
-                selectedIds={separatesIds}
-                onChange={setSeparatesIds}
-                loading={activeProductsLoading}
-              />
-            </div>
-            <div>
-              <label className={INPUT_LABEL_CLASS}>Shipping &amp; Returns</label>
-              <DescriptionEditor
-                value={shippingReturns}
-                onChange={setShippingReturns}
-              />
+            <div className="flex flex-col gap-[16px] lg:border-l lg:border-gc-section-divider/30 lg:pl-[32px]">
+              <div>
+                <label className={INPUT_LABEL_CLASS}>Design Options</label>
+                <DesignOptionsPicker
+                  options={nonFabricCareOptions}
+                  selectedIds={designOptionIds}
+                  onChange={setDesignOptionIds}
+                  loading={designOptionsLoading}
+                  onCreateOption={handleCreateDesignOption}
+                  onUpdateOption={handleUpdateDesignOption}
+                  onDeleteOption={handleDeleteDesignOption}
+                  titleChoices={nonFabricCareTitleChoices}
+                />
+              </div>
+              <div>
+                <label className={INPUT_LABEL_CLASS}>Fabric &amp; Care</label>
+                <DesignOptionsPicker
+                  options={fabricCareOptions}
+                  selectedIds={fabricCareIds}
+                  onChange={setFabricCareIds}
+                  loading={designOptionsLoading}
+                  onCreateOption={handleCreateDesignOption}
+                  onUpdateOption={handleUpdateDesignOption}
+                  onDeleteOption={handleDeleteDesignOption}
+                  fixedTitle="None"
+                />
+              </div>
+              <div>
+                <label className={INPUT_LABEL_CLASS}>Separates</label>
+                <ProductsMultiSelect
+                  products={activeProducts}
+                  selectedIds={separatesIds}
+                  onChange={setSeparatesIds}
+                  loading={activeProductsLoading}
+                />
+              </div>
+              <div>
+                <label className={INPUT_LABEL_CLASS}>Shipping &amp; Returns</label>
+                <DescriptionEditor
+                  value={shippingReturns}
+                  onChange={setShippingReturns}
+                />
+              </div>
             </div>
           </div>
         </div>

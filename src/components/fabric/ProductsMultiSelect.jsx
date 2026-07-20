@@ -35,7 +35,10 @@ export default function ProductsMultiSelect({
     return products.filter((p) => p.title.toLowerCase().includes(q));
   }, [products, search]);
 
+  const MAX_SELECTED = 2;
+
   function toggle(id) {
+    if (!selectedIds.includes(id) && selectedIds.length >= MAX_SELECTED) return;
     onChange(
       selectedIds.includes(id)
         ? selectedIds.filter((i) => i !== id)
@@ -111,20 +114,24 @@ export default function ProductsMultiSelect({
               </div>
               {(p.variants ?? []).map((v) => {
                 const active = selectedIds.includes(v.id);
+                const disabled = !active && selectedIds.length >= MAX_SELECTED;
                 return (
                   <label
                     key={v.id}
-                    className={`flex items-center gap-[8px] pl-[24px] pr-[14px] py-[7px] font-hanken text-[13px] transition-colors cursor-pointer ${
-                      active
-                        ? "text-gc-primary bg-gc-primary/[6%] font-semibold"
-                        : "text-gc-near-black font-normal hover:bg-gc-bg-warm"
+                    className={`flex items-center gap-[8px] pl-[24px] pr-[14px] py-[7px] font-hanken text-[13px] transition-colors ${
+                      disabled
+                        ? "text-gc-muted font-normal cursor-not-allowed opacity-50"
+                        : active
+                          ? "text-gc-primary bg-gc-primary/[6%] font-semibold cursor-pointer"
+                          : "text-gc-near-black font-normal hover:bg-gc-bg-warm cursor-pointer"
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={active}
+                      disabled={disabled}
                       onChange={() => toggle(v.id)}
-                      className="accent-gc-primary cursor-pointer"
+                      className="accent-gc-primary cursor-pointer disabled:cursor-not-allowed"
                     />
                     <span className="truncate">
                       {v.title && v.title !== "Default Title"

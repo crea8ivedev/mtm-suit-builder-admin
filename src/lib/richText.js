@@ -104,22 +104,6 @@ function extractPlainTextParagraphs(parsed) {
   return { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
 }
 
-export function plainTextToShopifyRichText(text) {
-  if (!text) return null;
-  const lines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  if (!lines.length) return null;
-  return JSON.stringify({
-    type: "root",
-    children: lines.map((line) => ({
-      type: "paragraph",
-      children: [{ type: "text", value: line }],
-    })),
-  });
-}
-
 function decodeHtmlEntities(str) {
   return str
     .replace(/&lt;/g, "<")
@@ -169,7 +153,7 @@ function stripLeadingChars(runs, n) {
 
 export function xlsxCellHtmlToShopifyRichText(html) {
   if (!html) return null;
-  const lines = html.split(/<br\s*\/?>/i).map(parseHtmlLineRuns);
+  const lines = html.split(/<br\s*\/?>|\r?\n/i).map(parseHtmlLineRuns);
   while (lines.length && isBlankRunLine(lines[0])) lines.shift();
   while (lines.length && isBlankRunLine(lines[lines.length - 1])) lines.pop();
   if (!lines.length) return null;

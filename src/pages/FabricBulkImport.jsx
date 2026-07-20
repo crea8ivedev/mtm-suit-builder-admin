@@ -29,10 +29,7 @@ import {
   GARMENT_TYPES,
 } from "../lib/shopify";
 import { fetchKtFabricDetails } from "../lib/kutetailor";
-import {
-  plainTextToShopifyRichText,
-  xlsxCellHtmlToShopifyRichText,
-} from "../lib/richText";
+import { xlsxCellHtmlToShopifyRichText } from "../lib/richText";
 
 // Columns whose CSV/xlsx cell holds rich text (bold/italic/bullets), not a
 // plain value.
@@ -493,12 +490,18 @@ export default function FabricBulkImport() {
           fetchDesignOptions(),
           fetchActiveProductsForSeparates(),
         ]);
-        const description = fabric.descriptionHtml
-          ? xlsxCellHtmlToShopifyRichText(fabric.descriptionHtml)
-          : plainTextToShopifyRichText(fabric.description);
-        const shippingReturns = fabric.shippingReturnsHtml
-          ? xlsxCellHtmlToShopifyRichText(fabric.shippingReturnsHtml)
-          : plainTextToShopifyRichText(fabric.shippingReturns);
+        // fabric.descriptionHtml/shippingReturnsHtml only exist when Excel's
+        // own per-character formatting produced rich runs. Cells without
+        // that (including ones where someone typed literal <i>/<b> tags by
+        // hand) fall back to the raw cell text — xlsxCellHtmlToShopifyRichText
+        // still recognizes literal tags in plain text, unlike the HTML-escaped
+        // version SheetJS reports as `.h` for those cells.
+        const description = xlsxCellHtmlToShopifyRichText(
+          fabric.descriptionHtml || fabric.description,
+        );
+        const shippingReturns = xlsxCellHtmlToShopifyRichText(
+          fabric.shippingReturnsHtml || fabric.shippingReturns,
+        );
         const designOptionIds = await resolveDesignOptionIds(
           fabric.designOptionTitles,
           designOptionsPool,
