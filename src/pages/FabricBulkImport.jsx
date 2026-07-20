@@ -1,5 +1,8 @@
 import { useState, Fragment } from "react";
-import Papa from "papaparse";
+// CSV import is temporarily disabled — only .xlsx is supported for now.
+// Kept commented (not removed) so it can be switched back on later.
+// import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Upload,
@@ -20,9 +23,20 @@ import {
   clearGcFabricsCache,
   createImageFromUrl,
   fetchGcFabrics,
+  fetchDesignOptions,
+  fetchActiveProductsForSeparates,
+  createDesignOption,
   GARMENT_TYPES,
 } from "../lib/shopify";
 import { fetchKtFabricDetails } from "../lib/kutetailor";
+import {
+  plainTextToShopifyRichText,
+  xlsxCellHtmlToShopifyRichText,
+} from "../lib/richText";
+
+// Columns whose CSV/xlsx cell holds rich text (bold/italic/bullets), not a
+// plain value.
+const RICH_TEXT_COLUMNS = ["description", "shipping_returns"];
 
 // These three are core garment types every fabric is assumed to offer —
 // they always get a variant even when left blank in the CSV. The rest
@@ -38,45 +52,68 @@ const FIXED_COLUMNS = [
   "weight",
   "status",
   "collections",
+  "description",
+  "design_options",
+  "fabric_care",
+  "separates",
+  "shipping_returns",
 ];
 
-const TEMPLATE_CSV = Papa.unparse({
-  fields: [
-    ...FIXED_COLUMNS,
-    ...GARMENT_TYPES.flatMap((t) => [`${t} Price`, `${t} Qty`]),
-  ],
-  data: [
-    [
-      "Dormeuil - DAQ1865 Blue",
-      "DAQ1865",
-      "Dormeuil",
-      "Blue",
-      "55% Wool 45% Silk",
-      "240g/m",
-      "ACTIVE",
-      "Custom Suits,Zegna",
-      "1500",
-      "10",
-      "900",
-      "5",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ],
-  ],
-});
+const TEMPLATE_CSV_ROW = [
+  "Dormeuil - DAQ1865 Blue",
+  "DAQ1865",
+  "Dormeuil",
+  "Blue",
+  "55% Wool 45% Silk",
+  "240g/m",
+  "ACTIVE",
+  "Custom Suits,Zegna",
+  "A timeless suit crafted from premium wool.",
+  "Jacket:Style:4 Inch Two Button Notch Lapel;Trouser:Style:Dress Trouser",
+  "Jacket:Rear Vent Style:Side Vents;Jacket:Tuxedo Contrast:None",
+  "REPLACE-WITH-REAL-SKU-1;REPLACE-WITH-REAL-SKU-2",
+  "Free 60-day returns.",
+  "1500",
+  "10",
+  "900",
+  "5",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+];
 
-function downloadTemplate() {
-  const blob = new Blob([TEMPLATE_CSV], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "fabric_bulk_import_template.csv";
-  a.click();
-  URL.revokeObjectURL(url);
+// CSV template generation — disabled along with CSV upload, kept commented.
+// const TEMPLATE_CSV = Papa.unparse({
+//   fields: [
+//     ...FIXED_COLUMNS,
+//     ...GARMENT_TYPES.flatMap((t) => [`${t} Price`, `${t} Qty`]),
+//   ],
+//   data: [TEMPLATE_CSV_ROW],
+// });
+//
+// function downloadTemplate() {
+//   const blob = new Blob([TEMPLATE_CSV], { type: "text/csv" });
+//   const url = URL.createObjectURL(blob);
+//   const a = document.createElement("a");
+//   a.href = url;
+//   a.download = "fabric_bulk_import_template.csv";
+//   a.click();
+//   URL.revokeObjectURL(url);
+// }
+
+const TEMPLATE_XLSX_ROWS = [
+  [...FIXED_COLUMNS, ...GARMENT_TYPES.flatMap((t) => [`${t} Price`, `${t} Qty`])],
+  TEMPLATE_CSV_ROW,
+];
+
+function downloadXlsxTemplate() {
+  const sheet = XLSX.utils.aoa_to_sheet(TEMPLATE_XLSX_ROWS);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, "Fabrics");
+  XLSX.writeFile(workbook, "fabric_bulk_import_template.xlsx");
 }
 
 function parseRows(rows) {
@@ -115,9 +152,84 @@ function parseRows(rows) {
           .split(",")
           .map((c) => c.trim())
           .filter(Boolean),
+        description: (row.description || "").trim(),
+        shippingReturns: (row.shipping_returns || "").trim(),
+        descriptionHtml: row.__descriptionHtml || null,
+        shippingReturnsHtml: row.__shipping_returnsHtml || null,
+        designOptionTitles: (row.design_options || "")
+          .split(";")
+          .map((t) => t.trim())
+          .filter(Boolean),
+        fabricCareTitles: (row.fabric_care || "")
+          .split(";")
+          .map((t) => t.trim())
+          .filter(Boolean),
+        separatesSkus: (row.separates || "")
+          .split(";")
+          .map((s) => s.trim())
+          .filter(Boolean),
         garments,
       };
     });
+}
+
+function splitTitleLabelValue(cell) {
+  const first = cell.indexOf(":");
+  if (first === -1) return [cell.trim(), undefined, undefined];
+  const second = cell.indexOf(":", first + 1);
+  if (second === -1) {
+    return [cell.slice(0, first).trim(), cell.slice(first + 1).trim(), undefined];
+  }
+  return [
+    cell.slice(0, first).trim(),
+    cell.slice(first + 1, second).trim(),
+    cell.slice(second + 1).trim(),
+  ];
+}
+
+async function resolveDesignOptionIds(cells, pool) {
+  if (!cells.length) return [];
+  const ids = [];
+  for (const cell of cells) {
+    const [titlePart, labelPart, valuePart] = splitTitleLabelValue(cell);
+    if (!titlePart) continue;
+    const title = titlePart.toLowerCase();
+    const label = labelPart?.toLowerCase();
+    const value = valuePart?.toLowerCase();
+    let match = pool.find(
+      (o) =>
+        o.title.toLowerCase() === title &&
+        (!label || o.label.toLowerCase() === label) &&
+        (!value || o.value.toLowerCase() === value),
+    );
+    if (!match) {
+      const created = await createDesignOption({
+        title: titlePart,
+        label: labelPart || "",
+        value: valuePart || "",
+      });
+      match = {
+        id: created.id,
+        title: titlePart,
+        label: labelPart || "",
+        value: valuePart || "",
+      };
+      pool.push(match);
+    }
+    ids.push(match.id);
+  }
+  return ids;
+}
+
+function resolveSeparatesIds(skus, products) {
+  if (!skus.length) return [];
+  const bySku = new Map();
+  for (const p of products) {
+    for (const v of p.variants ?? []) {
+      if (v.sku) bySku.set(v.sku.toLowerCase(), v.id);
+    }
+  }
+  return skus.map((s) => bySku.get(s.toLowerCase())).filter(Boolean);
 }
 
 // Spreadsheet apps auto-format codes like "DKK0114" as a currency amount
@@ -215,6 +327,53 @@ export default function FabricBulkImport() {
     return list;
   }
 
+  async function parseXlsxRows(file) {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array", cellHTML: true });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    if (!sheet?.["!ref"]) return [];
+    const range = XLSX.utils.decode_range(sheet["!ref"]);
+
+    const headers = [];
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: range.s.r, c })];
+      headers.push((cell?.w ?? cell?.v ?? "").toString().trim());
+    }
+
+    const rows = [];
+    for (let r = range.s.r + 1; r <= range.e.r; r++) {
+      const row = {};
+      let hasValue = false;
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const header = headers[c];
+        if (!header) continue;
+        const cell = sheet[XLSX.utils.encode_cell({ r, c })];
+        const text = (cell?.w ?? cell?.v ?? "").toString();
+        if (text) hasValue = true;
+        row[header] = text;
+        if (RICH_TEXT_COLUMNS.includes(header) && cell?.h) {
+          row[`__${header}Html`] = cell.h;
+        }
+      }
+      if (hasValue) rows.push(row);
+    }
+    return rows;
+  }
+
+  function finishParsedRows(rows, cols, existingCodes) {
+    const parsed = parseRows(rows);
+    const firstOccurrence = firstOccurrenceIndex(parsed);
+    const withValidation = parsed.map((f, idx) => ({
+      ...f,
+      errors: validateFabric(f, idx, firstOccurrence, existingCodes),
+      newCollections: newCollectionNames(f, cols),
+      ktStatus: "unverified", // unverified | checking | registered | not_found
+      importStatus: "pending", // pending | creating | done | failed
+      importError: null,
+    }));
+    setFabrics(withValidation);
+  }
+
   async function handleFile(e) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -230,28 +389,26 @@ export default function FabricBulkImport() {
       existingFabrics.map((f) => f.fabricCode.toLowerCase()),
     );
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        if (results.errors?.length) {
-          setParseError(results.errors[0].message);
-          return;
-        }
-        const parsed = parseRows(results.data);
-        const firstOccurrence = firstOccurrenceIndex(parsed);
-        const withValidation = parsed.map((f, idx) => ({
-          ...f,
-          errors: validateFabric(f, idx, firstOccurrence, existingCodes),
-          newCollections: newCollectionNames(f, cols),
-          ktStatus: "unverified", // unverified | checking | registered | not_found
-          importStatus: "pending", // pending | creating | done | failed
-          importError: null,
-        }));
-        setFabrics(withValidation);
-      },
-      error: (err) => setParseError(err.message),
-    });
+    try {
+      const rows = await parseXlsxRows(file);
+      finishParsedRows(rows, cols, existingCodes);
+    } catch (err) {
+      setParseError(err.message);
+    }
+
+    // CSV parsing — disabled along with CSV upload/template, kept commented.
+    // Papa.parse(file, {
+    //   header: true,
+    //   skipEmptyLines: true,
+    //   complete: (results) => {
+    //     if (results.errors?.length) {
+    //       setParseError(results.errors[0].message);
+    //       return;
+    //     }
+    //     finishParsedRows(results.data, cols, existingCodes);
+    //   },
+    //   error: (err) => setParseError(err.message),
+    // });
   }
 
   async function verifyAllWithKt() {
@@ -271,12 +428,12 @@ export default function FabricBulkImport() {
           if (idx !== i) return f;
           const filled = details
             ? {
-                fabricHouse: f.fabricHouse || details.fabricHouse || "",
-                color: f.color || details.color || "",
-                material: f.material || details.material || "",
-                weight: f.weight || details.weight || "",
-                ktImageUrl: f.ktImageUrl || details.imageUrl || null,
-              }
+              fabricHouse: f.fabricHouse || details.fabricHouse || "",
+              color: f.color || details.color || "",
+              material: f.material || details.material || "",
+              weight: f.weight || details.weight || "",
+              ktImageUrl: f.ktImageUrl || details.imageUrl || null,
+            }
             : {};
           return {
             ...f,
@@ -332,6 +489,29 @@ export default function FabricBulkImport() {
           ? await createImageFromUrl(fabric.ktImageUrl)
           : null;
 
+        const [designOptionsPool, separatesProducts] = await Promise.all([
+          fetchDesignOptions(),
+          fetchActiveProductsForSeparates(),
+        ]);
+        const description = fabric.descriptionHtml
+          ? xlsxCellHtmlToShopifyRichText(fabric.descriptionHtml)
+          : plainTextToShopifyRichText(fabric.description);
+        const shippingReturns = fabric.shippingReturnsHtml
+          ? xlsxCellHtmlToShopifyRichText(fabric.shippingReturnsHtml)
+          : plainTextToShopifyRichText(fabric.shippingReturns);
+        const designOptionIds = await resolveDesignOptionIds(
+          fabric.designOptionTitles,
+          designOptionsPool,
+        );
+        const fabricCareIds = await resolveDesignOptionIds(
+          fabric.fabricCareTitles,
+          designOptionsPool,
+        );
+        const separatesIds = resolveSeparatesIds(
+          fabric.separatesSkus,
+          separatesProducts,
+        );
+
         await createFabricProductComplete({
           fabricId: null,
           fabricFields: {
@@ -349,6 +529,11 @@ export default function FabricBulkImport() {
           selectedTypes,
           garmentSelections,
           sku: fabric.fabricCode,
+          description,
+          designOptionIds,
+          fabricCareIds,
+          separatesIds,
+          shippingReturns,
         });
 
         setFabrics((prev) =>
@@ -396,6 +581,7 @@ export default function FabricBulkImport() {
 
       <div className="bg-white rounded-[12px] border border-gc-divider p-[24px] flex flex-col gap-[20px]">
         <div className="flex flex-wrap items-center gap-[12px]">
+          {/* CSV template button — disabled along with CSV upload, kept commented.
           <button
             type="button"
             onClick={downloadTemplate}
@@ -404,13 +590,23 @@ export default function FabricBulkImport() {
             <Download size={14} />
             Download CSV template
           </button>
+          */}
+
+          <button
+            type="button"
+            onClick={downloadXlsxTemplate}
+            className="font-hanken flex items-center gap-[6px] text-[13px] font-medium text-gc-primary hover:text-gc-primary-dark cursor-pointer"
+          >
+            <Download size={14} />
+            Download XLSX template
+          </button>
 
           <label className="font-hanken flex items-center gap-[6px] bg-gc-primary text-white text-[13px] font-semibold px-[14px] py-[9px] rounded-lg hover:bg-gc-primary-dark transition-colors cursor-pointer">
             <Upload size={14} />
-            Upload CSV
+            Upload XLSX
             <input
               type="file"
-              accept=".csv"
+              accept=".xlsx"
               className="hidden"
               onChange={handleFile}
             />
@@ -455,6 +651,11 @@ export default function FabricBulkImport() {
                       "Color",
                       "Garments",
                       "Collections",
+                      "Description",
+                      "Design Options",
+                      "Fabric & Care",
+                      "Separates",
+                      "Shipping & Returns",
                       "Status",
                       "KuteTailor",
                       "Import",
@@ -471,30 +672,30 @@ export default function FabricBulkImport() {
                 <tbody>
                   {fabrics.map((f, idx) => (
                     <Fragment key={idx}>
-                    <tr className="border-t border-gc-divider">
-                      <td className="font-hanken text-[13px] px-[10px] py-[8px]">
-                        {f.title || (
-                          <span className="text-gc-muted italic">
-                            auto-generated
-                          </span>
-                        )}
-                      </td>
-                      <td className="font-hanken text-[13px] px-[10px] py-[8px]">
-                        {f.fabricCode}
-                      </td>
-                      <td className="font-hanken text-[13px] px-[10px] py-[8px]">
-                        {f.fabricHouse}
-                      </td>
-                      <td className="font-hanken text-[13px] px-[10px] py-[8px]">
-                        {f.color}
-                      </td>
-                      <td className="font-hanken text-[13px] px-[10px] py-[8px]">
-                        {f.garments.map((g) => g.type).join(", ")}
-                      </td>
-                      <td className="font-hanken text-[13px] px-[10px] py-[8px]">
-                        {f.collectionNames.length === 0
-                          ? "—"
-                          : f.collectionNames.map((name, i) => {
+                      <tr className="border-t border-gc-divider">
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.title || (
+                            <span className="text-gc-muted italic">
+                              auto-generated
+                            </span>
+                          )}
+                        </td>
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.fabricCode}
+                        </td>
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.fabricHouse}
+                        </td>
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.color}
+                        </td>
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.garments.map((g) => g.type).join(", ")}
+                        </td>
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.collectionNames.length === 0
+                            ? "—"
+                            : f.collectionNames.map((name, i) => {
                               const isNew = f.newCollections?.some(
                                 (n) => n.toLowerCase() === name.toLowerCase(),
                               );
@@ -517,107 +718,134 @@ export default function FabricBulkImport() {
                                 </Fragment>
                               );
                             })}
-                      </td>
-                      <td className="font-hanken text-[13px] px-[10px] py-[8px]">
-                        {f.ktStatus === "not_found"
-                          ? "DRAFT (forced)"
-                          : f.status}
-                      </td>
-                      <td className="font-hanken text-[13px] px-[10px] py-[8px]">
-                        {f.ktStatus === "unverified" && "—"}
-                        {f.ktStatus === "checking" && (
-                          <Loader2 size={14} className="animate-spin" />
-                        )}
-                        {f.ktStatus === "registered" && (
-                          <CheckCircle2
-                            size={14}
-                            className="text-emerald-600"
-                          />
-                        )}
-                        {f.ktStatus === "not_found" && (
-                          <span
-                            className="flex items-center gap-[4px] text-amber-600"
-                            title="Not in KuteTailor — will import as Draft"
-                          >
-                            <AlertTriangle size={14} />
-                          </span>
-                        )}
-                      </td>
-                      <td className="font-hanken text-[13px] px-[10px] py-[8px]">
-                        {f.errors.length > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => toggleErrors(idx)}
-                            className="flex items-center gap-[4px] text-red-600 hover:text-red-700 cursor-pointer"
-                          >
-                            <XCircle size={14} />
-                            {f.errors.length} error
-                            {f.errors.length !== 1 ? "s" : ""}
-                            {collapsedErrors.has(idx) ? (
-                              <ChevronRight size={14} />
-                            ) : (
-                              <ChevronDown size={14} />
-                            )}
-                          </button>
-                        ) : f.importStatus === "creating" ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : f.importStatus === "done" ? (
-                          <span className="flex items-center gap-[4px] text-emerald-600">
-                            <CheckCircle2 size={14} />
-                            Created
-                          </span>
-                        ) : f.importStatus === "failed" ? (
-                          <span
-                            className="flex items-center gap-[4px] text-red-600"
-                            title={f.importError}
-                          >
-                            <XCircle size={14} />
-                            Failed
-                          </span>
-                        ) : (
-                          "Pending"
-                        )}
-                      </td>
-                    </tr>
-                    {((f.errors.length > 0 && !collapsedErrors.has(idx)) ||
-                      f.ktStatus === "not_found" ||
-                      f.importStatus === "failed") && (
-                      <tr className="bg-red-50/60">
+                        </td>
                         <td
-                          colSpan={9}
-                          className="px-[10px] pb-[10px] pt-0 space-y-[6px]"
+                          className="font-hanken text-[13px] px-[10px] py-[8px] max-w-[200px] truncate"
+                          title={f.description}
                         >
-                          {f.importStatus === "failed" && f.importError && (
-                            <p className="font-hanken text-[12px] text-red-700 flex items-start gap-[6px] pl-[6px]">
-                              <XCircle size={13} className="mt-[1px] shrink-0" />
-                              <span>Import failed: {f.importError}</span>
-                            </p>
+                          {f.description || "—"}
+                        </td>
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.designOptionTitles.length
+                            ? f.designOptionTitles.join(", ")
+                            : "—"}
+                        </td>
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.fabricCareTitles.length
+                            ? f.fabricCareTitles.join(", ")
+                            : "—"}
+                        </td>
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.separatesSkus.length
+                            ? f.separatesSkus.join(", ")
+                            : "—"}
+                        </td>
+                        <td
+                          className="font-hanken text-[13px] px-[10px] py-[8px] max-w-[200px] truncate"
+                          title={f.shippingReturns}
+                        >
+                          {f.shippingReturns || "—"}
+                        </td>
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.ktStatus === "not_found"
+                            ? "DRAFT (forced)"
+                            : f.status}
+                        </td>
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.ktStatus === "unverified" && "—"}
+                          {f.ktStatus === "checking" && (
+                            <Loader2 size={14} className="animate-spin" />
+                          )}
+                          {f.ktStatus === "registered" && (
+                            <CheckCircle2
+                              size={14}
+                              className="text-emerald-600"
+                            />
                           )}
                           {f.ktStatus === "not_found" && (
-                            <p className="font-hanken text-[12px] text-amber-700 flex items-start gap-[6px] pl-[6px]">
-                              <AlertTriangle
-                                size={13}
-                                className="mt-[1px] shrink-0"
-                              />
-                              <span>
-                                fabric_code &ldquo;{f.fabricCode}&rdquo; not
-                                found in KuteTailor — it will be imported as
-                                DRAFT (only KuteTailor-registered fabrics can go
-                                ACTIVE).
-                              </span>
-                            </p>
+                            <span
+                              className="flex items-center gap-[4px] text-amber-600"
+                              title="Not in KuteTailor — will import as Draft"
+                            >
+                              <AlertTriangle size={14} />
+                            </span>
                           )}
-                          {f.errors.length > 0 &&
-                            !collapsedErrors.has(idx) && (
-                              <ul className="font-hanken text-[12px] text-red-700 list-disc pl-[28px] space-y-[2px]">
-                                {f.errors.map((err, i) => (
-                                  <li key={i}>{err}</li>
-                                ))}
-                              </ul>
-                            )}
+                        </td>
+                        <td className="font-hanken text-[13px] px-[10px] py-[8px]">
+                          {f.errors.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleErrors(idx)}
+                              className="flex items-center gap-[4px] text-red-600 hover:text-red-700 cursor-pointer"
+                            >
+                              <XCircle size={14} />
+                              {f.errors.length} error
+                              {f.errors.length !== 1 ? "s" : ""}
+                              {collapsedErrors.has(idx) ? (
+                                <ChevronRight size={14} />
+                              ) : (
+                                <ChevronDown size={14} />
+                              )}
+                            </button>
+                          ) : f.importStatus === "creating" ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : f.importStatus === "done" ? (
+                            <span className="flex items-center gap-[4px] text-emerald-600">
+                              <CheckCircle2 size={14} />
+                              Created
+                            </span>
+                          ) : f.importStatus === "failed" ? (
+                            <span
+                              className="flex items-center gap-[4px] text-red-600"
+                              title={f.importError}
+                            >
+                              <XCircle size={14} />
+                              Failed
+                            </span>
+                          ) : (
+                            "Pending"
+                          )}
                         </td>
                       </tr>
-                    )}
+                      {((f.errors.length > 0 && !collapsedErrors.has(idx)) ||
+                        f.ktStatus === "not_found" ||
+                        f.importStatus === "failed") && (
+                          <tr className="bg-red-50/60">
+                            <td
+                              colSpan={14}
+                              className="px-[10px] pb-[10px] pt-0 space-y-[6px]"
+                            >
+                              {f.importStatus === "failed" && f.importError && (
+                                <p className="font-hanken text-[12px] text-red-700 flex items-start gap-[6px] pl-[6px]">
+                                  <XCircle size={13} className="mt-[1px] shrink-0" />
+                                  <span>Import failed: {f.importError}</span>
+                                </p>
+                              )}
+                              {f.ktStatus === "not_found" && (
+                                <p className="font-hanken text-[12px] text-amber-700 flex items-start gap-[6px] pl-[6px]">
+                                  <AlertTriangle
+                                    size={13}
+                                    className="mt-[1px] shrink-0"
+                                  />
+                                  <span>
+                                    fabric_code &ldquo;{f.fabricCode}&rdquo; not
+                                    found in KuteTailor — it will be imported as
+                                    DRAFT (only KuteTailor-registered fabrics can go
+                                    ACTIVE).
+                                  </span>
+                                </p>
+                              )}
+                              {f.errors.length > 0 &&
+                                !collapsedErrors.has(idx) && (
+                                  <ul className="font-hanken text-[12px] text-red-700 list-disc pl-[28px] space-y-[2px]">
+                                    {f.errors.map((err, i) => (
+                                      <li key={i}>{err}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                            </td>
+                          </tr>
+                        )}
                     </Fragment>
                   ))}
                 </tbody>

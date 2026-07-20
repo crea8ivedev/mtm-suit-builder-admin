@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   Plus,
   Search,
   SlidersHorizontal,
@@ -18,6 +19,10 @@ import { fetchFabricProductsV2 } from "../lib/shopify";
 
 const NO_BRAND = "No Brand";
 const UNCATEGORIZED = "Uncategorized";
+const STORE_DOMAIN = (import.meta.env.VITE_SHOPIFY_STORE_DOMAIN ?? "").replace(
+  /\/$/,
+  "",
+);
 
 function formatPrice(amount, currencyCode) {
   try {
@@ -167,6 +172,25 @@ function FabricRow({ product }) {
       <p className="font-hanken text-[13px] text-gc-primary font-medium flex-shrink-0 w-[90px] text-right">
         {formatPrice(product.price, product.currencyCode)}
       </p>
+      {product.status === "ACTIVE" ? (
+        <a
+          href={`${STORE_DOMAIN}/products/${product.handle}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title="View on storefront"
+          className="flex-shrink-0 p-[6px] rounded-[6px] text-gc-muted hover:text-gc-primary hover:bg-gc-bg-warm transition-colors"
+        >
+          <ExternalLink size={14} />
+        </a>
+      ) : (
+        <span
+          title="Product is a draft"
+          className="flex-shrink-0 p-[6px] rounded-[6px] text-gc-muted opacity-40 cursor-not-allowed"
+        >
+          <ExternalLink size={14} />
+        </span>
+      )}
     </Link>
   );
 }

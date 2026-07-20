@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Loader2, Save, Trash2, X } from "lucide-react";
+import { ExternalLink, Loader2, Save, Trash2, X } from "lucide-react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
@@ -34,6 +34,8 @@ import {
   deleteFabricProduct,
   fetchDesignOptions,
   createDesignOption,
+  updateDesignOption,
+  deleteDesignOption,
   clearDesignOptionsCache,
   fetchDesignOptionTitleChoices,
   fetchActiveProductsForSeparates,
@@ -51,6 +53,11 @@ const EMPTY_FIELDS = {
 
 const SECTION_CLASS =
   "bg-white/40 rounded-[12px] p-[31px] border border-gc-border-input";
+
+const STORE_DOMAIN = (import.meta.env.VITE_SHOPIFY_STORE_DOMAIN ?? "").replace(
+  /\/$/,
+  "",
+);
 const SECTION_TITLE_CLASS =
   "font-garamond text-[28px] font-semibold text-gc-primary mb-[20px]";
 const INPUT_LABEL_CLASS =
@@ -97,6 +104,7 @@ export default function FabricForm({ mode, productId }) {
   const [title, setTitle] = useState("");
   const [titleTouched, setTitleTouched] = useState(false);
   const [status, setStatus] = useState("ACTIVE");
+  const [handle, setHandle] = useState(null);
 
   const [collections, setCollections] = useState([]);
   const [collectionsLoading, setCollectionsLoading] = useState(true);
@@ -109,6 +117,18 @@ export default function FabricForm({ mode, productId }) {
   const [designOptionTitleChoices, setDesignOptionTitleChoices] = useState(null);
   const [designOptionIds, setDesignOptionIds] = useState([]);
   const [fabricCareIds, setFabricCareIds] = useState([]);
+  const nonFabricCareOptions = useMemo(
+    () => designOptions.filter((o) => o.title?.toLowerCase() !== "none"),
+    [designOptions],
+  );
+  const nonFabricCareTitleChoices = useMemo(
+    () => designOptionTitleChoices?.filter((t) => t.toLowerCase() !== "none") ?? null,
+    [designOptionTitleChoices],
+  );
+  const fabricCareOptions = useMemo(
+    () => designOptions.filter((o) => o.title?.toLowerCase() === "none"),
+    [designOptions],
+  );
 
   const [shippingReturns, setShippingReturns] = useState("");
 
@@ -150,21 +170,21 @@ export default function FabricForm({ mode, productId }) {
   useEffect(() => {
     fetchGcFabrics()
       .then(setGcFabrics)
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setGcFabricsLoading(false));
   }, []);
 
   useEffect(() => {
     fetchCollections()
       .then(setCollections)
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setCollectionsLoading(false));
   }, []);
 
   useEffect(() => {
     fetchDesignOptions()
       .then(setDesignOptions)
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setDesignOptionsLoading(false));
     fetchDesignOptionTitleChoices()
       .then(setDesignOptionTitleChoices)
@@ -179,6 +199,23 @@ export default function FabricForm({ mode, productId }) {
       { id: created.id, title, label, value },
     ]);
     return created;
+  }
+
+  async function handleUpdateDesignOption(id, { title, label, value }) {
+    const updated = await updateDesignOption(id, { title, label, value });
+    clearDesignOptionsCache();
+    setDesignOptions((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, title, label, value } : o)),
+    );
+    return updated;
+  }
+
+  async function handleDeleteDesignOption(id) {
+    await deleteDesignOption(id);
+    clearDesignOptionsCache();
+    setDesignOptions((prev) => prev.filter((o) => o.id !== id));
+    setDesignOptionIds((prev) => prev.filter((i) => i !== id));
+    setFabricCareIds((prev) => prev.filter((i) => i !== id));
   }
 
   // Union two product lists by id, and union each product's variants by id —
@@ -206,7 +243,7 @@ export default function FabricForm({ mode, productId }) {
   useEffect(() => {
     fetchActiveProductsForSeparates()
       .then((list) => setActiveProducts((prev) => mergeProductLists(list, prev)))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setActiveProductsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -223,6 +260,7 @@ export default function FabricForm({ mode, productId }) {
         setTitle(detail.title);
         setTitleTouched(true);
         setStatus(detail.status);
+        setHandle(detail.handle);
         setCollectionIds(detail.collectionIds);
         setOriginalCollectionIds(detail.collectionIds);
         setDescription(detail.description || "");
@@ -383,7 +421,7 @@ export default function FabricForm({ mode, productId }) {
   }
 
   function handleCreateInKuteTailor() {
-    navigator.clipboard?.writeText(fields.fabricCode.trim()).catch(() => {});
+    navigator.clipboard?.writeText(fields.fabricCode.trim()).catch(() => { });
     window.open(
       "https://platform.kutetailor.com/system/materialLibrary",
       "_blank",
@@ -690,14 +728,35 @@ export default function FabricForm({ mode, productId }) {
             </p>
           </div>
           {isEdit && (
-            <button
-              type="button"
-              onClick={() => setShowDeleteModal(true)}
-              className="flex-shrink-0 flex items-center gap-[8px] font-hanken font-semibold text-[13px] text-red-700 h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80 border border-red-700"
-            >
-              <Trash2 size={14} />
-              Delete Fabric
-            </button>
+            <div className="flex-shrink-0 flex items-center gap-[12px]">
+              {status === "ACTIVE" ? (
+                <a
+                  href={`${STORE_DOMAIN}/products/${handle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-[8px] font-hanken font-semibold text-[13px] text-gc-dark h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80 border border-gray-300"
+                >
+                  <ExternalLink size={14} />
+                  View on Shopify
+                </a>
+              ) : (
+                <span
+                  title="Product is a draft — not visible on the storefront"
+                  className="flex items-center gap-[8px] font-hanken font-semibold text-[13px] text-gc-muted h-[38px] px-[16px] rounded-[8px] border border-gray-300 opacity-40 cursor-not-allowed"
+                >
+                  <ExternalLink size={14} />
+                  View on Shopify
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                className="flex items-center gap-[8px] font-hanken font-semibold text-[13px] text-red-700 h-[38px] px-[16px] rounded-[8px] cursor-pointer hover:opacity-80 border border-red-700"
+              >
+                <Trash2 size={14} />
+                Delete Fabric
+              </button>
+            </div>
           )}
         </div>
 
@@ -783,23 +842,27 @@ export default function FabricForm({ mode, productId }) {
             <div>
               <label className={INPUT_LABEL_CLASS}>Design Options</label>
               <DesignOptionsPicker
-                options={designOptions}
+                options={nonFabricCareOptions}
                 selectedIds={designOptionIds}
                 onChange={setDesignOptionIds}
                 loading={designOptionsLoading}
                 onCreateOption={handleCreateDesignOption}
-                titleChoices={designOptionTitleChoices}
+                onUpdateOption={handleUpdateDesignOption}
+                onDeleteOption={handleDeleteDesignOption}
+                titleChoices={nonFabricCareTitleChoices}
               />
             </div>
             <div>
               <label className={INPUT_LABEL_CLASS}>Fabric &amp; Care</label>
               <DesignOptionsPicker
-                options={designOptions}
+                options={fabricCareOptions}
                 selectedIds={fabricCareIds}
                 onChange={setFabricCareIds}
                 loading={designOptionsLoading}
                 onCreateOption={handleCreateDesignOption}
-                titleChoices={designOptionTitleChoices}
+                onUpdateOption={handleUpdateDesignOption}
+                onDeleteOption={handleDeleteDesignOption}
+                fixedTitle="None"
               />
             </div>
             <div>

@@ -1,8 +1,3 @@
-// Converts between Tiptap/ProseMirror doc JSON and Shopify's rich text
-// metafield JSON schema (https://shopify.dev/docs/apps/build/custom-data/metafields/types#rich-text-field).
-// Only the node types the DescriptionEditor toolbar can produce are handled:
-// paragraph, text (bold/italic marks), link mark, bulletList, orderedList.
-
 function convertInlineToShopify(node) {
   if (node.type !== "text" || !node.text) return null;
   const marks = node.marks || [];
@@ -38,8 +33,7 @@ function convertBlockToShopify(node) {
       })),
     };
   }
-  // Unknown block types (e.g. blockquote) — fall back to a plain paragraph
-  // of their inline content so nothing silently disappears.
+
   return {
     type: "paragraph",
     children: (node.content || []).map(convertInlineToShopify).filter(Boolean),
@@ -53,10 +47,6 @@ export function tiptapDocToShopifyRichText(doc) {
 
 function convertInlineFromShopify(node) {
   if (node.type === "text") {
-    // ProseMirror text nodes cannot be empty (throws "Empty text nodes are
-    // not allowed") — Shopify admin writes these as blank-line separators
-    // between paragraphs. Drop the node; the enclosing (now-empty) paragraph
-    // still renders as a blank line.
     if (!node.value) return [];
     const marks = [];
     if (node.bold) marks.push({ type: "bold" });
@@ -75,10 +65,6 @@ function convertInlineFromShopify(node) {
 
 function convertBlockFromShopify(node) {
   if (node.type === "list") {
-    // ProseMirror's bulletList/orderedList schema requires at least one
-    // listItem — an emptied-out list (e.g. all items deleted directly in
-    // Shopify admin, leaving a bare list node) would otherwise be invalid
-    // content and throw when Tiptap loads it, blanking the whole editor.
     const items = node.children || [];
     if (!items.length) return null;
     return {
@@ -94,17 +80,12 @@ function convertBlockFromShopify(node) {
       })),
     };
   }
-  // paragraph and heading (rendered as a paragraph — no heading button in the toolbar)
   return {
     type: "paragraph",
     content: (node.children || []).flatMap(convertInlineFromShopify),
   };
 }
 
-// Last-resort fallback — walk any shape of Shopify rich text and pull out
-// every text "value" it can find, one paragraph per top-level block. Used
-// when the structured conversion above fails, so a shape mismatch loses
-// formatting rather than the entire description.
 function extractPlainTextParagraphs(parsed) {
   function collectText(node, out) {
     if (!node || typeof node !== "object") return;
@@ -121,6 +102,105 @@ function extractPlainTextParagraphs(parsed) {
     .filter((text) => text)
     .map((text) => ({ type: "paragraph", content: [{ type: "text", text }] }));
   return { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
+}
+
+export function plainTextToShopifyRichText(text) {
+  if (!text) return null;
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!lines.length) return null;
+  return JSON.stringify({
+    type: "root",
+    children: lines.map((line) => ({
+      type: "paragraph",
+      children: [{ type: "text", value: line }],
+    })),
+  });
+}
+
+function decodeHtmlEntities(str) {
+  return str
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
+}
+
+function parseHtmlLineRuns(lineHtml) {
+  const stripped = lineHtml.replace(/<\/?span[^>]*>/gi, "");
+  const nodes = [];
+  const pattern = /<b>([\s\S]*?)<\/b>|<i>([\s\S]*?)<\/i>|([^<]+)/g;
+  let m;
+  while ((m = pattern.exec(stripped))) {
+    if (m[1] !== undefined) {
+      nodes.push({ type: "text", value: decodeHtmlEntities(m[1]), bold: true });
+    } else if (m[2] !== undefined) {
+      nodes.push({ type: "text", value: decodeHtmlEntities(m[2]), italic: true });
+    } else if (m[3] !== undefined) {
+      nodes.push({ type: "text", value: decodeHtmlEntities(m[3]) });
+    }
+  }
+  return nodes.filter((n) => n.value.length);
+}
+
+function isBlankRunLine(runs) {
+  return !runs.some((r) => r.value.trim());
+}
+
+function stripLeadingChars(runs, n) {
+  let remaining = n;
+  const out = [];
+  for (const r of runs) {
+    if (remaining <= 0) {
+      out.push(r);
+    } else if (r.value.length <= remaining) {
+      remaining -= r.value.length;
+    } else {
+      out.push({ ...r, value: r.value.slice(remaining) });
+      remaining = 0;
+    }
+  }
+  return out;
+}
+
+export function xlsxCellHtmlToShopifyRichText(html) {
+  if (!html) return null;
+  const lines = html.split(/<br\s*\/?>/i).map(parseHtmlLineRuns);
+  while (lines.length && isBlankRunLine(lines[0])) lines.shift();
+  while (lines.length && isBlankRunLine(lines[lines.length - 1])) lines.pop();
+  if (!lines.length) return null;
+
+  const children = [];
+  let currentList = null;
+  for (const runs of lines) {
+    if (isBlankRunLine(runs)) {
+      currentList = null;
+      children.push({ type: "paragraph", children: [] });
+      continue;
+    }
+    const rawConcat = runs.map((r) => r.value).join("");
+    const trimmedStart = rawConcat.replace(/^\s+/, "");
+    const bulletMatch = trimmedStart.match(/^[-*]\s+/);
+    if (bulletMatch) {
+      const stripLen = rawConcat.length - trimmedStart.length + bulletMatch[0].length;
+      if (!currentList) {
+        currentList = { type: "list", listType: "unordered", children: [] };
+        children.push(currentList);
+      }
+      currentList.children.push({
+        type: "list-item",
+        children: stripLeadingChars(runs, stripLen),
+      });
+    } else {
+      currentList = null;
+      children.push({ type: "paragraph", children: runs });
+    }
+  }
+  return JSON.stringify({ type: "root", children });
 }
 
 export function shopifyRichTextToTiptapDoc(value) {

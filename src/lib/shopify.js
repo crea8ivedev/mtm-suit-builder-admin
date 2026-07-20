@@ -424,8 +424,8 @@ export async function addVariantToProduct(
     ...(imageUrl && { mediaSrc: [imageUrl] }),
     ...(price !== null &&
       price !== undefined && {
-        price: price.toString(),
-      }),
+      price: price.toString(),
+    }),
   };
 
   const variables = { productId, variants: [variantInput] };
@@ -1893,7 +1893,7 @@ async function resolveFileGidUrls(gids) {
       for (const node of data.nodes ?? []) {
         if (node?.image?.url) map[node.id] = node.image.url;
       }
-    } catch {}
+    } catch { }
   }
   return map;
 }
@@ -2214,7 +2214,7 @@ export async function fetchLiningCodes() {
         const parsed = JSON.parse(fm.garment || "[]");
         const arr = Array.isArray(parsed) ? parsed : [];
         garments = arr.some((g) => g.toLowerCase() === "all") ? [] : arr;
-      } catch {}
+      } catch { }
       results.push({
         id: node.id,
         handle: node.handle,
@@ -2313,7 +2313,7 @@ export async function fetchButtonCodes() {
         const parsed = JSON.parse(fm.garment || "[]");
         const arr = Array.isArray(parsed) ? parsed : [];
         garments = arr.some((g) => g.toLowerCase() === "all") ? [] : arr;
-      } catch {}
+      } catch { }
       results.push({
         id: node.id,
         handle: node.handle,
@@ -2689,7 +2689,7 @@ export async function fetchShopifyColorPattern() {
       );
       const imageGid =
         typeof fieldMap.image === "string" &&
-        fieldMap.image.startsWith("gid://")
+          fieldMap.image.startsWith("gid://")
           ? fieldMap.image
           : null;
       all.push({
@@ -2729,7 +2729,7 @@ export async function fetchShopifyColorPattern() {
           f.imageGid = f._imageGid;
         }
       }
-    } catch {}
+    } catch { }
   }
 
   for (const f of all) delete f._imageGid;
@@ -2947,7 +2947,7 @@ export async function fetchGcFabrics() {
       for (const f of all) {
         if (f.imageGid && urlMap[f.imageGid]) f.imageUrl = urlMap[f.imageGid];
       }
-    } catch {}
+    } catch { }
   }
 
   _gcFabricsCache = all;
@@ -3099,6 +3099,28 @@ export async function createDesignOption({ title, label, value }) {
   return metaobject;
 }
 
+export async function updateDesignOption(id, { title, label, value }) {
+  const fieldInputs = [
+    { key: "title", value: title || "" },
+    { key: "label", value: label || "" },
+    { key: "value", value: value || "" },
+  ];
+  const data = await shopifyGraphQL(UPDATE_METAOBJECT_MUTATION, {
+    id,
+    metaobject: { fields: fieldInputs },
+  });
+  const { userErrors } = data.metaobjectUpdate;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectUpdate.metaobject;
+}
+
+export async function deleteDesignOption(id) {
+  const data = await shopifyGraphQL(DELETE_METAOBJECT_MUTATION, { id });
+  const { userErrors } = data.metaobjectDelete;
+  if (userErrors?.length) throw new Error(userErrors[0].message);
+  return data.metaobjectDelete.deletedId;
+}
+
 function parseChoicesValue(raw) {
   if (!raw) return null;
   try {
@@ -3242,6 +3264,7 @@ const GET_FABRIC_PRODUCTS_V2_QUERY = `
         node {
           id
           title
+          handle
           status
           featuredImage { url altText }
           priceRangeV2 { minVariantPrice { amount currencyCode } }
@@ -3292,6 +3315,7 @@ export async function fetchFabricProductsV2() {
       all.push({
         id: node.id,
         title: node.title,
+        handle: node.handle,
         status: node.status,
         price: node.priceRangeV2?.minVariantPrice?.amount ?? "0",
         currencyCode: node.priceRangeV2?.minVariantPrice?.currencyCode ?? "USD",
@@ -3483,10 +3507,16 @@ function appendCustomMetafields(
   return metafields;
 }
 
-// productCreate only creates ONE variant regardless of how many option
-// values are declared — it's linked to the first value of each option.
-// The rest of garmentTypes are turned into variants right after, via
-// createGarmentVariants (Shopify links them to these pre-declared values).
+async function setFabricCustomMetafields(productId, fields, { partial = false } = {}) {
+  const metafields = appendCustomMetafields([], fields, { partial });
+  if (!metafields.length) return;
+  const data = await shopifyGraphQL(SET_METAFIELDS, {
+    metafields: metafields.map((m) => ({ ...m, ownerId: productId })),
+  });
+  const errors = data.metafieldsSet?.userErrors ?? [];
+  if (errors.length) throw new Error(errors[0].message);
+}
+
 export async function createFabricProduct({
   title,
   status,
@@ -3500,42 +3530,45 @@ export async function createFabricProduct({
   separatesIds,
   shippingReturns,
 }) {
-  const metafields = appendCustomMetafields(
-    [
-      {
-        namespace: "custom",
-        key: "fabric",
-        type: "metaobject_reference",
-        value: gcFabricMetaobjectId,
-      },
-    ],
-    { description, designOptionIds, fabricCareIds, separatesIds, shippingReturns },
-  );
   const data = await shopifyGraphQL(PRODUCT_CREATE_MUTATION, {
     product: {
       title,
       status,
-      metafields,
+      metafields: [
+        {
+          namespace: "custom",
+          key: "fabric",
+          type: "metaobject_reference",
+          value: gcFabricMetaobjectId,
+        },
+      ],
       productOptions: garmentTypes.length
         ? [
-            {
-              name: "Type",
-              values: garmentTypes.map((name) => ({ name })),
-            },
-          ]
+          {
+            name: "Type",
+            values: garmentTypes.map((name) => ({ name })),
+          },
+        ]
         : undefined,
       collectionsToJoin: collectionIds?.length ? collectionIds : undefined,
     },
     media: media?.length
       ? media.map(({ cdnUrl, alt }) => ({
-          originalSource: cdnUrl,
-          alt: alt || "",
-          mediaContentType: "IMAGE",
-        }))
+        originalSource: cdnUrl,
+        alt: alt || "",
+        mediaContentType: "IMAGE",
+      }))
       : undefined,
   });
   const { product, userErrors } = data.productCreate;
   if (userErrors?.length) throw new Error(userErrors[0].message);
+  await setFabricCustomMetafields(product.id, {
+    description,
+    designOptionIds,
+    fabricCareIds,
+    separatesIds,
+    shippingReturns,
+  });
   await publishToOnlineStore(product.id);
   return product;
 }
@@ -3657,11 +3690,6 @@ export async function updateFabricProduct(
     shippingReturns,
   },
 ) {
-  const metafields = appendCustomMetafields(
-    [],
-    { description, designOptionIds, fabricCareIds, separatesIds, shippingReturns },
-    { partial: true },
-  );
   const data = await shopifyGraphQL(PRODUCT_UPDATE_MUTATION, {
     product: {
       id: productId,
@@ -3673,18 +3701,22 @@ export async function updateFabricProduct(
       collectionsToLeave: collectionsToLeave?.length
         ? collectionsToLeave
         : undefined,
-      metafields: metafields.length ? metafields : undefined,
     },
     media: media?.length
       ? media.map(({ cdnUrl, alt }) => ({
-          originalSource: cdnUrl,
-          alt: alt || "",
-          mediaContentType: "IMAGE",
-        }))
+        originalSource: cdnUrl,
+        alt: alt || "",
+        mediaContentType: "IMAGE",
+      }))
       : undefined,
   });
   const { userErrors } = data.productUpdate;
   if (userErrors?.length) throw new Error(userErrors[0].message);
+  await setFabricCustomMetafields(
+    productId,
+    { description, designOptionIds, fabricCareIds, separatesIds, shippingReturns },
+    { partial: true },
+  );
   return data.productUpdate.product;
 }
 
@@ -3817,7 +3849,7 @@ const GET_STYLE_OPTIONS_VARIANTS_QUERY = `
 async function findStyleOptionVariantByLabel(optionValueLabel) {
   const productId = await getOrCreateStyleOptionsProduct();
   let cursor = null;
-  for (;;) {
+  for (; ;) {
     const data = await shopifyGraphQL(GET_STYLE_OPTIONS_VARIANTS_QUERY, {
       id: productId,
       cursor,
@@ -3904,6 +3936,7 @@ const GET_FABRIC_PRODUCT_DETAIL_QUERY = `
     product(id: $id) {
       id
       title
+      handle
       status
       collections(first: 20) {
         edges { node { id title } }
@@ -4057,6 +4090,7 @@ export async function fetchFabricProductDetail(productId) {
   return {
     id: product.id,
     title: product.title,
+    handle: product.handle,
     status: product.status,
     collectionIds: (product.collections?.edges ?? []).map((e) => e.node.id),
     description: product.metafieldDescription?.value ?? "",
@@ -4070,14 +4104,14 @@ export async function fetchFabricProductDetail(productId) {
     gcFabricId: metaobject?.id ?? null,
     gcFabric: gcFabric
       ? {
-          fabricCode: gcFabric.fabric_code ?? "",
-          fabricHouse: gcFabric.fabric_house ?? "",
-          color: gcFabric.color ?? "",
-          material: gcFabric.material ?? "",
-          weight: gcFabric.weight ?? "",
-          imageGid,
-          imageUrl: imageField?.reference?.image?.url ?? null,
-        }
+        fabricCode: gcFabric.fabric_code ?? "",
+        fabricHouse: gcFabric.fabric_house ?? "",
+        color: gcFabric.color ?? "",
+        material: gcFabric.material ?? "",
+        weight: gcFabric.weight ?? "",
+        imageGid,
+        imageUrl: imageField?.reference?.image?.url ?? null,
+      }
       : null,
     images: (product.media?.edges ?? [])
       .map(({ node }) => ({
