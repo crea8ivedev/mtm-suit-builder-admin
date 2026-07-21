@@ -66,12 +66,7 @@ const INPUT_CLASS =
   "font-hanken w-full bg-white px-[14px] h-[48px] rounded-[4px] text-[14px] text-[#1c1c19] outline-none border border-gc-scrollbar-thumb/60 placeholder:text-gc-muted";
 
 function suggestTitle(fields) {
-  const parts = [fields.fabricHouse, fields.fabricCode, fields.color].filter(
-    Boolean,
-  );
-  if (!fields.fabricHouse) return parts.join(" ");
-  const rest = [fields.fabricCode, fields.color].filter(Boolean).join(" ");
-  return rest ? `${fields.fabricHouse} - ${rest}` : fields.fabricHouse;
+  return [fields.fabricHouse, fields.color, "Suit"].filter(Boolean).join(" ");
 }
 
 export default function FabricForm({ mode, productId }) {

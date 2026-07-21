@@ -2767,6 +2767,30 @@ export async function syncStyleOptionImageUrls(options) {
   return toSync.length;
 }
 
+// Backfills the "image" file_reference on gc_contrast_location metaobjects —
+// admin only shows these via a client-side KuteTailor CDN URL fallback, so
+// without this the image never actually reaches Shopify (no image_url text
+// field exists on this metaobject type, unlike gc_contrast_option).
+export async function syncContrastLocationImages(locations) {
+  const toSync = locations.filter(
+    (l) => l.kutetailerCode && !l.imageGid,
+  );
+  if (!toSync.length) return 0;
+  const results = await Promise.allSettled(
+    toSync.map(async (l) => {
+      const url = kuteTailorCraftImageUrl(l.kutetailerCode);
+      if (!url) return;
+      const gid = await createImageFromUrl(url);
+      if (!gid) return;
+      await updateContrastLocation(l.id, { image: gid });
+    }),
+  );
+  const failed = results.filter((r) => r.status === "rejected");
+  if (failed.length) throw new Error(`${failed.length} update(s) failed`);
+  clearContrastLocationsCache();
+  return toSync.length;
+}
+
 // ─── Order Editing API ────────────────────────────────────────────────────────
 
 const ORDER_EDIT_BEGIN = `

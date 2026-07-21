@@ -24,6 +24,7 @@ import {
   updateStyleOption,
   clearStyleOptionsCache,
   syncStyleOptionImageUrls,
+  syncContrastLocationImages,
   GARMENT_TO_STYLE_TYPE,
   updateContrastOption,
   updateContrastLocation,
@@ -218,6 +219,14 @@ export default function StyleAdjustments() {
     }, 3000);
     return () => clearTimeout(timer);
   }, [options]);
+
+  useEffect(() => {
+    if (!contrastLocations.length) return;
+    const timer = setTimeout(() => {
+      syncContrastLocationImages(contrastLocations).catch(() => {});
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [contrastLocations]);
 
   // Category-reorder saves are a batch of sequential network calls (one per
   // option in the category) — block accidental reload/close mid-save so it
