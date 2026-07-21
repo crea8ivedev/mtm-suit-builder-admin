@@ -114,21 +114,40 @@ function decodeHtmlEntities(str) {
     .replace(/&amp;/g, "&");
 }
 
+// SheetJS's rich-run-to-html writer closes tags in the same order it opens
+// them (e.g. `<b><i>text</b></i>` for a run that's both bold and italic)
+// instead of the reverse order proper nesting requires. A regex that pairs
+// each `<b>...</b>` / `<i>...</i>` as a matched span breaks on that — it
+// swallows the inner `<i>` as literal text and leaks the stray `</i>`. Track
+// bold/italic as running state through a flat token stream instead, so
+// which tag "belongs" to which doesn't matter — only when each is on or off.
 function parseHtmlLineRuns(lineHtml) {
   const stripped = lineHtml.replace(/<\/?span[^>]*>/gi, "");
   const nodes = [];
-  const pattern = /<b>([\s\S]*?)<\/b>|<i>([\s\S]*?)<\/i>|([^<]+)/g;
+  const tokenPattern =
+    /<\/?b>|<\/?i>|<\/?[a-zA-Z][a-zA-Z0-9]*(?:\s[^>]*)?>|[^<]+/gi;
+  let bold = false;
+  let italic = false;
   let m;
-  while ((m = pattern.exec(stripped))) {
-    if (m[1] !== undefined) {
-      nodes.push({ type: "text", value: decodeHtmlEntities(m[1]), bold: true });
-    } else if (m[2] !== undefined) {
-      nodes.push({ type: "text", value: decodeHtmlEntities(m[2]), italic: true });
-    } else if (m[3] !== undefined) {
-      nodes.push({ type: "text", value: decodeHtmlEntities(m[3]) });
+  while ((m = tokenPattern.exec(stripped))) {
+    const tok = m[0];
+    if (/^<b>$/i.test(tok)) bold = true;
+    else if (/^<\/b>$/i.test(tok)) bold = false;
+    else if (/^<i>$/i.test(tok)) italic = true;
+    else if (/^<\/i>$/i.test(tok)) italic = false;
+    else if (tok[0] !== "<") {
+      const value = decodeHtmlEntities(tok);
+      if (value.length) {
+        const node = { type: "text", value };
+        if (bold) node.bold = true;
+        if (italic) node.italic = true;
+        nodes.push(node);
+      }
     }
+    // any other recognized tag (<s>, <sup>, etc.) is consumed and discarded —
+    // formatting we don't support, but its text content is kept.
   }
-  return nodes.filter((n) => n.value.length);
+  return nodes;
 }
 
 function isBlankRunLine(runs) {
